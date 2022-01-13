@@ -1,6 +1,6 @@
 from builtins import list
 from numpy.core._multiarray_umath import ndarray
-from LIM.LIM_SlotPoleCalculation import*
+from LIM.SlotPoleCalculation import*
 from collections import deque
 
 

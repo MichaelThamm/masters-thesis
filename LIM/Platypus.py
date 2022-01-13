@@ -1,6 +1,6 @@
 import numpy as np
 
-from LIM.LIM_Show import *
+from LIM.Show import *
 import json
 
 '''

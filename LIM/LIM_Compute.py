@@ -1,5 +1,5 @@
-from LIM.LIM_Grid import *
-from LIM.LIM_SlotPoleCalculation import np
+from LIM.Grid import *
+from LIM.SlotPoleCalculation import np
 from scipy.linalg import lu_factor, lu_solve
 import matplotlib.pyplot as plt
 # from functools import lru_cache

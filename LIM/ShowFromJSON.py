@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-from LIM.LIM_Platypus import construct, LIM_Show, LimMotor
+from LIM.Platypus import construct, LIM_Show, LimMotor
 
 
 def plotPointsAlongX(iGridInfo, iGridMatrix, iY):
