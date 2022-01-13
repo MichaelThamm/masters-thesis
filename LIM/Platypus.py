@@ -229,7 +229,7 @@ def profile_main():
 
 def main():
 
-    pixelDivisions = 2
+    pixelDivisions = 12
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
