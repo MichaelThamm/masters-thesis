@@ -1,4 +1,4 @@
-from LIM.LIM_Compute import *
+from LIM.Compute import *
 from tkinter import *
 import matplotlib as mpl
 import matplotlib.pyplot as plt
