@@ -38,7 +38,7 @@ class LimMotor(object):
     def __init__(self, slots, poles, length):
 
         self.errorDict = TransformedDict()
-        print('gayyyyy')
+
         # Kinematic Variables
         mass = 250
         max_vel = 500*(1000/3600)
