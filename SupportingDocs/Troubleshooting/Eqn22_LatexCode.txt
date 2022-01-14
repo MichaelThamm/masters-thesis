@@ -1,0 +1,16 @@
+(\frac{-2}{\mu_{o} \mu_{r}^{MEC} j w_{n} T_{per}})
+(e^{-jw_{n} (x_{r} (l, k) - vt)} - e^{-jw_{n} (x_{l} (l, k) - vt)}) 
+(\frac{\psi_{current} (\frac{e^{j 2 \pi ft}}{R_{x}(l, k) + R_{x}(l, kn)} - 
+\frac{e^{j 2 \pi ft}}{R_{x}(l, k) + R_{x}(l, kp)}) + 
+\psi_{west} (\frac{-e^{j 2 \pi ft}}{R_{x}(l, k) + R_{x}(l, kn)}) + 
+\psi_{east} (\frac{e^{j 2 \pi ft}}{R_{x}(l, k) + R_{x}(l, kp)}}{2S_{zy}(l, k)} ) -
+
+\frac{\lambda_{n} ( a_{n} e^{\lambda_{n} y} - b_{n} e^{-\lambda_{n} y}) e^{j w_{n} x} e^{j(2 \pi f t + w_{n} v t)}}{\mu_{o} \mu_{r}^{HM}}
+=
+
+\frac{2 (e^{-jw_{n} (x_{r} (l, k) - vt)} - e^{-jw_{n} (x_{l} (l, k) - vt)})}
+{\mu_{o} \mu_{r}^{MEC} j w_{n} T_{per}} 
+(\frac{F_{current} (\frac{1}{R_{x}(l, k) + R_{x}(l, kn)} + 
+\frac{1}{R_{x}(l, k) + R_{x}(l, kp)}) + 
+F_{west} (\frac{1}{R_{x}(l, k) + R_{x}(l, kn)}) + 
+F_{east} (\frac{1}{R_{x}(l, k) + R_{x}(l, kp)}}{2S_{zy}(l, k)} )
