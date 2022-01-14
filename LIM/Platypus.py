@@ -190,11 +190,12 @@ def construct(iDict, iArrayShape):
 def jsonStoreSolution(model):
 
     destructedMatA = destruct(model)
+    # D:\Projects\Github\MaSc\Output
     # Data written to file
-    with open("../Output/StoredSolutionData.json", 'w') as StoredSolutionData:
+    with open("D:\Projects\Github\MaSc\Output/StoredSolutionData.json", 'w') as StoredSolutionData:
         json.dump(destructedMatA, StoredSolutionData)
     # Data read from file
-    with open("../Output/StoredSolutionData.json") as StoredSolutionData:
+    with open("D:\Projects\Github\MaSc\Output/StoredSolutionData.json") as StoredSolutionData:
         dictionary = json.load(StoredSolutionData)
 
     gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList = construct(iDict=dictionary, iArrayShape=model.matrix.shape)
@@ -222,7 +223,7 @@ def profile_main():
 
     # logging.info("Profile data:\n%s", stream.getvalue())
 
-    f = open('../Output/profile.txt', 'a')
+    f = open('Output/profile.txt', 'a')
     f.write(stream.getvalue())
     f.close()
 
@@ -295,9 +296,6 @@ def main():
     canvasSpacing = 80
 
     # Object for the model design, grid, and matrices
-    # TODO Create a unit test for initializing Model object which would include LimMotor and Grid
-    #  I have looked through all members using the debugger and it looks correct if pixelDivisions = 5
-    #  Keep in mind this only validates the __init__ of LimMotor, Grid, and Model not the methods of these classes
     model = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                   meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
                   hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16), mecRegions=np.array([1], dtype=np.int16))
@@ -307,15 +305,15 @@ def main():
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-16)
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    model.updateGrid(errorInX, showAirgapPlot=False)
 
     # After this point, the json implementations should be used to not branch code direction
     gridInfo, gridMatrix, gridErrorDict, gridHmUnknownsList, boolIdenticalLists = jsonStoreSolution(model)
 
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(gridInfo, gridMatrix, model, fieldType='MMF',
-                  showGrid=True, showFields=False, showFilter=False, showMatrix=False,
+        showModel(gridInfo, gridMatrix, model, fieldType='ur',
+                  showGrid=False, showFields=True, showFilter=False, showMatrix=False,
                   numColours=350, dims=[1080, 1920])
 
     else:
@@ -336,5 +334,5 @@ def main():
 
 
 if __name__ == '__main__':
-    profile_main()  # To profile the main execution
-    # main()
+    # profile_main()  # To profile the main execution
+    main()

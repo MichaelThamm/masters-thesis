@@ -103,7 +103,6 @@ class Model(Grid):
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        # TODO The paper says this should be a 2 not a 1 in the numerator
         coeff = - 1 / (j_plex * wn * self.Tper)
 
         if lowerUpper == 'lower':

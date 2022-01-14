@@ -58,12 +58,10 @@ def minMaxField(info, grid, attName, filtered, showFilter):
 
     tFilteredNoEmpties = list(filter(lambda x: True if x != [] else False, tFiltered))
 
-    maxAttr = max(map(max, [[x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for x in y] for y in tFilteredNoEmpties]))
-    minAttr = min(map(min, [[x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for x in y] for y in tFilteredNoEmpties]))
-    maxScale = maxAttr
-    minScale = minAttr
+    maxScale = max(map(max, [[x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for x in y] for y in tFilteredNoEmpties]))
+    minScale = min(map(min, [[x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for x in y] for y in tFilteredNoEmpties]))
 
-    return minScale, maxScale
+    return minScale.real, maxScale.real
 
 
 def combineFilterList(pixelsPer, unfilteredRows, unfilteredRowCols):
@@ -226,8 +224,7 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
 
 def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, showFilter, showMatrix, numColours, dims):
 
-    fieldsList = ['yCenter', 'xCenter', 'Rx', 'Ry', 'R', 'MMF', 'Yk', 'Iph', 'Szy', 'Sxz', 'Bx', 'By', 'B', 'phiXp', 'phiXn', 'phiYp', 'phiYn', 'phiError', 'Fx', 'Fy', 'F']
-
+    # TODO Why would we pass in both gridInfo and gridMatrix? Doesn't that defeat the purpose of dumping to json
     # Create the grid canvas to display the grid mesh
     if showGrid:
         rootGrid = Tk()
@@ -242,14 +239,8 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
             i += 1
         rootGrid.mainloop()
 
-    if fieldType not in fieldsList:
-        model.writeErrorToDict(key='name',
-                               error=Error(name='wrongField',
-                                           description=f'ERROR - Field Analysis Error. Selected Field Type Not In Fields List {fieldsList}',
-                                           cause=True))
-
     # Color nodes based on node values
-    elif showFields or showFilter:
+    if showFields or showFilter:
 
         # This is for troubleshooting the distribution of flux error in the mesh
         testReal = np.array([[gridMatrix[i, j].phiError.real for j in np.arange(gridMatrix.shape[1])] for i in np.arange(gridMatrix.shape[0])])
@@ -258,7 +249,6 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
         sizeArrayReal = np.array([[0 if j == 0 else 20 for j in i] for i in testReal])
         sizeArrayImag = np.array([[0 if j == 0 else 20 for j in i] for i in testImag])
 
-        # TODO The matrixA graph is also not correct with pixelDivision
         l1 = gridInfo['ppL'] * gridInfo['ppVacuumLower']
         l2 = l1 + gridInfo['ppL']
         l3 = l2 + gridInfo['ppL'] * (gridInfo['ppHeight'] - 2)
