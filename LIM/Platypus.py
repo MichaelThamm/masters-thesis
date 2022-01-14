@@ -230,7 +230,7 @@ def profile_main():
 
 def main():
 
-    pixelDivisions = 12
+    pixelDivisions = 2
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -312,7 +312,7 @@ def main():
 
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(gridInfo, gridMatrix, model, fieldType='ur',
+        showModel(gridInfo, gridMatrix, model, fieldType='MMF',
                   showGrid=False, showFields=True, showFilter=False, showMatrix=False,
                   numColours=350, dims=[1080, 1920])
 

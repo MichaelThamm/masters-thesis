@@ -33,15 +33,20 @@ def determineColour(grid, gridInfo, iI, iJ, field):
 
     if str(type(grid[iI, iJ].__dict__[fieldType])).split("'")[1] in gridInfo['complexTypeList']:
         myNumber = myColourNumber(iFieldsScale, grid[iI, iJ].__dict__[fieldType].real)
+        valEqZero = True if grid[iI, iJ].__dict__[fieldType].real == 0 else False
     else:
         myNumber = myColourNumber(iFieldsScale, grid[iI, iJ].__dict__[fieldType])
+        valEqZero = True if grid[iI, iJ].__dict__[fieldType] == 0 else False
 
     # noinspection PyUnboundLocalVariable
     colorScaleIndex = np.where(iFieldsScale == myNumber)
     if colorScaleIndex[0][0] == len(iStoColours):
         print('OH MY LAWD ITS A FIRE')
         colorScaleIndex[0][0] = len(iStoColours) - 1
-    oOverRideColour = iStoColours[colorScaleIndex[0][0]]
+    if valEqZero:
+        oOverRideColour = matList[-1][1]
+    else:
+        oOverRideColour = iStoColours[colorScaleIndex[0][0]]
 
     return oOverRideColour
 
