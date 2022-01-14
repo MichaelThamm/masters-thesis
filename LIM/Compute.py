@@ -806,7 +806,7 @@ class Model(Grid):
 
                     # Eqn 14
                     self.matrix[i, j].phiXp = self.__postEqn14to15(self.matrix[i, rNode].Yk, self.matrix[i, j].Yk,
-                                                                   self.matrix[i, j].MMF, self.matrix[i, rNode].MMF,
+                                                                   self.matrix[i, rNode].MMF, self.matrix[i, j].MMF,
                                                                    self.matrix[i, rNode].Rx, self.matrix[i, j].Rx)
                     # Eqn 15
                     self.matrix[i, j].phiXn = self.__postEqn14to15(self.matrix[i, j].Yk, self.matrix[i, lNode].Yk,
@@ -875,9 +875,9 @@ class Model(Grid):
         genPhiError_min = (j.phiError for i in self.matrix for j in i)
         print(
             f'max error post processing is: {postProcessError_Phi} vs min error post processing: {min(genPhiError_min)} vs error in matX: {iErrorInX}')
-        # TODO Make sure this is actually a good test for error
-        if postProcessError_Phi > iErrorInX:
-            print(f'phiError: {postProcessError_Phi} vs error in matX: {iErrorInX}')
+
+        allowableError = 10 ** (-14)
+        if postProcessError_Phi > allowableError or iErrorInX > allowableError:
             self.writeErrorToDict(key='name',
                                    error=Error(name='violatedKCL',
                                                description="ERROR - Kirchhoff's current law is violated",
