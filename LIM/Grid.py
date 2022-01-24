@@ -613,10 +613,10 @@ class Grid(LimMotor):
         fraction = 1 / (self.ppSlotheight // 2)
         doubleBias = 2 - fraction / 2
         doubleCoilScaling = [doubleBias - i * fraction if i > 0 else doubleBias for i in range(self.ppSlotheight)]
-        # print(f'scaling: {doubleCoilScaling}')
 
         scalingLower, scalingUpper = 0.0, 0.0
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
+        turnAreaRatio = self.ppSlot
         i, j = 0, 0
         while i < self.ppH:
             while j < self.ppL:
@@ -692,8 +692,6 @@ class Grid(LimMotor):
                     scalingLower = 0.0
                     scalingUpper = 0.0
 
-                # turnAreaRatio is number of nodes in the x direction for a single coil
-                turnAreaRatio = self.ppSlot
                 self.matrix[i][j].Iph = self.Ip * angle_plex * time_plex
 
                 # Lower slots only
@@ -717,8 +715,6 @@ class Grid(LimMotor):
                     elif j in self.outUpper_slotsA or j in self.outUpper_slotsB or j in self.outUpper_slotsC:
                         inOutCoeffMMF = 1
                     else:
-                        if j not in self.removeUpperCoilIdxs:
-                            print('Shouldnt happen')
                         inOutCoeffMMF = 0
 
                     self.matrix[i][j].MMF = inOutCoeffMMF * scalingUpper * self.N * self.matrix[i][j].Iph / (
@@ -740,9 +736,9 @@ class Grid(LimMotor):
         # The difference between expected and actual is rounded due to quantization error
         #  in the 64 bit floating point arithmetic
 
-        yIdx = self.ppVacuumLower + self.ppYokeheight
-
         # X direction Checks
+
+        yIdx = 0
         # Check grid spacing to slotpitch
         if round(self.slotpitch - self.Spacing * pixelDivision, 12) != 0:
             print(f'flag - iGrid spacing: {self.slotpitch - self.Spacing * pixelDivision}')
@@ -777,33 +773,35 @@ class Grid(LimMotor):
             spatialDomainFlag = True
 
         # Y direction Checks
+
+        xIdx = 0
         # Check Vacuum Lower
-        if round(self.vacuumBoundary - (self.matrix[self.ppVacuumLower][0].y - self.matrix[0][0].y), 12) != 0:
-            print(f'flag - vacuum lower: {self.vacuumBoundary - (self.matrix[self.ppVacuumLower][0].y - self.matrix[0][0].y)}')
+        if round(self.vacuumBoundary - (self.matrix[self.ppVacuumLower][xIdx].y - self.matrix[0][xIdx].y), 12) != 0:
+            print(f'flag - vacuum lower: {self.vacuumBoundary - (self.matrix[self.ppVacuumLower][xIdx].y - self.matrix[0][xIdx].y)}')
             spatialDomainFlag = True
         # Check Vacuum Upper
-        if round(self.vacuumBoundary - (self.matrix[-1][0].y + self.matrix[-1][0].ly - self.matrix[-self.ppVacuumUpper][0].y), 12) != 0:
-            print(f'flag - vacuum upper: {self.vacuumBoundary - (self.matrix[-1][0].y + self.matrix[-1][0].ly - self.matrix[-self.ppVacuumUpper][0].y)}')
+        if round(self.vacuumBoundary - (self.matrix[-1][xIdx].y + self.matrix[-1][xIdx].ly - self.matrix[-self.ppVacuumUpper][xIdx].y), 12) != 0:
+            print(f'flag - vacuum upper: {self.vacuumBoundary - (self.matrix[-1][xIdx].y + self.matrix[-1][xIdx].ly - self.matrix[-self.ppVacuumUpper][xIdx].y)}')
             spatialDomainFlag = True
         # Check Yoke
-        if round(self.hy - (self.matrix[yIdx][0].y - self.matrix[self.ppVacuumLower][0].y), 12) != 0:
-            print(f'flag - yoke: {self.hy - (self.matrix[yIdx][0].y - self.matrix[self.ppVacuumLower][0].y)}')
+        if round(self.hy - (self.matrix[self.ppVacuumLower + self.ppYokeheight][xIdx].y - self.matrix[self.ppVacuumLower][xIdx].y), 12) != 0:
+            print(f'flag - yoke: {self.hy - (self.matrix[self.ppVacuumLower + self.ppYokeheight][xIdx].y - self.matrix[self.ppVacuumLower][xIdx].y)}')
             spatialDomainFlag = True
         # Check Slot/Tooth Height
-        if round(self.hs - (self.matrix[self.ppVacuumLower + self.ppHeight][0].y - self.matrix[self.ppVacuumLower + self.ppHeight - self.ppSlotheight][0].y), 12) != 0:
-            print(f'flag - slot height: {self.hs - (self.matrix[self.ppVacuumLower + self.ppHeight][0].y - self.matrix[self.ppVacuumLower + self.ppHeight - self.ppSlotheight][0].y)}')
+        if round(self.hs - (self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight - self.ppSlotheight][xIdx].y), 12) != 0:
+            print(f'flag - slot height: {self.hs - (self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight - self.ppSlotheight][xIdx].y)}')
             spatialDomainFlag = True
         # Check Air Gap
-        if round(self.g - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][0].y - self.matrix[self.ppVacuumLower + self.ppHeight][0].y), 12) != 0:
-            print(f'flag - air gap: {self.g - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][0].y - self.matrix[self.ppVacuumLower + self.ppHeight][0].y)}')
+        if round(self.g - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y), 12) != 0:
+            print(f'flag - air gap: {self.g - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y)}')
             spatialDomainFlag = True
         # Check Blade Rotor
-        if round(self.dr - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][0].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][0].y), 12) != 0:
-            print(f'flag - blade rotor: {self.dr - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][0].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][0].y)}')
+        if round(self.dr - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y), 12) != 0:
+            print(f'flag - blade rotor: {self.dr - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y)}')
             spatialDomainFlag = True
         # Check Back Iron
-        if round(self.bi - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron][0].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][0].y), 12) != 0:
-            print(f'flag - blade rotor: {self.bi - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron][0].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][0].y)}')
+        if round(self.bi - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y), 12) != 0:
+            print(f'flag - blade rotor: {self.bi - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y)}')
             spatialDomainFlag = True
 
         self.writeErrorToDict(key='name',

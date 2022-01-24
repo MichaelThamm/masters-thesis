@@ -230,7 +230,7 @@ def profile_main():
 
 def main():
 
-    pixelDivisions = 2
+    pixelDivisions = 12
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -328,9 +328,11 @@ def main():
     #     Look at Iph and plot that to compare with expected
     #     Plot ur, R, MMF, Iph, Szy, lx, ly, S (MMF scaling) to make sure it makes sense
 
+    print('\nBelow are a list of warnings and errors:')
     if model.errorDict:
-        print('\nBelow are a list of warnings and errors:')
         model.errorDict.printErrorsByAttr('description')
+    else:
+        print('   - there are no errors')
 
 
 if __name__ == '__main__':
