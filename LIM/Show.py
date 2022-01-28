@@ -27,16 +27,18 @@ def myColourNumber(fieldScale, val):
     return result
 
 
-def determineColour(grid, gridInfo, iI, iJ, field):
+def determineColour(grid, gridInfo, iI, iJ, field, highlightZeroValsInField):
+    # includeZeroValsInField = True -> regular colour plot for all values including 0
+    # includeZeroValsInField = False -> all values equal to 0 will be plotted as a specific colour
 
     fieldType, iFieldsScale, iStoColours, iPosInf, iNegInf = field
 
     if str(type(grid[iI, iJ].__dict__[fieldType])).split("'")[1] in gridInfo['complexTypeList']:
         myNumber = myColourNumber(iFieldsScale, grid[iI, iJ].__dict__[fieldType].real)
-        valEqZero = True if grid[iI, iJ].__dict__[fieldType].real == 0 else False
+        valEqZero = True if (grid[iI, iJ].__dict__[fieldType].real == 0 and highlightZeroValsInField) else False
     else:
         myNumber = myColourNumber(iFieldsScale, grid[iI, iJ].__dict__[fieldType])
-        valEqZero = True if grid[iI, iJ].__dict__[fieldType] == 0 else False
+        valEqZero = True if (grid[iI, iJ].__dict__[fieldType] == 0 and highlightZeroValsInField) else False
 
     # noinspection PyUnboundLocalVariable
     colorScaleIndex = np.where(iFieldsScale == myNumber)
@@ -198,15 +200,16 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
         # [202, 304]
-        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[0] + model.ppAirBuffer + model.ppLeftEndTooth + (model.slots - 4) * (model.ppSlotpitch) + model.ppSlot + 1)
+        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[0] + model.ppAirBuffer + model.ppLeftEndTooth
+                          + (model.slots - 4) * model.ppSlotpitch + model.ppSlot + 1)
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
 
-        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[1] + model.ppAirBuffer + model.ppLeftEndTooth + 3 * (model.ppSlotpitch) - 1)
+        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[1] + model.ppAirBuffer + model.ppLeftEndTooth + 3 * model.ppSlotpitch - 1)
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
 
-        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[1] + model.ppAirBuffer + model.ppLeftEndTooth + (model.slots - 2) * (model.ppSlotpitch) + model.ppSlot + 1)
+        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[1] + model.ppAirBuffer + model.ppLeftEndTooth + (model.slots - 2) * model.ppSlotpitch + model.ppSlot + 1)
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
 
@@ -227,7 +230,7 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
     mGrid.mainloop()
 
 
-def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, showFilter, showMatrix, numColours, dims):
+def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims):
 
     # TODO Why would we pass in both gridInfo and gridMatrix? Doesn't that defeat the purpose of dumping to json
     # Create the grid canvas to display the grid mesh
@@ -246,27 +249,6 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
 
     # Color nodes based on node values
     if showFields or showFilter:
-
-        # This is for troubleshooting the distribution of flux error in the mesh
-        testReal = np.array([[gridMatrix[i, j].phiError.real for j in np.arange(gridMatrix.shape[1])] for i in np.arange(gridMatrix.shape[0])])
-        testImag = np.array([[gridMatrix[i, j].phiError.imag for j in np.arange(gridMatrix.shape[1])] for i in np.arange(gridMatrix.shape[0])])
-
-        sizeArrayReal = np.array([[0 if j == 0 else 20 for j in i] for i in testReal])
-        sizeArrayImag = np.array([[0 if j == 0 else 20 for j in i] for i in testImag])
-
-        l1 = gridInfo['ppL'] * gridInfo['ppVacuumLower']
-        l2 = l1 + gridInfo['ppL']
-        l3 = l2 + gridInfo['ppL'] * (gridInfo['ppHeight'] - 2)
-        l4 = l3 + gridInfo['ppL']
-        xcoords = [l1, l2, l3, l4]
-        for xc in xcoords:
-            plt.axvline(x=xc)
-
-        # marker = ".", markersize = 40
-
-        plt.scatter(np.arange(testReal.size), testReal.flatten(), sizeArrayReal.flatten())
-        plt.scatter(np.arange(testImag.size), testImag.flatten(), sizeArrayImag.flatten())
-        plt.show()
 
         rootFields = Tk()
         cFields: Canvas = Canvas(rootFields, height=dims[0], width=dims[1], bg='gray30')
@@ -323,15 +305,21 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
                 while j < gridMatrix.shape[1]:
                     if showFilter:
                         if i in filteredRows:
-                            overRideColour = determineColour(gridMatrix, gridInfo, i, j, [fieldType, fieldsScale, stoColours, cPosInf, cNegInf])
+                            overRideColour = determineColour(gridMatrix, gridInfo, i, j,
+                                                             [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
+                                                             highlightZeroValsInField=showZeros)
 
                         elif (i, j) in filteredRowCols:
-                            overRideColour = determineColour(gridMatrix, gridInfo, i, j, [fieldType, fieldsScale, stoColours, cPosInf, cNegInf])
+                            overRideColour = determineColour(gridMatrix, gridInfo, i, j,
+                                                             [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
+                                                             highlightZeroValsInField=showZeros)
 
                         else:
                             overRideColour = '#000000'
                     else:
-                        overRideColour = determineColour(gridMatrix, gridInfo, i, j, [fieldType, fieldsScale, stoColours, cPosInf, cNegInf])
+                        overRideColour = determineColour(gridMatrix, gridInfo, i, j,
+                                                         [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
+                                                         highlightZeroValsInField=showZeros)
 
                     gridMatrix[i, j].drawNode(canvasSpacing=gridInfo['Cspacing'], overRideColour=overRideColour, c=cFields, nodeWidth=1)
                     j += 1

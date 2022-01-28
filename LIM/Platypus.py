@@ -2,6 +2,7 @@ import numpy as np
 
 from LIM.Show import *
 import json
+import os
 
 '''
 https://platypus.readthedocs.io/en/latest/getting-started.html
@@ -190,12 +191,12 @@ def construct(iDict, iArrayShape):
 def jsonStoreSolution(model):
 
     destructedMatA = destruct(model)
-    # D:\Projects\Github\MaSc\Output
     # Data written to file
-    with open("D:\Projects\Github\MaSc\Output/StoredSolutionData.json", 'w') as StoredSolutionData:
+    dataLocation = os.path.join(os.getcwd(), 'Output', 'StoredSolutionData.json')
+    with open(dataLocation, 'w') as StoredSolutionData:
         json.dump(destructedMatA, StoredSolutionData)
     # Data read from file
-    with open("D:\Projects\Github\MaSc\Output/StoredSolutionData.json") as StoredSolutionData:
+    with open(dataLocation) as StoredSolutionData:
         dictionary = json.load(StoredSolutionData)
 
     gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList = construct(iDict=dictionary, iArrayShape=model.matrix.shape)
@@ -230,7 +231,7 @@ def profile_main():
 
 def main():
 
-    pixelDivisions = 12
+    pixelDivisions = 2
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -305,7 +306,7 @@ def main():
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-16)
 
-    model.updateGrid(errorInX, showAirgapPlot=False)
+    model.updateGrid(errorInX, showAirgapPlot=True)
 
     # After this point, the json implementations should be used to not branch code direction
     gridInfo, gridMatrix, gridErrorDict, gridHmUnknownsList, boolIdenticalLists = jsonStoreSolution(model)
@@ -313,7 +314,7 @@ def main():
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         showModel(gridInfo, gridMatrix, model, fieldType='MMF',
-                  showGrid=False, showFields=True, showFilter=False, showMatrix=False,
+                  showGrid=False, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=350, dims=[1080, 1920])
 
     else:
