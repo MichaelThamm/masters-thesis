@@ -477,24 +477,24 @@ class Grid(LimMotor):
             while b < self.ppL:
                 if a in self.yokeYIndexes and b not in self.bufferArray:
                     self.matrix[a][b].material = 'iron'
-                    self.matrix[a][b].ur = 1000.0
-                    self.matrix[a][b].sigma = 4.5 * 10**6
+                    self.matrix[a][b].ur = self.ur_iron
+                    self.matrix[a][b].sigma = self.sigma_iron
                 elif a in self.airgapYIndexes:
                     self.matrix[a][b].material = 'vacuum'
-                    self.matrix[a][b].ur = 1.0
-                    self.matrix[a][b].sigma = 3 * 10**(-15)
+                    self.matrix[a][b].ur = self.ur_air
+                    self.matrix[a][b].sigma = self.sigma_air
                 elif a in self.vacLowerYIndexes or a in self.vacUpperYIndexes:
                     self.matrix[a][b].material = 'vacuum'
-                    self.matrix[a][b].ur = 1.0
-                    self.matrix[a][b].sigma = 3 * 10**(-15)
+                    self.matrix[a][b].ur = self.ur_air
+                    self.matrix[a][b].sigma = self.sigma_air
                 elif a in self.bladerotorYIndexes:
                     self.matrix[a][b].material = 'aluminum'
-                    self.matrix[a][b].ur = 1.0
-                    self.matrix[a][b].sigma = 17.0 * 10**6
+                    self.matrix[a][b].ur = self.ur_alum
+                    self.matrix[a][b].sigma = self.sigma_alum
                 elif a in self.ironYIndexes:
                     self.matrix[a][b].material = 'iron'
-                    self.matrix[a][b].ur = 1000.0
-                    self.matrix[a][b].sigma = 4.5 * 10**6
+                    self.matrix[a][b].ur = self.ur_iron
+                    self.matrix[a][b].sigma = self.sigma_iron
                 else:
                     if a in self.upper_slotYIndexes1:
                         aIdx = self.upper_slotsA
@@ -511,28 +511,28 @@ class Grid(LimMotor):
 
                     if b in self.toothArray:
                         self.matrix[a][b].material = 'iron'
-                        self.matrix[a][b].ur = 1000.0
-                        self.matrix[a][b].sigma = 4.5 * 10**6
+                        self.matrix[a][b].ur = self.ur_iron
+                        self.matrix[a][b].sigma = self.sigma_iron
                     elif b in self.bufferArray:
                         self.matrix[a][b].material = 'vacuum'
-                        self.matrix[a][b].ur = 1.0
-                        self.matrix[a][b].sigma = 3 * 10**(-15)
+                        self.matrix[a][b].ur = self.ur_air
+                        self.matrix[a][b].sigma = self.sigma_air
                     elif b in aIdx:
                         self.matrix[a][b].material = 'copperA'
-                        self.matrix[a][b].ur = 1.0
-                        self.matrix[a][b].sigma = 5.96 * 10**6
+                        self.matrix[a][b].ur = self.ur_copp
+                        self.matrix[a][b].sigma = self.sigma_copp
                     elif b in bIdx:
                         self.matrix[a][b].material = 'copperB'
-                        self.matrix[a][b].ur = 1.0
-                        self.matrix[a][b].sigma = 5.96 * 10**6
+                        self.matrix[a][b].ur = self.ur_copp
+                        self.matrix[a][b].sigma = self.sigma_copp
                     elif b in cIdx:
                         self.matrix[a][b].material = 'copperC'
-                        self.matrix[a][b].ur = 1.0
-                        self.matrix[a][b].sigma = 5.96 * 10**6
+                        self.matrix[a][b].ur = self.ur_copp
+                        self.matrix[a][b].sigma = self.sigma_copp
                     elif b in self.removeLowerCoilIdxs + self.removeUpperCoilIdxs:
                         self.matrix[a][b].material = 'vacuum'
-                        self.matrix[a][b].ur = 1.0
-                        self.matrix[a][b].sigma = 3 * 10**(-15)
+                        self.matrix[a][b].ur = self.ur_air
+                        self.matrix[a][b].sigma = self.sigma_air
                     else:
                         self.matrix[a][b].material = ''
                 b += 1
@@ -650,7 +650,7 @@ class Grid(LimMotor):
                         scalingLower = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # empty slot
                     elif self.matrix[i][j].material == 'vacuum' and self.matrix[i - self.ppSlotheight // 2][
-                        j].material == 'vacuum':
+                                                                             j].material == 'vacuum':
                         scalingLower = 0.0
                     else:
                         scalingLower = 0.0
@@ -682,7 +682,7 @@ class Grid(LimMotor):
                         scalingUpper = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # empty slot
                     elif self.matrix[i][j].material == 'vacuum' and self.matrix[i + self.ppSlotheight // 2][
-                        j].material == 'vacuum':
+                                                                             j].material == 'vacuum':
                         scalingUpper = 0.0
                     else:
                         scalingUpper = 0.0
