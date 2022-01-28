@@ -6,16 +6,7 @@ An attached [PDF](https://github.com/MichaelThamm/Masters/blob/main/ProjectExpla
 
 Python modules required to run the code:
 
-* math [documentation](https://docs.python.org/3/library/math.html)
-* cmath [documentation](https://docs.python.org/3/library/cmath.html)
-* timeit [documentation](https://docs.python.org/3/library/timeit.html)
-* contextlib [documentation](https://docs.python.org/3/library/contextlib.html)
-* collections [documentation](https://docs.python.org/3/library/collections.html)
-* tkinter [documentation](https://docs.python.org/3/library/tk.html)
-* json [documentation](https://docs.python.org/3/library/json.html)
-* numpy [documentation](https://numpy.org/doc/)
-* matplotlib [documentation](https://matplotlib.org/)
-* inquirer [documentation](https://python-inquirer.readthedocs.io/en/latest/)
+[Requirements.txt](https://github.com/MichaelThamm/Masters/blob/main/requirements.txt)
 
 Note: [LIM_Platypus.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Platypus.py) is the main file that calls the other .py files in this order:
 
