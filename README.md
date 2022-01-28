@@ -8,13 +8,13 @@ Python modules required to run the code:
 
 [Requirements.txt](https://github.com/MichaelThamm/Masters/blob/main/requirements.txt)
 
-Note: [LIM_Platypus.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Platypus.py) is the main file that calls the other .py files in this order:
+Note: [LIM.Platypus.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Platypus.py) is the main file that calls the other .py files in this order:
 
-* [LIM_SlotPoleCalculation.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_SlotPoleCalculation.py)
-* [LIM_Grid.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Grid.py)
-* [LIM_Compute.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Compute.py)
-* [LIM_Show.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Show.py)
-* [LIM_ShowFromJSON.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_ShowFromJSON.py)
+* [LIM.SlotPoleCalculation.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_SlotPoleCalculation.py)
+* [LIM.Grid.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Grid.py)
+* [LIM.Compute.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Compute.py)
+* [LIM.Show.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_Show.py)
+* [LIM.ShowFromJSON.py](https://github.com/MichaelThamm/Masters/blob/main/LIM_ShowFromJSON.py)
   *  Note: This file pulls the stored JSON results and creates a field plot without having to run the entire simulation
 
 ----------VERY IMPORTANT----------
