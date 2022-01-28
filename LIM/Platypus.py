@@ -4,6 +4,10 @@ from LIM.Show import *
 import json
 import os
 
+PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
+OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Output')
+DATA_PATH = os.path.join(OUTPUT_PATH, 'StoredSolutionData.json')
+
 '''
 https://platypus.readthedocs.io/en/latest/getting-started.html
 '''
@@ -192,11 +196,12 @@ def jsonStoreSolution(model):
 
     destructedMatA = destruct(model)
     # Data written to file
-    dataLocation = os.path.join(os.getcwd(), 'Output', 'StoredSolutionData.json')
-    with open(dataLocation, 'w') as StoredSolutionData:
+    if not os.path.isdir(OUTPUT_PATH):
+        os.mkdir(OUTPUT_PATH)
+    with open(DATA_PATH, 'w') as StoredSolutionData:
         json.dump(destructedMatA, StoredSolutionData)
     # Data read from file
-    with open(dataLocation) as StoredSolutionData:
+    with open(DATA_PATH) as StoredSolutionData:
         dictionary = json.load(StoredSolutionData)
 
     gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList = construct(iDict=dictionary, iArrayShape=model.matrix.shape)
@@ -224,7 +229,7 @@ def profile_main():
 
     # logging.info("Profile data:\n%s", stream.getvalue())
 
-    f = open('Output/profile.txt', 'a')
+    f = open(os.path.join(OUTPUT_PATH, 'profile.txt'), 'a')
     f.write(stream.getvalue())
     f.close()
 
@@ -314,7 +319,7 @@ def main():
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         showModel(gridInfo, gridMatrix, model, fieldType='MMF',
-                  showGrid=False, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+                  showGrid=True, showFields=True, showFilter=True, showMatrix=True, showZeros=True,
                   numColours=350, dims=[1080, 1920])
 
     else:
@@ -322,12 +327,6 @@ def main():
                                error=Error(name='gridMatrixJSON',
                                            description="ERROR - The JSON object matrix does not match the original matrix",
                                            cause=True))
-
-    # Things I should look into:
-    #     Why the range isnt showing on the fields plot for max and min
-    #     Try to calculate the expected MMF of a node in the coils and compare to what I am getting
-    #     Look at Iph and plot that to compare with expected
-    #     Plot ur, R, MMF, Iph, Szy, lx, ly, S (MMF scaling) to make sure it makes sense
 
     print('\nBelow are a list of warnings and errors:')
     if model.errorDict:
@@ -337,5 +336,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # profile_main()  # To profile the main execution
-    main()
+    profile_main()  # To profile the main execution
+    # main()
