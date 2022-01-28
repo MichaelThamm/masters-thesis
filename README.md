@@ -9,7 +9,7 @@ Python modules required to run the code:
 [Requirements.txt](https://github.com/MichaelThamm/Masters/blob/main/requirements.txt)
 <p>&nbsp;</p>
 This can be used with *pip install -r requirements.txt* to install all requirements.
-<p>&nbsp;</p>
+
 
 Note: [LIM.Platypus.py](https://github.com/MichaelThamm/Masters/blob/main/LIM/Platypus.py) is the main file that calls the other .py files in this order:
 
