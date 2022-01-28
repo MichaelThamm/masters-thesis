@@ -73,6 +73,18 @@ class LimMotor(object):
         self.H = self.hy + self.hs  # meters
         self.vacuumBoundary = self.g*1.5
 
+        # Conductivity
+        self.sigma_iron = 4.5 * 10 ** 6  # Sm^-1
+        self.sigma_alum = 17.0 * 10 ** 6  # Sm^-1
+        self.sigma_air = 0  # Sm^-1
+        self.sigma_copp = 5.96 * 10 ** 7  # Sm^-1
+
+        # Permeability
+        self.ur_iron = 1000
+        self.ur_alum = 1
+        self.ur_air = 1
+        self.ur_copp = 1
+
         # Electrical Variables
         self.Ip = np.float64(10)  # AmpsPeak
         self.Jin = 0.0  # A/m^2
