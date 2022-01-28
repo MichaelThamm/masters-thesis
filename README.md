@@ -20,4 +20,4 @@ Note: [LIM.Platypus.py](https://github.com/MichaelThamm/Masters/blob/main/LIM/Pl
 ----------VERY IMPORTANT----------
 
 Make sure to run LIM.Platypus.py from a terminal or the user input functionality will not work
-You must also change to the correct directory that contains these files and execute the LIM_Platypus.py using "python LIM.Platypus.py"
+You must also change to the correct directory that contains these files and execute the LIM.Platypus.py using "python LIM.Platypus.py"
