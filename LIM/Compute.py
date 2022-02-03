@@ -103,7 +103,7 @@ class Model(Grid):
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        coeff = - 1 / (j_plex * wn * self.Tper)
+        coeff = j_plex / (wn * self.Tper)
 
         if lowerUpper == 'lower':
             row = self.matrix[iY]
@@ -289,8 +289,8 @@ class Model(Grid):
     def __preEqn8(self, ur, lam, wn, y):
 
         coeff = cmath.exp(j_plex * (2 * pi * self.f * self.t + wn * self.vel * self.t))
-        resA = - (1 / ur) * lam * coeff * cmath.exp(lam * y)
-        resB = (1 / ur) * lam * coeff * cmath.exp(-lam * y)
+        resA = - (lam / ur) * coeff * cmath.exp(lam * y)
+        resB = (lam / ur) * coeff * cmath.exp(-lam * y)
 
         return resA, resB
 
@@ -352,8 +352,8 @@ class Model(Grid):
 
     def __eqn23Integral(self, wn, Xl, Xr, ur, Szy):
 
-        # TODO My math shows this should be 1 not 2 but the 2019 paper has this as 2
-        coeff = 2 / (2 * ur * Szy)
+        # TODO My math shows this should be 1 but the 2019 paper has this as 2
+        coeff = 1 / (2 * ur * Szy)
         res = coeff * (cmath.exp(-j_plex * wn * (Xr - self.vel * self.t)) -
                        cmath.exp(-j_plex * wn * (Xl - self.vel * self.t)))
 
@@ -707,6 +707,83 @@ class Model(Grid):
 
     def __lambda_n(self, wn, urSigma):
         return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
+
+    def transformBoundary(self):
+        global row_lower_FT, row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, storeLastX
+
+        idx_FT = 0
+        storeLastX = 0.0
+
+        yIdx_lower = self.ppVacuumLower
+        yIdx_upper = yIdx_lower + self.ppHeight - 1
+        row_lower_FT = self.matrix[yIdx_lower]
+        row_upper_FT = self.matrix[yIdx_upper]
+        leftNodeEdges = [node.x for node in row_lower_FT]
+        slices = 20
+        outerIdx = 0
+        expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
+        for idx in range(len(expandedLeftNodeEdges)):
+            if idx % slices == 0:
+                increment = 0
+                if idx != 0:
+                    outerIdx += 1
+            else:
+                increment += 1
+            sliceWidth = row_upper_FT[outerIdx].lx / slices
+            expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
+        # xArray, yArrayLower, yArrayUpper = np.zeros((3, self.ppL), dtype=float)
+
+        def fluxAtBoundary(row, idx):
+            lNode, rNode = self.__neighbourNodes(idx)
+            phiXn = (row[idx].MMF + row[lNode].MMF) \
+                    / (row[idx].Rx + row[lNode].Rx)
+            phiXp = (row[idx].MMF + row[rNode].MMF) \
+                    / (row[idx].Rx + row[rNode].Rx)
+            return phiXn, phiXp
+
+        # I made to functions to not have the row initialize every pieceWise method iteration
+        def pieceWise_lower(x_in):
+            global row_lower_FT, expandedLeftNodeEdges, slices, idx_FT, storeLastX
+
+            if x_in in leftNodeEdges[1:]:
+                idx_FT += 1
+
+            phiXn, phiXp = fluxAtBoundary(row_lower_FT, idx_FT)
+
+            return self.__postMECAvgB(phiXn, phiXp, row_lower_FT[idx_FT].Szy)
+
+        def pieceWise_upper(x_in):
+            global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT
+
+            if x_in in leftNodeEdges[1:]:
+                idx_FT += 1
+
+            phiXn, phiXp = fluxAtBoundary(row_upper_FT, idx_FT)
+
+            # TODO The commented return plotted a nice square waveform for MMF which I see all 0 for postMECAvgB.
+            #  Need to debug if it just cancels or if its a bug.
+            #  Worst case I use the MMF since it can produce a squarewave to use fourier on
+            # return  row_upper_FT[idx_FT].MMF
+            return  self.__postMECAvgB(phiXn, phiXp, row_upper_FT[idx_FT].Szy)
+
+        # TODO I need to create a scalable variable that changes leftNodeEdges to be something like:
+        #  slice = 0.02, [0.1+slice, 0.1+2*slice, 0.1+3*slice, 0.1+4*slice, 0.2] - 0.1 is ignored as first index
+        #  In this case there are 3 slices between actual node.x indexes
+        #
+        vfun = np.vectorize(pieceWise_lower)
+        x = expandedLeftNodeEdges
+        idx_FT = 0
+        y = vfun(x)
+
+        plt.plot(x, y, '-')
+        plt.show()
+
+        vfun = np.vectorize(pieceWise_upper)
+        idx_FT = 0
+        y = vfun(x)
+
+        plt.plot(x, y, '-')
+        plt.show()
 
     def updateGrid(self, iErrorInX, showAirgapPlot=False):
 

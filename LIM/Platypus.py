@@ -311,15 +311,17 @@ def main():
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-16)
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    model.updateGrid(errorInX, showAirgapPlot=False)
 
     # After this point, the json implementations should be used to not branch code direction
     gridInfo, gridMatrix, gridErrorDict, gridHmUnknownsList, boolIdenticalLists = jsonStoreSolution(model)
 
+    model.transformBoundary()
+
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         showModel(gridInfo, gridMatrix, model, fieldType='MMF',
-                  showGrid=True, showFields=True, showFilter=True, showMatrix=True, showZeros=True,
+                  showGrid=False, showFields=False, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=350, dims=[1080, 1920])
 
     else:
@@ -336,5 +338,5 @@ def main():
 
 
 if __name__ == '__main__':
-    profile_main()  # To profile the main execution
-    # main()
+    # profile_main()  # To profile the main execution
+    main()
