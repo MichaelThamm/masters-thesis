@@ -713,7 +713,7 @@ class Model(Grid):
 
         idx_FT = 0
 
-        lowDiscrete = 20
+        lowDiscrete = 25
         harmonics = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
         harmonics = np.delete(harmonics, len(harmonics) // 2, 0)
 
@@ -721,7 +721,7 @@ class Model(Grid):
         yIdx_upper = yIdx_lower + self.ppHeight - 1
         row_upper_FT = self.matrix[yIdx_upper]
         leftNodeEdges = [node.x for node in row_upper_FT]
-        slices = 5
+        slices = 10
         outerIdx = 0
         expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
         for idx in range(len(expandedLeftNodeEdges)):
@@ -768,21 +768,29 @@ class Model(Grid):
                     f = (phiXn + phiXp) / (2 * row_upper_FT[iX].Szy)
                     Xl = row_upper_FT[iX].x
                     Xr = Xl + row_upper_FT[iX].lx
-                    resExp = coeff * (cmath.exp(-j_plex * wn * (Xr - self.vel * self.t)) -
-                                   cmath.exp(-j_plex * wn * (Xl - self.vel * self.t)))
+                    resExp = cmath.exp(-j_plex * wn * (Xr - self.vel * self.t))\
+                             - cmath.exp(-j_plex * wn * (Xl - self.vel * self.t))
 
                     sumK += f * resExp
 
                 sumN += coeff * sumK * cmath.exp(j_plex * wn * x)
 
-            return sumN
+            sumK_c0 = 0
+            c0Coeff = 1 / self.Tper
+            for iX in range(len(row_upper_FT)):
+                idx_FT = iX
+                phiXn, phiXp = fluxAtBoundary()
+                f = (phiXn + phiXp) / (2 * row_upper_FT[iX].Szy)
+                Xl = row_upper_FT[iX].x
+                Xr = Xl + row_upper_FT[iX].lx
+                sumK_c0 += f * (Xr - Xl)
+            return sumN + c0Coeff * sumK_c0
 
         vfun = np.vectorize(pieceWise_upper)
         idx_FT = 0
         x = expandedLeftNodeEdges
         y = vfun(x)
         plt.plot(x, y, 'b-')
-        plt.show()
 
         vfun = np.vectorize(fourierSeries)
         y = vfun(x)
