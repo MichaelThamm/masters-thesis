@@ -2,7 +2,7 @@ from LIM.Grid import *
 from LIM.SlotPoleCalculation import np
 from scipy.linalg import lu_factor, lu_solve
 import matplotlib.pyplot as plt
-# from functools import lru_cache
+from functools import lru_cache
 
 
 # This performs the lower-upper decomposition of A to solve for x in Ax = B
@@ -682,7 +682,7 @@ class Model(Grid):
         plt.scatter(xSorted, tempReal.flatten())
         plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
         plt.xlabel('Position [m]')
-        plt.ylabel('Bx [T]]')
+        plt.ylabel('Bx [T]')
         plt.title('Bx field in airgap')
         plt.show()
 
@@ -690,7 +690,7 @@ class Model(Grid):
         plt.scatter(xSorted, tempReal.flatten())
         plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
         plt.xlabel('Position [m]')
-        plt.ylabel('By [T]]')
+        plt.ylabel('By [T]')
         plt.title('By field in airgap')
         plt.show()
 
@@ -708,12 +708,23 @@ class Model(Grid):
     def __lambda_n(self, wn, urSigma):
         return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
 
+    # noinspection PyGlobalUndefined
     def complexFourierTransform(self):
-        global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics
+        """
+        This method was written to plot the Bx field at the boundary between the coils and the airgap,
+         described in equation 24 of the 2019 paper. The Bx field is piecewise-continuous and is plotted in Blue.
+         The complex Fourier transform was applied to the Bx field and plotted in Red. The accuracy of the
+         complex Fourier transform depends on: # of harmonics, # of x positions, # of nodes in the x-direction of the model
+
+        A perfect complex Fourier transform extends harmonics to +-Inf, while the 0th harmonic is accounted for in the
+         c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
+        """
+
+        global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, res_c0
 
         idx_FT = 0
 
-        lowDiscrete = 50
+        lowDiscrete = 25
         harmonics = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
         harmonics = np.delete(harmonics, len(harmonics) // 2, 0)
 
@@ -722,7 +733,7 @@ class Model(Grid):
         row_upper_FT = self.matrix[yIdx_upper]
         leftNodeEdges = [node.x for node in row_upper_FT]
         slices = 10
-        outerIdx = 0
+        outerIdx, increment = 0, 0
         expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
         for idx in range(len(expandedLeftNodeEdges)):
             if idx % slices == 0:
@@ -734,16 +745,22 @@ class Model(Grid):
             sliceWidth = row_upper_FT[outerIdx].lx / slices
             expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
 
+        # noinspection PyGlobalUndefined
         def fluxAtBoundary():
             global row_upper_FT, idx_FT
 
             lNode, rNode = self.__neighbourNodes(idx_FT)
-            phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
-                    / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
-            phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
-                    / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
+            # phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
+            #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
+            # phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
+            #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
+            # TODO This is a test to see if MMF scales correctly with the mesh
+            phiXn = row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF
+            phiXp = row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF
             return phiXn, phiXp
 
+        # noinspection PyGlobalUndefined
+        @lru_cache(maxsize=5)
         def pieceWise_upper(x_in):
             global row_upper_FT, idx_FT
 
@@ -752,16 +769,17 @@ class Model(Grid):
 
             phiXn, phiXp = fluxAtBoundary()
 
-            return  self.__postMECAvgB(phiXn, phiXp, row_upper_FT[idx_FT].Szy)
+            return self.__postMECAvgB(phiXn, phiXp, row_upper_FT[idx_FT].Szy)
 
-        def fourierSeries(x):
-            global row_upper_FT, idx_FT
+        # noinspection PyGlobalUndefined
+        @lru_cache(maxsize=5)
+        def fourierSeries(x_in):
+            global row_upper_FT, idx_FT, res_c0
             sumN = 0.0
             for nHM in harmonics:
                 wn = 2 * nHM * pi / self.Tper
                 coeff = j_plex / (wn * self.Tper)
                 sumK = 0.0
-                # TODO Try to add the c_0 case c_0 = 1/(2*L) * INT(f)dx
                 for iX in range(len(row_upper_FT)):
                     idx_FT = iX
                     phiXn, phiXp = fluxAtBoundary()
@@ -773,18 +791,9 @@ class Model(Grid):
 
                     sumK += f * resExp
 
-                sumN += coeff * sumK * cmath.exp(j_plex * wn * x)
+                sumN += coeff * sumK * cmath.exp(j_plex * wn * x_in)
 
-            sumK_c0 = 0
-            c0Coeff = 1 / self.Tper
-            for iX in range(len(row_upper_FT)):
-                idx_FT = iX
-                phiXn, phiXp = fluxAtBoundary()
-                f = (phiXn + phiXp) / (2 * row_upper_FT[iX].Szy)
-                Xl = row_upper_FT[iX].x
-                Xr = Xl + row_upper_FT[iX].lx
-                sumK_c0 += f * (Xr - Xl)
-            return sumN + c0Coeff * sumK_c0
+            return sumN
 
         vfun = np.vectorize(pieceWise_upper)
         idx_FT = 0
@@ -795,6 +804,10 @@ class Model(Grid):
         vfun = np.vectorize(fourierSeries)
         y = vfun(x)
         plt.plot(x, y, 'r-')
+
+        plt.xlabel('Position [m]')
+        plt.ylabel('Bx [T]')
+        plt.title('Bx field at airgap Boundary')
         plt.show()
 
     def updateGrid(self, iErrorInX, showAirgapPlot=False):
