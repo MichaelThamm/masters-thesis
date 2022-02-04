@@ -1,4 +1,3 @@
-# Areej is so cool
 from LIM.Grid import *
 from LIM.SlotPoleCalculation import np
 from scipy.linalg import lu_factor, lu_solve
