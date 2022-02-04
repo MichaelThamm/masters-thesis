@@ -1,3 +1,4 @@
+# Areej is so cool
 from LIM.Grid import *
 from LIM.SlotPoleCalculation import np
 from scipy.linalg import lu_factor, lu_solve
@@ -713,7 +714,7 @@ class Model(Grid):
 
         idx_FT = 0
 
-        lowDiscrete = 25
+        lowDiscrete = 50
         harmonics = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
         harmonics = np.delete(harmonics, len(harmonics) // 2, 0)
 
