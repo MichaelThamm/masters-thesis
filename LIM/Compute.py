@@ -755,6 +755,8 @@ class Model(Grid):
             # phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
             #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
             # TODO This is a test to see if MMF scales correctly with the mesh
+            #  From what I see, the reluctance is scaling fine but the MMF is not. Look at this file for a summary:
+            #  SupportingDocs/Troubleshooting/ChangingMmfWithMesh.jpg
             phiXn = row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF
             phiXp = row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF
             return phiXn, phiXp
