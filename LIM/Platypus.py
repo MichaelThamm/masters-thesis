@@ -236,7 +236,7 @@ def profile_main():
 
 def main():
 
-    pixelDivisions = 5
+    pixelDivisions = 4
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -308,6 +308,21 @@ def main():
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
+    # TODO This is temp to check the reluctance is maintained for different mesh densities
+    yIdx = model.ppVacuumLower + model.ppYokeheight
+    xIdx = model.ppAirBuffer + model.ppLeftEndTooth + model.ppSlotpitch
+    rows = model.ppSlotheight//2
+    cols = model.ppSlot
+    sectionedArr = np.empty(rows, dtype=np.ndarray)
+    for idx, row in enumerate(model.matrix[yIdx:yIdx + rows]):
+        sectionedArr[idx] = row[xIdx:xIdx + cols]
+
+    sumHorRx, sumVerRx = 0, 0
+    for row in sectionedArr:
+        sumVerRx += row[0].Ry
+        for node in row:
+            sumHorRx += node.Rx
+
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-16)
 

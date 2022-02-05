@@ -966,6 +966,7 @@ def complexFourierTransform(model_in, harmonics_in):
         else:
             increment += 1
         sliceWidth = row_upper_FT[outerIdx].lx / slices
+        # TODO I need to update this to max at self.L
         expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
 
     # noinspection PyGlobalUndefined
@@ -1024,8 +1025,8 @@ def complexFourierTransform(model_in, harmonics_in):
     idx_FT = 0
     x = expandedLeftNodeEdges
     y1 = vfun(x)
-    vfun = np.vectorize(fourierSeries)
-    y2 = vfun(x)
+    # vfun = np.vectorize(fourierSeries)
+    # y2 = vfun(x)
 
     # plt.plot(x, y1, 'b-')
     # plt.plot(x, y2, 'r-')
@@ -1034,7 +1035,7 @@ def complexFourierTransform(model_in, harmonics_in):
     # plt.title('Bx field at airgap Boundary')
     # plt.show()
 
-    return y1
+    return x, y1
 
 
 def plotFourierError():
@@ -1042,7 +1043,8 @@ def plotFourierError():
     # TODO These iterations must be compared to the standard which we can call pixelDiv = 2
     #  so these iterations must go from 3-8 = 5 iterations
     iterations = 5
-    errorList = np.empty(iterations, dtype=ndarray)
+    pixDivs = range(3, 3 + iterations, 2)
+    modelList = np.empty(len(pixDivs), dtype=ndarray)
 
     lowDiscrete = 10
     n = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
@@ -1066,9 +1068,9 @@ def plotFourierError():
                   hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16), mecRegions=np.array([1], dtype=np.int16))
     baseModel.buildGrid(pixelSpacing=basePixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
     baseModel.finalizeGrid(pixelDivisions=slotpitch/basePixelSpacing)
-    benchmark = complexFourierTransform(baseModel, n)
+    xSequence, benchmark = complexFourierTransform(baseModel, n)
 
-    for idx, pixelDivisions in enumerate(range(3, 3 + iterations)):
+    for idx, pixelDivisions in enumerate(pixDivs):
 
         pixelSpacing = slotpitch / pixelDivisions
         loopedModel = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing,
@@ -1078,20 +1080,12 @@ def plotFourierError():
                           mecRegions=np.array([1], dtype=np.int16))
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
         loopedModel.finalizeGrid(pixelDivisions)
-        # TODO We can't do this because the 2 sequences have different lengths since expandedLeftNodeEdges
-        #  depends on model.matrix which changes. Can I write a little function that says:
-        #  Oh idx 5 of the finer mesh model correlates to idx 2 of the coarse model by trying to find a nearest
-        #  which basically turns all plots into a length equal to the baseModel (its like enhancing)
-        #  Ex baseModel = [0, 0, 1, 2, 1, 0, 0], len = 7
-        #  model = [0, 0, 0, 1, 1, 1, 2, 2, 1, 1, 0, 0, 0], len = 13 - now enhance this
-        #  (13-7) = remove 6 indexes, 13//6 = group every 2
-        #  model = [(0+0)//2, (0+1)//2, (1+1)//2, (2+2)//2, (1+1)//2, (0+0)//2, 0], len = 7
-        #  Now I need to map these to the correct x position along Tper like baseModel and make sure I dont lose data
-        errorList[idx] = np.subtract(benchmark, complexFourierTransform(loopedModel, n))
+        modelList[idx] = (pixelDivisions, complexFourierTransform(loopedModel, n))
 
-    for sequence in errorList:
-        plt.plot(sequence)
+    for idx, (pixelDivisions, (xSequence, ySequence)) in enumerate(modelList):
+        plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}')
 
+    plt.legend()
     plt.show()
 
 
