@@ -115,7 +115,7 @@ class Model(Grid):
 
         sumResEqn22Source = np.cdouble(0)
         for iX in np.arange(self.ppL):
-            lNode, rNode = self.__neighbourNodes(iX)
+            lNode, rNode = self.neighbourNodes(iX)
 
             # By Condition
             # This is handled in the MEC region KCL equations using Eqn 21
@@ -177,7 +177,7 @@ class Model(Grid):
 
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
 
-        lNode, rNode = self.__neighbourNodes(j)
+        lNode, rNode = self.neighbourNodes(j)
 
         northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
         eastRelDenom = self.matrix[i, j].Rx + self.matrix[i, rNode].Rx
@@ -280,7 +280,7 @@ class Model(Grid):
 
         return resA_lower, resA_upper, resB_lower, resB_upper
 
-    def __postMECAvgB(self, fluxN, fluxP, S_xyz):
+    def postMECAvgB(self, fluxN, fluxP, S_xyz):
 
         res = (fluxN + fluxP) / (2 * S_xyz)
 
@@ -377,7 +377,7 @@ class Model(Grid):
                                              description='ERROR - regCount',
                                              cause=self.hmRegionsIndex[-1] != self.matrixA.shape[1]))
 
-    def __neighbourNodes(self, j):
+    def neighbourNodes(self, j):
         if j == 0:
             lNode = self.ppL - 1
             rNode = j + 1
@@ -708,110 +708,6 @@ class Model(Grid):
     def __lambda_n(self, wn, urSigma):
         return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
 
-    # noinspection PyGlobalUndefined
-    def complexFourierTransform(self):
-        """
-        This method was written to plot the Bx field at the boundary between the coils and the airgap,
-         described in equation 24 of the 2019 paper. The Bx field is piecewise-continuous and is plotted in Blue.
-         The complex Fourier transform was applied to the Bx field and plotted in Red. The accuracy of the
-         complex Fourier transform depends on: # of harmonics, # of x positions, # of nodes in the x-direction of the model
-
-        A perfect complex Fourier transform extends harmonics to +-Inf, while the 0th harmonic is accounted for in the
-         c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
-        """
-
-        global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, res_c0
-
-        idx_FT = 0
-
-        lowDiscrete = 25
-        harmonics = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
-        harmonics = np.delete(harmonics, len(harmonics) // 2, 0)
-
-        yIdx_lower = self.ppVacuumLower
-        yIdx_upper = yIdx_lower + self.ppHeight - 1
-        row_upper_FT = self.matrix[yIdx_upper]
-        leftNodeEdges = [node.x for node in row_upper_FT]
-        slices = 10
-        outerIdx, increment = 0, 0
-        expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
-        for idx in range(len(expandedLeftNodeEdges)):
-            if idx % slices == 0:
-                increment = 0
-                if idx != 0:
-                    outerIdx += 1
-            else:
-                increment += 1
-            sliceWidth = row_upper_FT[outerIdx].lx / slices
-            expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
-
-        # noinspection PyGlobalUndefined
-        def fluxAtBoundary():
-            global row_upper_FT, idx_FT
-
-            lNode, rNode = self.__neighbourNodes(idx_FT)
-            # phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
-            #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
-            # phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
-            #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
-            # TODO This is a test to see if MMF scales correctly with the mesh
-            #  From what I see, the reluctance is scaling fine but the MMF is not. Look at this file for a summary:
-            #  SupportingDocs/Troubleshooting/ChangingMmfWithMesh.jpg
-            phiXn = row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF
-            phiXp = row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF
-            return phiXn, phiXp
-
-        # noinspection PyGlobalUndefined
-        @lru_cache(maxsize=5)
-        def pieceWise_upper(x_in):
-            global row_upper_FT, idx_FT
-
-            if x_in in leftNodeEdges[1:]:
-                idx_FT += 1
-
-            phiXn, phiXp = fluxAtBoundary()
-
-            return self.__postMECAvgB(phiXn, phiXp, row_upper_FT[idx_FT].Szy)
-
-        # noinspection PyGlobalUndefined
-        @lru_cache(maxsize=5)
-        def fourierSeries(x_in):
-            global row_upper_FT, idx_FT, res_c0
-            sumN = 0.0
-            for nHM in harmonics:
-                wn = 2 * nHM * pi / self.Tper
-                coeff = j_plex / (wn * self.Tper)
-                sumK = 0.0
-                for iX in range(len(row_upper_FT)):
-                    idx_FT = iX
-                    phiXn, phiXp = fluxAtBoundary()
-                    f = (phiXn + phiXp) / (2 * row_upper_FT[iX].Szy)
-                    Xl = row_upper_FT[iX].x
-                    Xr = Xl + row_upper_FT[iX].lx
-                    resExp = cmath.exp(-j_plex * wn * (Xr - self.vel * self.t))\
-                             - cmath.exp(-j_plex * wn * (Xl - self.vel * self.t))
-
-                    sumK += f * resExp
-
-                sumN += coeff * sumK * cmath.exp(j_plex * wn * x_in)
-
-            return sumN
-
-        vfun = np.vectorize(pieceWise_upper)
-        idx_FT = 0
-        x = expandedLeftNodeEdges
-        y = vfun(x)
-        plt.plot(x, y, 'b-')
-
-        vfun = np.vectorize(fourierSeries)
-        y = vfun(x)
-        plt.plot(x, y, 'r-')
-
-        plt.xlabel('Position [m]')
-        plt.ylabel('Bx [T]')
-        plt.title('Bx field at airgap Boundary')
-        plt.show()
-
     def updateGrid(self, iErrorInX, showAirgapPlot=False):
 
         # Unknowns in HM regions
@@ -851,7 +747,7 @@ class Model(Grid):
         while i < self.ppH:
             while j < self.ppL:
 
-                lNode, rNode = self.__neighbourNodes(j)
+                lNode, rNode = self.neighbourNodes(j)
 
                 if i in self.mecYIndexes:
                     # Bottom layer of the MEC
@@ -920,9 +816,9 @@ class Model(Grid):
                         i, j].phiXp - self.matrix[i, j].phiYp
 
                     # Eqn 40_HAM
-                    self.matrix[i, j].Bx = self.__postMECAvgB(self.matrix[i, j].phiXn, self.matrix[i, j].phiXp,
+                    self.matrix[i, j].Bx = self.postMECAvgB(self.matrix[i, j].phiXn, self.matrix[i, j].phiXp,
                                                               self.matrix[i, j].Szy)
-                    self.matrix[i, j].By = self.__postMECAvgB(self.matrix[i, j].phiYn, self.matrix[i, j].phiYp,
+                    self.matrix[i, j].By = self.postMECAvgB(self.matrix[i, j].phiYn, self.matrix[i, j].phiYp,
                                                               self.matrix[i, j].Sxz)
 
                 elif i in self.hmYIndexes:
@@ -1034,3 +930,171 @@ class Model(Grid):
         self.mecMatrixX = np.array(self.mecMatrixX, dtype=np.cdouble)
 
         return preProcessError_matX
+
+
+# noinspection PyGlobalUndefined
+def complexFourierTransform(model_in, harmonics_in):
+    """
+    This method was written to plot the Bx field at the boundary between the coils and the airgap,
+     described in equation 24 of the 2019 paper. The Bx field is piecewise-continuous and is plotted in Blue.
+     The complex Fourier transform was applied to the Bx field and plotted in Red. The accuracy of the
+     complex Fourier transform depends on: # of harmonics, # of x positions, # of nodes in the x-direction of the model
+
+    A perfect complex Fourier transform extends harmonics to +-Inf, while the 0th harmonic is accounted for in the
+     c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
+    """
+
+    global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, res_c0, model
+
+    model = model_in
+
+    idx_FT = 0
+    harmonics = harmonics_in
+
+    yIdx_lower = model.ppVacuumLower
+    yIdx_upper = yIdx_lower + model.ppHeight - 1
+    row_upper_FT = model.matrix[yIdx_upper]
+    leftNodeEdges = [node.x for node in row_upper_FT]
+    slices = 10
+    outerIdx, increment = 0, 0
+    expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
+    for idx in range(len(expandedLeftNodeEdges)):
+        if idx % slices == 0:
+            increment = 0
+            if idx != 0:
+                outerIdx += 1
+        else:
+            increment += 1
+        sliceWidth = row_upper_FT[outerIdx].lx / slices
+        expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
+
+    # noinspection PyGlobalUndefined
+    def fluxAtBoundary():
+        global row_upper_FT, idx_FT, model
+
+        lNode, rNode = model.neighbourNodes(idx_FT)
+        # phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
+        #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
+        # phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
+        #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
+        # TODO This is a test to see if MMF scales correctly with the mesh
+        #  From what I see, the reluctance is scaling fine but the MMF is not. Look at this file for a summary:
+        #  SupportingDocs/Troubleshooting/ChangingMmfWithMesh.jpg
+        phiXn = row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF
+        phiXp = row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF
+        return phiXn, phiXp
+
+    # noinspection PyGlobalUndefined
+    @lru_cache(maxsize=5)
+    def pieceWise_upper(x_in):
+        global row_upper_FT, idx_FT, model
+
+        if x_in in leftNodeEdges[1:]:
+            idx_FT += 1
+
+        phiXn, phiXp = fluxAtBoundary()
+
+        return model.postMECAvgB(phiXn, phiXp, row_upper_FT[idx_FT].Szy)
+
+    # noinspection PyGlobalUndefined
+    @lru_cache(maxsize=5)
+    def fourierSeries(x_in):
+        global row_upper_FT, idx_FT, res_c0, model
+        sumN = 0.0
+        for nHM in harmonics:
+            wn = 2 * nHM * pi / model.Tper
+            coeff = j_plex / (wn * model.Tper)
+            sumK = 0.0
+            for iX in range(len(row_upper_FT)):
+                idx_FT = iX
+                phiXn, phiXp = fluxAtBoundary()
+                f = (phiXn + phiXp) / (2 * row_upper_FT[iX].Szy)
+                Xl = row_upper_FT[iX].x
+                Xr = Xl + row_upper_FT[iX].lx
+                resExp = cmath.exp(-j_plex * wn * (Xr - model.vel * model.t))\
+                         - cmath.exp(-j_plex * wn * (Xl - model.vel * model.t))
+
+                sumK += f * resExp
+
+            sumN += coeff * sumK * cmath.exp(j_plex * wn * x_in)
+
+        return sumN
+
+    vfun = np.vectorize(pieceWise_upper)
+    idx_FT = 0
+    x = expandedLeftNodeEdges
+    y1 = vfun(x)
+    vfun = np.vectorize(fourierSeries)
+    y2 = vfun(x)
+
+    # plt.plot(x, y1, 'b-')
+    # plt.plot(x, y2, 'r-')
+    # plt.xlabel('Position [m]')
+    # plt.ylabel('Bx [T]')
+    # plt.title('Bx field at airgap Boundary')
+    # plt.show()
+
+    return y1
+
+
+def plotFourierError():
+
+    # TODO These iterations must be compared to the standard which we can call pixelDiv = 2
+    #  so these iterations must go from 3-8 = 5 iterations
+    iterations = 5
+    errorList = np.empty(iterations, dtype=ndarray)
+
+    lowDiscrete = 10
+    n = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
+    n = np.delete(n, len(n) // 2, 0)
+    slots = 16
+    poles = 6
+    wt, ws = 6 / 1000, 10 / 1000
+    slotpitch = wt + ws
+    endTeeth = 2 * (4 / 3 * wt)
+    length = ((slots - 1) * slotpitch + ws) + endTeeth
+    meshDensity = np.array([4, 2])
+    xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
+    # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
+    yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+    canvasSpacing = 80
+
+    basePixelSpacing = slotpitch/2
+    baseModel = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=basePixelSpacing,
+                  canvasSpacing=canvasSpacing,
+                  meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
+                  hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16), mecRegions=np.array([1], dtype=np.int16))
+    baseModel.buildGrid(pixelSpacing=basePixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
+    baseModel.finalizeGrid(pixelDivisions=slotpitch/basePixelSpacing)
+    benchmark = complexFourierTransform(baseModel, n)
+
+    for idx, pixelDivisions in enumerate(range(3, 3 + iterations)):
+
+        pixelSpacing = slotpitch / pixelDivisions
+        loopedModel = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing,
+                          canvasSpacing=canvasSpacing,
+                          meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
+                          hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16),
+                          mecRegions=np.array([1], dtype=np.int16))
+        loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
+        loopedModel.finalizeGrid(pixelDivisions)
+        # TODO We can't do this because the 2 sequences have different lengths since expandedLeftNodeEdges
+        #  depends on model.matrix which changes. Can I write a little function that says:
+        #  Oh idx 5 of the finer mesh model correlates to idx 2 of the coarse model by trying to find a nearest
+        #  which basically turns all plots into a length equal to the baseModel (its like enhancing)
+        #  Ex baseModel = [0, 0, 1, 2, 1, 0, 0], len = 7
+        #  model = [0, 0, 0, 1, 1, 1, 2, 2, 1, 1, 0, 0, 0], len = 13 - now enhance this
+        #  (13-7) = remove 6 indexes, 13//6 = group every 2
+        #  model = [(0+0)//2, (0+1)//2, (1+1)//2, (2+2)//2, (1+1)//2, (0+0)//2, 0], len = 7
+        #  Now I need to map these to the correct x position along Tper like baseModel and make sure I dont lose data
+        errorList[idx] = np.subtract(benchmark, complexFourierTransform(loopedModel, n))
+
+    for sequence in errorList:
+        plt.plot(sequence)
+
+    plt.show()
+
+
+if __name__ == '__main__':
+    # profile_main()  # To profile the main execution
+    plotFourierError()

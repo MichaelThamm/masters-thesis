@@ -316,8 +316,6 @@ def main():
     # After this point, the json implementations should be used to not branch code direction
     gridInfo, gridMatrix, gridErrorDict, gridHmUnknownsList, boolIdenticalLists = jsonStoreSolution(model)
 
-    model.complexFourierTransform()
-
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         showModel(gridInfo, gridMatrix, model, fieldType='MMF',
