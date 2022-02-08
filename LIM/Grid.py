@@ -143,8 +143,8 @@ class Grid(LimMotor):
 
         self.hmRegions = kwargs['hmRegions']
         self.mecRegions = kwargs['mecRegions']
-        self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int16)
-        self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int16)
+        self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
+        self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
 
         self.mecRegionLength = self.matrix[self.ppVacuumLower:self.ppHeight + self.ppVacuumLower, :].size
 

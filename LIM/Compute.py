@@ -935,7 +935,7 @@ class Model(Grid):
 # noinspection PyGlobalUndefined
 def complexFourierTransform(model_in, harmonics_in):
     """
-    This method was written to plot the Bx field at the boundary between the coils and the airgap,
+    This function was written to plot the Bx field at the boundary between the coils and the airgap,
      described in equation 24 of the 2019 paper. The Bx field is piecewise-continuous and is plotted in Blue.
      The complex Fourier transform was applied to the Bx field and plotted in Red. The accuracy of the
      complex Fourier transform depends on: # of harmonics, # of x positions, # of nodes in the x-direction of the model
@@ -966,7 +966,6 @@ def complexFourierTransform(model_in, harmonics_in):
         else:
             increment += 1
         sliceWidth = row_upper_FT[outerIdx].lx / slices
-        # TODO I need to update this to max at self.L
         expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
 
     # noinspection PyGlobalUndefined
@@ -974,15 +973,17 @@ def complexFourierTransform(model_in, harmonics_in):
         global row_upper_FT, idx_FT, model
 
         lNode, rNode = model.neighbourNodes(idx_FT)
-        # phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
-        #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
-        # phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
-        #         / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
+        phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
+                / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
+        phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
+                / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
         # TODO This is a test to see if MMF scales correctly with the mesh
         #  From what I see, the reluctance is scaling fine but the MMF is not. Look at this file for a summary:
         #  SupportingDocs/Troubleshooting/ChangingMmfWithMesh.jpg
-        phiXn = row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF
-        phiXp = row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF
+        # # phiXn = row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF
+        # # phiXp = row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF
+        # phiXn = row_upper_FT[idx_FT].MMF
+        # phiXp = 0
         return phiXn, phiXp
 
     # noinspection PyGlobalUndefined
@@ -1025,15 +1026,15 @@ def complexFourierTransform(model_in, harmonics_in):
     idx_FT = 0
     x = expandedLeftNodeEdges
     y1 = vfun(x)
-    # vfun = np.vectorize(fourierSeries)
-    # y2 = vfun(x)
+    vfun = np.vectorize(fourierSeries)
+    y2 = vfun(x)
 
-    # plt.plot(x, y1, 'b-')
-    # plt.plot(x, y2, 'r-')
-    # plt.xlabel('Position [m]')
-    # plt.ylabel('Bx [T]')
-    # plt.title('Bx field at airgap Boundary')
-    # plt.show()
+    plt.plot(x, y1, 'b-')
+    plt.plot(x, y2, 'r-')
+    plt.xlabel('Position [m]')
+    plt.ylabel('Bx [T]')
+    plt.title('Bx field at airgap Boundary')
+    plt.show()
 
     return x, y1
 
@@ -1042,8 +1043,10 @@ def plotFourierError():
 
     # TODO These iterations must be compared to the standard which we can call pixelDiv = 2
     #  so these iterations must go from 3-8 = 5 iterations
-    iterations = 5
-    pixDivs = range(3, 3 + iterations, 2)
+    iterations = 3
+    step = 6
+    start = 10
+    pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
     lowDiscrete = 10
@@ -1069,7 +1072,7 @@ def plotFourierError():
     baseModel.buildGrid(pixelSpacing=basePixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
     baseModel.finalizeGrid(pixelDivisions=slotpitch/basePixelSpacing)
     xSequence, benchmark = complexFourierTransform(baseModel, n)
-
+    # plt.plot(xSequence, benchmark, label=f'PixelDivs: {2}')
     for idx, pixelDivisions in enumerate(pixDivs):
 
         pixelSpacing = slotpitch / pixelDivisions
@@ -1080,10 +1083,10 @@ def plotFourierError():
                           mecRegions=np.array([1], dtype=np.int16))
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
         loopedModel.finalizeGrid(pixelDivisions)
-        modelList[idx] = (pixelDivisions, complexFourierTransform(loopedModel, n))
+        modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
 
-    for idx, (pixelDivisions, (xSequence, ySequence)) in enumerate(modelList):
-        plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}')
+    for idx, ((pixelDivisions, ppL, ppH), (xSequence, ySequence)) in enumerate(modelList):
+        plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
 
     plt.legend()
     plt.show()

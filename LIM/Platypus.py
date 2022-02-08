@@ -1,4 +1,3 @@
-# Colton was here
 import numpy as np
 
 from LIM.Show import *
@@ -256,7 +255,7 @@ def main():
     #     algorithm.run(5000)
     #
     # # # TODO Platypus has parallelization built in instead of using Jit
-    # # # TODO Look into changing populatoin
+    # # # TODO Look into changing population
     # feasible_solutions = [s for s in algorithm.result if s.feasible]
     # # # TODO Use the debugging tool to see the attributes of algorithm.population
     # plotResults = []
@@ -309,20 +308,6 @@ def main():
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
-    # TODO This is temp to check the reluctance is maintained for different mesh densities
-    yIdx = model.ppVacuumLower + model.ppYokeheight
-    xIdx = model.ppAirBuffer + model.ppLeftEndTooth + model.ppSlotpitch
-    rows = model.ppSlotheight//2
-    cols = model.ppSlot
-    sectionedArr = np.empty(rows, dtype=np.ndarray)
-    for idx, row in enumerate(model.matrix[yIdx:yIdx + rows]):
-        sectionedArr[idx] = row[xIdx:xIdx + cols]
-
-    sumHorRx, sumVerRx = 0, 0
-    for row in sectionedArr:
-        sumVerRx += row[0].Ry
-        for node in row:
-            sumHorRx += node.Rx
 
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-16)
@@ -335,7 +320,7 @@ def main():
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         showModel(gridInfo, gridMatrix, model, fieldType='MMF',
-                  showGrid=False, showFields=False, showFilter=False, showMatrix=False, showZeros=True,
+                  showGrid=False, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=350, dims=[1080, 1920])
 
     else:
