@@ -62,7 +62,7 @@ class LimMotor(object):
         self.slotpitch = self.ws + self.wt  # meters
         self.endTeeth = (self.L - ((self.slots - 1) * self.slotpitch + self.ws))/2  # meters
         self.Tper = 12 * (self.slotpitch*3)  # meters
-        self.airbuffer = (self.Tper - self.L)/2  # meters
+        self.Airbuffer = (self.Tper - self.L)/2  # meters
         self.hy = 6.5/1000  # meters
         self.hs = 20/1000  # meters
         self.dr = 2/1000  # meters

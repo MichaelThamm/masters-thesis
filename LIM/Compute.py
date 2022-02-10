@@ -1043,9 +1043,9 @@ def plotFourierError():
 
     # TODO These iterations must be compared to the standard which we can call pixelDiv = 2
     #  so these iterations must go from 3-8 = 5 iterations
-    iterations = 3
-    step = 6
-    start = 10
+    iterations = 6
+    step = 1
+    start = 2
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
@@ -1064,15 +1064,6 @@ def plotFourierError():
     yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
     canvasSpacing = 80
 
-    basePixelSpacing = slotpitch/2
-    baseModel = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=basePixelSpacing,
-                  canvasSpacing=canvasSpacing,
-                  meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                  hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16), mecRegions=np.array([1], dtype=np.int16))
-    baseModel.buildGrid(pixelSpacing=basePixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
-    baseModel.finalizeGrid(pixelDivisions=slotpitch/basePixelSpacing)
-    xSequence, benchmark = complexFourierTransform(baseModel, n)
-    # plt.plot(xSequence, benchmark, label=f'PixelDivs: {2}')
     for idx, pixelDivisions in enumerate(pixDivs):
 
         pixelSpacing = slotpitch / pixelDivisions
