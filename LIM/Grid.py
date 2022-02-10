@@ -508,7 +508,7 @@ class Grid(LimMotor):
                                   idxRightAirBuffer])
 
         # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
-        fraction = 1 / (self.ppSlotheight // 2)
+        fraction = 0.5
         doubleBias = self.ppSlotheight - fraction
         doubleCoilScaling = [doubleBias - i if i > 0 else doubleBias for i in range(self.ppSlotheight)]
 
