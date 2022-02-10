@@ -86,7 +86,7 @@ class LimMotor(object):
         self.ur_copp = 1
 
         # Electrical Variables
-        self.Ip = np.float64(10)  # AmpsPeak
+        self.Ip = 10.0  # AmpsPeak
         self.Jin = 0.0  # A/m^2
         self.vel = 0.0  # m/s
         self.N = 57  # turns

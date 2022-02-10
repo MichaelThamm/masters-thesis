@@ -1026,25 +1026,23 @@ def complexFourierTransform(model_in, harmonics_in):
     idx_FT = 0
     x = expandedLeftNodeEdges
     y1 = vfun(x)
-    vfun = np.vectorize(fourierSeries)
-    y2 = vfun(x)
-
-    plt.plot(x, y1, 'b-')
-    plt.plot(x, y2, 'r-')
-    plt.xlabel('Position [m]')
-    plt.ylabel('Bx [T]')
-    plt.title('Bx field at airgap Boundary')
-    plt.show()
+    # vfun = np.vectorize(fourierSeries)
+    # y2 = vfun(x)
+    #
+    # plt.plot(x, y1, 'b-')
+    # plt.plot(x, y2, 'r-')
+    # plt.xlabel('Position [m]')
+    # plt.ylabel('Bx [T]')
+    # plt.title('Bx field at airgap Boundary')
+    # plt.show()
 
     return x, y1
 
 
 def plotFourierError():
 
-    # TODO These iterations must be compared to the standard which we can call pixelDiv = 2
-    #  so these iterations must go from 3-8 = 5 iterations
-    iterations = 6
-    step = 1
+    iterations = 4
+    step = 4
     start = 2
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
