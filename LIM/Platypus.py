@@ -235,8 +235,7 @@ def profile_main():
 
 
 def main():
-
-    pixelDivisions = 4
+    pixelDivisions = 10
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -312,15 +311,15 @@ def main():
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-16)
 
-    model.updateGrid(errorInX, showAirgapPlot=False)
+    model.updateGrid(errorInX, showAirgapPlot=True)
 
     # After this point, the json implementations should be used to not branch code direction
     gridInfo, gridMatrix, gridErrorDict, gridHmUnknownsList, boolIdenticalLists = jsonStoreSolution(model)
 
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(gridInfo, gridMatrix, model, fieldType='MMF',
-                  showGrid=False, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        showModel(gridInfo, gridMatrix, model, fieldType='B',
+                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=350, dims=[1080, 1920])
 
     else:

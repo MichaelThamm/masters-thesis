@@ -39,75 +39,26 @@ class Grid(LimMotor):
         self.typeList = []
         self.complexTypeList = []
 
-        if int(self.slotpitch/self.Spacing) < 4:
-            self.ppSlotpitch = 4
-        else:
-            self.ppSlotpitch = int(self.slotpitch/self.Spacing)
-
-        # Air buffer
-        self.AirBuffer = self.airbuffer
-        if self.AirBuffer < self.Spacing:
-            self.ppAirBuffer = 1
-        else:
-            self.ppAirBuffer = int(self.AirBuffer/self.Spacing)
-
-        # Teeth
-        self.ppTooth = int(self.wt/self.slotpitch*self.ppSlotpitch)
-        if self.ppTooth % 2 != 0:
-            self.ppTooth += 1
-        self.ppLeftEndTooth = int(self.endTeeth/self.Spacing)
-        self.ppRightEndTooth = self.ppLeftEndTooth
-
-        # Slots
+        # X-direction
+        self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2)
+        self.ppAirBuffer = self.setPixelsPerLength(length=self.Airbuffer, minimum=1)
+        self.ppTooth = self.setPixelsPerLength(length=self.wt, minimum=1)
         self.ppSlot = self.ppSlotpitch - self.ppTooth
-
-        # Vacuum lower
-        if self.vacuumBoundary < self.Spacing:
-            self.ppVacuumLower = 1
-        else:
-            self.ppVacuumLower = int(self.vacuumBoundary/self.Spacing)
-
-        # Vacuum Upper
+        self.ppLeftEndTooth = self.setPixelsPerLength(length=self.endTeeth, minimum=1)
+        self.ppRightEndTooth = self.ppLeftEndTooth
+        # Y-direction
+        self.ppVacuumLower = self.setPixelsPerLength(length=self.vacuumBoundary, minimum=1)
         self.ppVacuumUpper = self.ppVacuumLower
+        self.ppYokeheight = self.setPixelsPerLength(length=self.hy, minimum=1)
+        self.ppAirgap = self.setPixelsPerLength(length=self.g, minimum=1)
+        self.ppBladerotor = self.setPixelsPerLength(length=self.dr, minimum=1)
+        self.ppBackIron = self.setPixelsPerLength(length=self.bi, minimum=1)
+        self.ppSlotheight = self.setPixelsPerLength(length=self.hs, minimum=2)
 
-        # Yoke height
-        if self.hy < self.Spacing:
-            self.ppYokeheight = 1
-        else:
-            self.ppYokeheight = int(self.hy/self.Spacing)
-
-        # Slot height
-        if self.hs < self.Spacing:
-            self.ppSlotheight = 2
-        else:
-            self.ppSlotheight = int(self.hs/self.Spacing)
-        if sum(yMeshIndexes[2]) or sum(yMeshIndexes[3]):
-            if self.ppSlotheight < sum(yMeshIndexes[2])*len(self.meshDensity) + sum(yMeshIndexes[3])*len(self.meshDensity) + 2:
-                self.ppSlotheight = sum(yMeshIndexes[2])*len(self.meshDensity) + sum(yMeshIndexes[3])*len(self.meshDensity) + 2
         if self.ppSlotheight % 2 != 0:
             self.ppSlotheight += 1
 
-        # Stator height
         self.ppHeight = self.ppYokeheight + self.ppSlotheight
-
-        # Air gap
-        if self.g < self.Spacing:
-            self.ppAirgap = 1
-        else:
-            self.ppAirgap = int(self.g/self.Spacing)
-
-        # Blade rotor
-        if self.dr < self.Spacing:
-            self.ppBladerotor = 1
-        else:
-            self.ppBladerotor = int(self.dr/self.Spacing)
-
-        # Back iron
-        if self.bi < self.Spacing:
-            self.ppBackIron = 1
-        else:
-            self.ppBackIron = int(self.bi/self.Spacing)
-
         self.ppLength = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + self.ppLeftEndTooth + self.ppRightEndTooth + 2 * self.ppAirBuffer
         self.matrix = np.array([[type('', (Node,), {}) for _ in np.arange(self.ppLength)] for _ in np.arange(self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron + self.ppVacuumLower + self.ppVacuumUpper)])
         self.ppL = len(self.matrix[0])
@@ -126,7 +77,7 @@ class Grid(LimMotor):
 
         # Mesh sizing
         self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
-        self.xListSpatialDatum = [self.AirBuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.AirBuffer]
+        self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppLeftEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppRightEndTooth, self.ppAirBuffer]
         self.yListSpatialDatum = [self.vacuumBoundary, self.hy, self.hs/2, self.hs/2, self.g, self.dr, self.bi, self.vacuumBoundary]
         self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppYokeheight, self.ppSlotheight//2, self.ppSlotheight//2, self.ppAirgap, self.ppBladerotor, self.ppBackIron, self.ppVacuumUpper]
@@ -135,11 +86,13 @@ class Grid(LimMotor):
             self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
             if self.xMeshSizes[Cnt] < 0:
                 print('negative x mesh sizes', Cnt)
+                return
 
         for Cnt in np.arange(len(self.yMeshSizes)):
             self.yMeshSizes[Cnt] = meshBoundary(self.yListSpatialDatum[Cnt], self.yListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(yMeshIndexes[Cnt]), self.meshDensity)
             if self.yMeshSizes[Cnt] < 0:
                 print('negative y mesh sizes')
+                return
 
         self.hmRegions = kwargs['hmRegions']
         self.mecRegions = kwargs['mecRegions']
@@ -539,61 +492,6 @@ class Grid(LimMotor):
             b = 0
             a += 1
 
-    def setRegionIndices(self):
-
-        # Create the starting index for each region in the columns of matrix A
-        regionIndex, hmCount, mecCount = 0, 0, 0
-        for count in np.arange(len(self.mecRegions) + len(self.hmRegions) + 1):
-            if count in self.hmRegions or count == self.hmRegions[-1] + 1:
-                # Dirichlet boundaries which have half the unknown coefficients
-                if count == 0 or count == self.hmRegions[-1]:
-                    self.hmRegionsIndex[hmCount] = regionIndex
-                    regionIndex += 2 * len(self.n)
-                else:
-                    self.hmRegionsIndex[hmCount] = regionIndex
-                    regionIndex += 2 * len(self.n)
-                hmCount += 1
-
-            elif count in self.mecRegions:
-                self.mecRegionsIndex[mecCount] = regionIndex
-                regionIndex += self.mecRegionLength
-                mecCount += 1
-
-            else:
-                self.writeErrorToDict(key='name',
-                                      error=Error(name='gridRegion',
-                                                  description='ERROR - Error in the iGrid regions list',
-                                                  cause=True))
-
-        # Check that the indexes for regions are whole numbers
-        counter = 0
-        for hm in self.hmRegionsIndex:
-            frac, whole = math.modf(hm)
-
-            if frac != 0:
-                self.writeErrorToDict(key='name',
-                                      error=Error(name='hmFloat',
-                                                  description='ERROR - non int values in hmRegionsIndex',
-                                                  cause=True))
-            else:
-                self.hmRegionsIndex[counter] = int(hm)
-
-            counter += 1
-
-        counter = 0
-        for mec in self.mecRegionsIndex:
-            frac, whole = math.modf(mec)
-
-            if frac != 0:
-                self.writeErrorToDict(key='name',
-                                      error=Error(name='mecFloat',
-                                                  description='ERROR - non int values in mecRegionsIndex',
-                                                  cause=True))
-            else:
-                self.mecRegionsIndex[counter] = int(mec)
-
-            counter += 1
-
     def finalizeGrid(self, pixelDivisions):
         spatialDomainFlag = False
 
@@ -611,8 +509,8 @@ class Grid(LimMotor):
 
         # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
         fraction = 1 / (self.ppSlotheight // 2)
-        doubleBias = 2 - fraction / 2
-        doubleCoilScaling = [doubleBias - i * fraction if i > 0 else doubleBias for i in range(self.ppSlotheight)]
+        doubleBias = self.ppSlotheight - fraction
+        doubleCoilScaling = [doubleBias - i if i > 0 else doubleBias for i in range(self.ppSlotheight)]
 
         scalingLower, scalingUpper = 0.0, 0.0
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
@@ -728,6 +626,66 @@ class Grid(LimMotor):
             j = 0
             i += 1
 
+    def setPixelsPerLength(self, length, minimum):
+
+        pixels = int(length / self.Spacing)
+        return minimum if pixels < minimum else pixels
+
+    def setRegionIndices(self):
+
+        # Create the starting index for each region in the columns of matrix A
+        regionIndex, hmCount, mecCount = 0, 0, 0
+        for count in np.arange(len(self.mecRegions) + len(self.hmRegions) + 1):
+            if count in self.hmRegions or count == self.hmRegions[-1] + 1:
+                # Dirichlet boundaries which have half the unknown coefficients
+                if count == 0 or count == self.hmRegions[-1]:
+                    self.hmRegionsIndex[hmCount] = regionIndex
+                    regionIndex += 2 * len(self.n)
+                else:
+                    self.hmRegionsIndex[hmCount] = regionIndex
+                    regionIndex += 2 * len(self.n)
+                hmCount += 1
+
+            elif count in self.mecRegions:
+                self.mecRegionsIndex[mecCount] = regionIndex
+                regionIndex += self.mecRegionLength
+                mecCount += 1
+
+            else:
+                self.writeErrorToDict(key='name',
+                                      error=Error(name='gridRegion',
+                                                  description='ERROR - Error in the iGrid regions list',
+                                                  cause=True))
+
+        # Check that the indexes for regions are whole numbers
+        counter = 0
+        for hm in self.hmRegionsIndex:
+            frac, whole = math.modf(hm)
+
+            if frac != 0:
+                self.writeErrorToDict(key='name',
+                                      error=Error(name='hmFloat',
+                                                  description='ERROR - non int values in hmRegionsIndex',
+                                                  cause=True))
+            else:
+                self.hmRegionsIndex[counter] = int(hm)
+
+            counter += 1
+
+        counter = 0
+        for mec in self.mecRegionsIndex:
+            frac, whole = math.modf(mec)
+
+            if frac != 0:
+                self.writeErrorToDict(key='name',
+                                      error=Error(name='mecFloat',
+                                                  description='ERROR - non int values in mecRegionsIndex',
+                                                  cause=True))
+            else:
+                self.mecRegionsIndex[counter] = int(mec)
+
+            counter += 1
+
     # This function is written to catch any errors in the mapping between canvas and space for both x and y coordinates
     def checkSpatialMapping(self, pixelDivision, spatialDomainFlag, iIdxs):
 
@@ -764,12 +722,12 @@ class Grid(LimMotor):
             print(f'flag - right end tooth: {self.endTeeth - (self.matrix[yIdx][iIdxRightAirBuffer].x - self.matrix[yIdx][iIdxRightEndTooth].x)}')
             spatialDomainFlag = True
         # Check left air buffer
-        if round(self.AirBuffer - (self.matrix[yIdx][iIdxLeftEndTooth].x - self.matrix[yIdx][iIdxLeftAirBuffer].x), 12) != 0:
-            print(f'flag - left air buffer: {self.AirBuffer - (self.matrix[yIdx][iIdxLeftEndTooth].x - self.matrix[yIdx][iIdxLeftAirBuffer].x)}')
+        if round(self.Airbuffer - (self.matrix[yIdx][iIdxLeftEndTooth].x - self.matrix[yIdx][iIdxLeftAirBuffer].x), 12) != 0:
+            print(f'flag - left air buffer: {self.Airbuffer - (self.matrix[yIdx][iIdxLeftEndTooth].x - self.matrix[yIdx][iIdxLeftAirBuffer].x)}')
             spatialDomainFlag = True
         # Check right air buffer
-        if round(self.AirBuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][iIdxRightAirBuffer].x), 12) != 0:
-            print(f'flag - right air buffer: {self.AirBuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][iIdxRightAirBuffer].x)}')
+        if round(self.Airbuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][iIdxRightAirBuffer].x), 12) != 0:
+            print(f'flag - right air buffer: {self.Airbuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][iIdxRightAirBuffer].x)}')
             spatialDomainFlag = True
 
         # Y direction Checks
