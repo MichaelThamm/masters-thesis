@@ -944,7 +944,7 @@ def complexFourierTransform(model_in, harmonics_in):
      c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
     """
 
-    global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, res_c0, model
+    global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, model
 
     model = model_in
 
@@ -977,13 +977,6 @@ def complexFourierTransform(model_in, harmonics_in):
                 / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
         phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
                 / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
-        # TODO This is a test to see if MMF scales correctly with the mesh
-        #  From what I see, the reluctance is scaling fine but the MMF is not. Look at this file for a summary:
-        #  SupportingDocs/Troubleshooting/ChangingMmfWithMesh.jpg
-        # # phiXn = row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF
-        # # phiXp = row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF
-        # phiXn = row_upper_FT[idx_FT].MMF
-        # phiXp = 0
         return phiXn, phiXp
 
     # noinspection PyGlobalUndefined
@@ -1001,7 +994,7 @@ def complexFourierTransform(model_in, harmonics_in):
     # noinspection PyGlobalUndefined
     @lru_cache(maxsize=5)
     def fourierSeries(x_in):
-        global row_upper_FT, idx_FT, res_c0, model
+        global row_upper_FT, idx_FT, model
         sumN = 0.0
         for nHM in harmonics:
             wn = 2 * nHM * pi / model.Tper
