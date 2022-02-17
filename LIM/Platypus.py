@@ -235,7 +235,8 @@ def profile_main():
 
 
 def main():
-    pixelDivisions = 2
+    # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
+    pixelDivisions = 5
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -246,7 +247,7 @@ def main():
     poles = 6
     wt, ws = 6 / 1000, 10 / 1000
     slotpitch = wt + ws
-    endTeeth = 2 * (4/3 * wt)
+    endTeeth = 2 * (5/3 * wt)
     length = ((slots - 1) * slotpitch + ws) + endTeeth
 
     # with timing():
@@ -309,7 +310,7 @@ def main():
     model.finalizeGrid(pixelDivisions)
 
     with timing():
-        errorInX = model.finalizeCompute(iTol=1e-16)
+        errorInX = model.finalizeCompute(iTol=1e-15)
 
     model.updateGrid(errorInX, showAirgapPlot=True)
 
@@ -318,8 +319,8 @@ def main():
 
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(gridInfo, gridMatrix, model, fieldType='B',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        showModel(gridInfo, gridMatrix, model, fieldType='Bx',
+                  showGrid=True, showFields=True, showFilter=False, showMatrix=True, showZeros=True,
                   numColours=350, dims=[1080, 1920])
 
     else:

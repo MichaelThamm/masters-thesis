@@ -99,6 +99,7 @@ class Model(Grid):
         self.matBCount += 2
 
     def __mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper='None'):
+        # TODO It may be possible to move this method inside __mec method. If not, we are doing many extra calculations (2 * ppL)
         hb, ur, urSigma = listBCInfo
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
@@ -592,19 +593,17 @@ class Model(Grid):
             resX = lu_solve((lu, piv), self.matrixB)
             remainder = self.matrixA @ resX - self.matrixB
             print(f'This was the max error seen in the solution for x: {max(remainder)} vs min: {min(remainder)}')
-            test = np.allclose(remainder, np.zeros((len(self.matrixA),)), atol=tolerance)
-            print(f'LU Decomp test: {test}, if True then x is a solution of Ax = iB with a tolerance of {tolerance}')
-            if not test:
-                resX = None
+            testPass = np.allclose(remainder, np.zeros((len(self.matrixA),)), atol=tolerance)
+            print(f'LU Decomp test: {testPass}, if True then x is a solution of Ax = iB with a tolerance of {tolerance}')
+            if testPass:
+                return resX, max(remainder)
+            else:
                 print('LU Decomp test failed')
                 return
-
         else:
-            resX = np.nan
-            remainder = None
             print('Error - A is not a square matrix')
+            return
 
-        return resX, max(remainder)
 
     def __genForces(self, urSigma, iY):
 
@@ -694,13 +693,13 @@ class Model(Grid):
         plt.title('By field in airgap')
         plt.show()
 
-        tempReal = np.array([j.real for j in dataArray[3]], dtype=np.float64)
-        plt.scatter(xSorted, tempReal.flatten())
-        plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
-        plt.xlabel('Position [m]')
-        plt.ylabel('|B| [T]]')
-        plt.title('B field in airgap')
-        plt.show()
+        # tempReal = np.array([j.real for j in dataArray[3]], dtype=np.float64)
+        # plt.scatter(xSorted, tempReal.flatten())
+        # plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
+        # plt.xlabel('Position [m]')
+        # plt.ylabel('|B| [T]]')
+        # plt.title('B field in airgap')
+        # plt.show()
 
     def __setCurrColCount(self, value):
         self.currColCount = value
@@ -1034,13 +1033,13 @@ def complexFourierTransform(model_in, harmonics_in):
 
 def plotFourierError():
 
-    iterations = 4
-    step = 4
-    start = 2
+    iterations = 1
+    step = 2
+    start = 10
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
-    lowDiscrete = 10
+    lowDiscrete = 30
     n = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
     n = np.delete(n, len(n) // 2, 0)
     slots = 16

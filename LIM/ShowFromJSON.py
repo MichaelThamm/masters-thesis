@@ -26,9 +26,9 @@ def plotPointsAlongX(iGridInfo, iGridMatrix, iY):
         dataArray[3] = yB_LowerList
 
     else:  # odd
-        yB_CenterList = np.array([iGridMatrix[iY, j].B for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
         yBxCenterList = np.array([iGridMatrix[iY, j].Bx for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
         yByCenterList = np.array([iGridMatrix[iY, j].By for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
+        yB_CenterList = np.array([iGridMatrix[iY, j].B for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
 
         dataArray[1] = yBxCenterList
         dataArray[2] = yByCenterList
