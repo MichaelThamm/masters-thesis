@@ -39,7 +39,7 @@ class Model(Grid):
         self.canvasColRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
                                        self.mecRegionLength + 3 * len(self.n), self.mecRegionLength + 5 * len(self.n),
                                        self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-        self.mecHmCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
+        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
 
         self.hmIdxs = list(range(2 * len(self.n))) + list(range(self.hmRegionsIndex[1], self.hmRegionsIndex[-1]))
         self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
