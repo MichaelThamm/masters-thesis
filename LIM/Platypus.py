@@ -319,9 +319,9 @@ def main():
 
     if np.all(np.all(boolIdenticalLists, axis=1)):
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(gridInfo, gridMatrix, model, fieldType='Bx',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=True, showZeros=True,
-                  numColours=350, dims=[1080, 1920])
+        showModel(gridInfo, gridMatrix, model, fieldType='MMF',
+                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+                  numColours=20, dims=[1080, 1920])
 
     else:
         model.writeErrorToDict(key='name',

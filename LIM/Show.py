@@ -147,7 +147,7 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
         print('Neither A or B matrix was chosen to be visualized')
         return
 
-    zoomFactor = 3
+    zoomFactor = 5
 
     matrixGrid = Tk()
     matrixGrid.title('Matrix Visualization')
@@ -177,7 +177,7 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
                               dash=(4, 2))  # Vertical Lines
 
         # Grid MEC-HM boundary region lines
-        for val in model.mecHmCanvasRegIdxs:
+        for val in model.mecCanvasRegIdxs:
             mGrid.create_line(0, val * zoomFactor, dims[1] * zoomFactor, val * zoomFactor, fill='red',
                               dash=(4, 2))  # Horizontal Lines
             mGrid.create_line(val * zoomFactor, 0, val * zoomFactor, dims[1] * zoomFactor, fill='red',
@@ -192,24 +192,30 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
                               dash=(4, 2))  # Horizontal Lines
 
         # Grid MEC-HM boundary region lines
-        for val in model.mecHmCanvasRegIdxs:
+        for val in model.mecCanvasRegIdxs:
             mGrid.create_line(0, val * zoomFactor, dims[1] * zoomFactor, val * zoomFactor, fill='red',
                               dash=(4, 2))  # Horizontal Lines
 
-        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[0] + model.ppAirBuffer + model.ppLeftEndTooth + model.ppSlotpitch - 1)
+        constantOffset1 = model.mecCanvasRegIdxs[0] + model.ppL * (model.ppYokeheight - 1) + model.ppAirBuffer + model.ppLeftEndTooth + model.ppSlotpitch - 1
+        # TODO The green lines are dependant on the mesh size (ppSlot and ppTooth)
+        #  since the source is eastMMFNum / eastRelDenom - westMMFNum / westRelDenom this is what determines the B source
+        #  if I change the mesh density these green lines will not match up: different results for ppSlot and ppTooth
+        #  less than 3
+        constantOffset2 = constantOffset1 + 2  # This number should always be 2 if model.ppSlot > 2
+        constantOffset3 = constantOffset2 + (model.ppSlot - 2)
+        constantOffset4 = constantOffset3 + 4
+        yPos = zoomFactor * constantOffset1
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
-        # [202, 304]
-        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[0] + model.ppAirBuffer + model.ppLeftEndTooth
-                          + (model.slots - 4) * model.ppSlotpitch + model.ppSlot + 1)
+        yPos = zoomFactor * constantOffset2
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
 
-        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[1] + model.ppAirBuffer + model.ppLeftEndTooth + 3 * model.ppSlotpitch - 1)
+        yPos = zoomFactor * constantOffset3
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
 
-        yPos = zoomFactor * (model.mecHmCanvasRegIdxs[1] + model.ppAirBuffer + model.ppLeftEndTooth + (model.slots - 2) * model.ppSlotpitch + model.ppSlot + 1)
+        yPos = zoomFactor * constantOffset4
         mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
                           dash=(4, 2))  # Horizontal Lines
 
@@ -290,10 +296,7 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
 
         # Create fields canvas to display the selected field result on the mesh
         else:
-            if minScale < 0:
-                fieldsScale = np.arange(minScale, maxScale - normScale, normScale)
-            else:
-                fieldsScale = np.arange(minScale, maxScale + normScale, normScale)
+            fieldsScale = np.arange(minScale, maxScale + normScale, normScale)
             colorScaleIndex = np.where(fieldsScale == fieldsScale[0])
 
             cFields.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
