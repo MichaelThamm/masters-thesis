@@ -99,12 +99,12 @@ class Model(Grid):
         self.matBCount += 2
 
     def __mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper='None'):
-        # TODO It may be possible to move this method inside __mec method. If not, we are doing many extra calculations (2 * ppL)
         hb, ur, urSigma = listBCInfo
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        coeff = j_plex / (wn * self.Tper)
+        # TODO My math shows this to be 1 2019 paper says 2
+        coeff = 2 * j_plex / (wn * self.Tper)
 
         if lowerUpper == 'lower':
             row = self.matrix[iY]
@@ -116,7 +116,7 @@ class Model(Grid):
 
         sumResEqn22Source = np.cdouble(0)
         for iX in np.arange(self.ppL):
-            lNode, rNode = self.neighbourNodes(iX)
+            llNode, lNode, rNode, rrNode = self.neighbourNodes(iX)
 
             # By Condition
             # This is handled in the MEC region KCL equations using Eqn 21
@@ -124,23 +124,30 @@ class Model(Grid):
             # Hx Condition
             # MEC related equations
             eastRelDenom = row[iX].Rx + row[rNode].Rx
+            eeRelDenom = row[rNode].Rx + row[rrNode].Rx
             westRelDenom = row[iX].Rx + row[lNode].Rx
+            wwRelDenom = row[lNode].Rx + row[llNode].Rx
+
+            eastMMF = row[iX].MMF + row[rNode].MMF
+            eeMMF = row[rNode].MMF + row[rrNode].MMF
+            westMMF = row[iX].MMF + row[lNode].MMF
+            wwMMF = row[lNode].MMF + row[llNode].MMF
 
             # For this section refer to the 2015 HAM paper for these 3 cases
             # __________k = k - 1__________ #
             coeffIntegral_kn = self.__eqn23Integral(wn, row[lNode].x, row[lNode].x + row[lNode].lx, row[lNode].ur, row[lNode].Szy)
             resPsi_kn = coeffIntegral_kn / westRelDenom
-            resSource_kn = coeffIntegral_kn * row[iX].MMF / westRelDenom
+            resSource_kn = coeffIntegral_kn * (wwMMF / wwRelDenom + westMMF / westRelDenom)
 
             # __________k = k__________ #
             coeffIntegral_k = self.__eqn23Integral(wn, row[iX].x, row[iX].x + row[iX].lx, row[iX].ur, row[iX].Szy)
             resPsi_k = coeffIntegral_k * (1 / westRelDenom - 1 / eastRelDenom)
-            resSource_k = coeffIntegral_k * row[iX].MMF * (1 / westRelDenom + 1 / eastRelDenom)
+            resSource_k = coeffIntegral_k * (westMMF / westRelDenom + eastMMF / eastRelDenom)
 
             # __________k = k + 1__________ #
             coeffIntegral_kp = self.__eqn23Integral(wn, row[rNode].x, row[rNode].x + row[rNode].lx, row[rNode].ur, row[rNode].Szy)
             resPsi_kp = - coeffIntegral_kp / eastRelDenom
-            resSource_kp = coeffIntegral_kp * row[iX].MMF / eastRelDenom
+            resSource_kp = coeffIntegral_kp * (eastMMF / eastRelDenom + eeMMF / eeRelDenom)
 
             combinedPsi_k = time_plex * coeff * (resPsi_kn + resPsi_k + resPsi_kp)
 
@@ -149,9 +156,7 @@ class Model(Grid):
             elif lowerUpper == 'upper':
                 self.matrixA[self.nLoop, mecRegCountOffset + self.mecRegionLength - self.ppL + iX] = combinedPsi_k  # Curr
 
-            combinedSource_k = resSource_kn + resSource_k + resSource_kp
-
-            sumResEqn22Source += combinedSource_k
+            sumResEqn22Source += (resSource_kn + resSource_k + resSource_kp)
 
         # HM related equations
         hmResA, hmResB = self.__preEqn8(ur, lambdaN, wn, hb)
@@ -178,7 +183,7 @@ class Model(Grid):
 
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
 
-        lNode, rNode = self.neighbourNodes(j)
+        _, lNode, rNode, _ = self.neighbourNodes(j)
 
         northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
         eastRelDenom = self.matrix[i, j].Rx + self.matrix[i, rNode].Rx
@@ -353,7 +358,6 @@ class Model(Grid):
 
     def __eqn23Integral(self, wn, Xl, Xr, ur, Szy):
 
-        # TODO My math shows this should be 1 but the 2019 paper has this as 2
         coeff = 1 / (2 * ur * Szy)
         res = coeff * (cmath.exp(-j_plex * wn * (Xr - self.vel * self.t)) -
                        cmath.exp(-j_plex * wn * (Xl - self.vel * self.t)))
@@ -379,17 +383,38 @@ class Model(Grid):
                                              cause=self.hmRegionsIndex[-1] != self.matrixA.shape[1]))
 
     def neighbourNodes(self, j):
-        if j == 0:
+        # boundary 2 to the left
+        if j == 1:
+            llNode = self.ppL - 1
+            lNode = j - 1
+            rNode = j + 1
+            rrNode = j + 2
+        # boundary 1 to the left
+        elif j == 0:
+            llNode = self.ppL - 2
             lNode = self.ppL - 1
             rNode = j + 1
+            rrNode = j + 2
+        # boundary 1 to the right
         elif j == self.ppL - 1:
+            llNode = j - 2
             lNode = j - 1
             rNode = 0
-        else:
+            rrNode = 1
+        # boundary 2 to the right
+        elif j == self.ppL - 2:
+            llNode = j - 2
             lNode = j - 1
             rNode = j + 1
+            rrNode = 0
 
-        return lNode, rNode
+        else:
+            llNode = j - 2
+            lNode = j - 1
+            rNode = j + 1
+            rrNode = j + 2
+
+        return llNode, lNode, rNode, rrNode
 
     # TODO We can cache functions like this for time improvement
     def __boundaryInfo(self, iY1, iY2, boundaryType):
@@ -579,6 +604,7 @@ class Model(Grid):
 
         dirichletIdxs = list(range(len(self.n), 2 * len(self.n))) +\
                         list(range(self.hmRegionsIndex[-1] - len(self.n), self.hmRegionsIndex[-1]))
+        # TODO This can be improved with map method rather than list comprehension
         self.hmIdxs = [index for index in self.hmIdxs if index not in dirichletIdxs]
         self.__shiftHmIdxList(idx)
         self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
@@ -603,7 +629,6 @@ class Model(Grid):
         else:
             print('Error - A is not a square matrix')
             return
-
 
     def __genForces(self, urSigma, iY):
 
@@ -731,22 +756,21 @@ class Model(Grid):
         Cnt = 0
         i, j = 0, 0
         while i < self.ppH:
-            while j < self.ppL:
-                if i in self.mecYIndexes:
+            if i in self.mecYIndexes:
+                while j < self.ppL:
                     self.matrix[i, j].Yk = self.mecMatrixX[Cnt]
                     Cnt += 1
-                j += 1
-            j = 0
+                    j += 1
+                j = 0
             i += 1
 
         # Solve for B in the mesh
         i, j = 0, 0
         regCnt = 0
-
         while i < self.ppH:
             while j < self.ppL:
 
-                lNode, rNode = self.neighbourNodes(j)
+                _, lNode, rNode, _ = self.neighbourNodes(j)
 
                 if i in self.mecYIndexes:
                     # Bottom layer of the MEC
@@ -971,7 +995,7 @@ def complexFourierTransform(model_in, harmonics_in):
     def fluxAtBoundary():
         global row_upper_FT, idx_FT, model
 
-        lNode, rNode = model.neighbourNodes(idx_FT)
+        _, lNode, rNode, _ = model.neighbourNodes(idx_FT)
         phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
                 / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
         phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \

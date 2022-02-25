@@ -302,17 +302,44 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
             cFields.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
             print(f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
 
+            # All drawing is done at the bottom of the node
+            def horCoreBoundary(tuple_in):
+                if tuple_in[0] == gridInfo['yokeYIndexes'][0] and tuple_in[1] in gridInfo['toothArray'] + gridInfo['coilArray']:
+                    return True
+                elif tuple_in[0] == gridInfo['upper_slotYIndexes1'][0] and tuple_in[1] in gridInfo['coilArray']:
+                    return True
+                elif tuple_in[0] == gridInfo['mecYIndexes'][-1] + 1 and tuple_in[1] in gridInfo['toothArray']:
+                    return True
+                else:
+                    return False
+
+            # All drawing is done to the right of the node
+            def vertCoreBoundary(tuple_in):
+                # Left end tooth
+                if tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in [gridInfo['toothArray'][0] - 1] + [gridInfo['toothArray'][gridInfo['ppLeftEndTooth']-1]]:
+                    return True
+                # Right end tooth
+                elif tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in [gridInfo['toothArray'][-gridInfo['ppRightEndTooth']-1]] + [gridInfo['toothArray'][-1]]:
+                    return True
+                # Remaining teeth right edge
+                elif tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in gridInfo['toothArray'][::gridInfo['ppSlotpitch']:gridInfo['ppSlotpitch']]:
+                    return True
+                # Remaining teeth left edge
+                elif tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in gridInfo['toothArray'][::gridInfo['ppSlotpitch']:
+                    return True
+                else:
+                    return False
+
+            nodeIndexes = [(node.yIndex, node.xIndex) for row in gridMatrix for node in row]
+            horCoreBoundaryIdxs = filter(horCoreBoundary, nodeIndexes)
+            vertCoreBoundaryIdxs = filter(vertCoreBoundary, nodeIndexes)
+
             # Assigns a colour to a node based on its relative position in the range of values and the range of available colours
             i, j, k = 0, 0, 0
             while i < gridMatrix.shape[0]:
                 while j < gridMatrix.shape[1]:
                     if showFilter:
-                        if i in filteredRows:
-                            overRideColour = determineColour(gridMatrix, gridInfo, i, j,
-                                                             [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
-                                                             highlightZeroValsInField=showZeros)
-
-                        elif (i, j) in filteredRowCols:
+                        if i in filteredRows or (i, j) in filteredRowCols:
                             overRideColour = determineColour(gridMatrix, gridInfo, i, j,
                                                              [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
                                                              highlightZeroValsInField=showZeros)

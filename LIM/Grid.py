@@ -628,7 +628,7 @@ class Grid(LimMotor):
 
     def setPixelsPerLength(self, length, minimum):
 
-        pixels = int(length / self.Spacing)
+        pixels = round(length / self.Spacing)
         return minimum if pixels < minimum else pixels
 
     def setRegionIndices(self):
