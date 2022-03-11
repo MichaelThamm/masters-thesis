@@ -41,7 +41,7 @@ class Model(Grid):
                                        self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
         self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
 
-        self.hmIdxs = list(range(2 * len(self.n))) + list(range(self.hmRegionsIndex[1], self.hmRegionsIndex[-1]))
+        self.hmIdxs = list(range(2 * len(self.n))) + list(range(self.hmRegionsIndex[1], lenUnknowns))
         self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
 
         self.hmMatrixX = []
@@ -105,6 +105,10 @@ class Model(Grid):
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
         # TODO My math shows this to be 1 2019 paper says 2
         coeff = 2 * j_plex / (wn * self.Tper)
+
+        if iY not in [self.mecYIndexes[0], self.mecYIndexes[-1] + 1]:
+            print('Please choose a valid boundary index')
+            return
 
         if lowerUpper == 'lower':
             row = self.matrix[iY]
@@ -557,7 +561,7 @@ class Model(Grid):
         # Remove N equations and N coefficients at the Dirichlet boundaries that are solved in HAM_2015
         rowRemoveIdx = np.array(list(range(len(self.n))) + list(range(lenUnknowns - len(self.n), lenUnknowns)))
         # print('removeRowsIdx', rowRemoveIdx)
-        colRemoveIdx = np.array(list(range(reg0Count + 1, reg1Count + 1, 2)) + list(range(reg5Count, reg6Count, 2)))
+        colRemoveIdx = np.array(list(range(reg0Count + 1, reg1Count + 1, 2)) + list(range(reg5Count, lenUnknowns, 2)))
         # print('removeColsIdx', colRemoveIdx)
 
         self.__checkForErrors()

@@ -638,6 +638,7 @@ class Grid(LimMotor):
         for count in np.arange(len(self.mecRegions) + len(self.hmRegions) + 1):
             if count in self.hmRegions or count == self.hmRegions[-1] + 1:
                 # Dirichlet boundaries which have half the unknown coefficients
+                # TODO Simplify this code if we decide to not include the removed equations and unknowns from the start
                 if count == 0 or count == self.hmRegions[-1]:
                     self.hmRegionsIndex[hmCount] = regionIndex
                     regionIndex += 2 * len(self.n)
@@ -656,35 +657,6 @@ class Grid(LimMotor):
                                       error=Error(name='gridRegion',
                                                   description='ERROR - Error in the iGrid regions list',
                                                   cause=True))
-
-        # Check that the indexes for regions are whole numbers
-        counter = 0
-        for hm in self.hmRegionsIndex:
-            frac, whole = math.modf(hm)
-
-            if frac != 0:
-                self.writeErrorToDict(key='name',
-                                      error=Error(name='hmFloat',
-                                                  description='ERROR - non int values in hmRegionsIndex',
-                                                  cause=True))
-            else:
-                self.hmRegionsIndex[counter] = int(hm)
-
-            counter += 1
-
-        counter = 0
-        for mec in self.mecRegionsIndex:
-            frac, whole = math.modf(mec)
-
-            if frac != 0:
-                self.writeErrorToDict(key='name',
-                                      error=Error(name='mecFloat',
-                                                  description='ERROR - non int values in mecRegionsIndex',
-                                                  cause=True))
-            else:
-                self.mecRegionsIndex[counter] = int(mec)
-
-            counter += 1
 
     # This function is written to catch any errors in the mapping between canvas and space for both x and y coordinates
     def checkSpatialMapping(self, pixelDivision, spatialDomainFlag, iIdxs):

@@ -315,18 +315,23 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
 
             # All drawing is done to the right of the node
             def vertCoreBoundary(tuple_in):
-                # Left end tooth
-                if tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in [gridInfo['toothArray'][0] - 1] + [gridInfo['toothArray'][gridInfo['ppLeftEndTooth']-1]]:
-                    return True
-                # Right end tooth
-                elif tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in [gridInfo['toothArray'][-gridInfo['ppRightEndTooth']-1]] + [gridInfo['toothArray'][-1]]:
-                    return True
-                # Remaining teeth right edge
-                elif tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in gridInfo['toothArray'][::gridInfo['ppSlotpitch']:gridInfo['ppSlotpitch']]:
-                    return True
-                # Remaining teeth left edge
-                elif tuple_in[0] in gridInfo['mecYIndexes'] and tuple_in[1] in gridInfo['toothArray'][::gridInfo['ppSlotpitch']:
-                    return True
+                if tuple_in[0] in gridInfo['mecYIndexes']:
+
+                    # Left end tooth
+                    if tuple_in[1] in [gridInfo['toothArray'][0] - 1] + [gridInfo['toothArray'][gridInfo['ppLeftEndTooth']-1]]:
+                        return True
+                    # Right end tooth
+                    elif tuple_in[1] in [gridInfo['toothArray'][-gridInfo['ppRightEndTooth']-1]] + [gridInfo['toothArray'][-1]]:
+                        return True
+                    # Remaining teeth left edge
+                    elif tuple_in[0] not in gridInfo['yokeYIndexes'] and tuple_in[1] in gridInfo['toothArray'][gridInfo['ppLeftEndTooth']:-gridInfo['ppRightEndTooth']:gridInfo['ppSlotpitch']]:
+                        return True
+                    # Remaining teeth right edge
+                    elif tuple_in[0] not in gridInfo['yokeYIndexes'] and tuple_in[1] in gridInfo['toothArray'][gridInfo['ppLeftEndTooth']+gridInfo['ppTooth']:-gridInfo['ppRightEndTooth']:gridInfo['ppSlotpitch']]:
+                        return True
+                    else:
+                        return False
+
                 else:
                     return False
 
