@@ -98,7 +98,7 @@ class Model(Grid):
         self.nLoop += 2
         self.matBCount += 2
 
-    def __mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper='None'):
+    def __mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper):
         hb, ur, urSigma = listBCInfo
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
@@ -132,6 +132,7 @@ class Model(Grid):
             westRelDenom = row[iX].Rx + row[lNode].Rx
             wwRelDenom = row[lNode].Rx + row[llNode].Rx
 
+            # TODO This may not be correct. This affects the thrust result but not the waveform amplitude or shape
             eastMMF = row[iX].MMF + row[rNode].MMF
             eeMMF = row[rNode].MMF + row[rrNode].MMF
             westMMF = row[iX].MMF + row[lNode].MMF
