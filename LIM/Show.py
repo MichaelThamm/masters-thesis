@@ -19,17 +19,10 @@ def colorFader(c1, c2, mix=0):  # fade (linear interpolate) from color c1 (at mi
 
 def myColourNumber(fieldScale, val):
 
-    if val in [np.inf, -np.inf]:
-        result = val
-    else:
-        result = min(fieldScale, key=lambda x: abs(x - val))
-
-    return result
+    return val if np.isinf(val) else min(fieldScale, key=lambda x: abs(x - val))
 
 
 def determineColour(grid, gridInfo, iI, iJ, field, highlightZeroValsInField):
-    # includeZeroValsInField = True -> regular colour plot for all values including 0
-    # includeZeroValsInField = False -> all values equal to 0 will be plotted as a specific colour
 
     fieldType, iFieldsScale, iStoColours, iPosInf, iNegInf = field
 
@@ -41,12 +34,11 @@ def determineColour(grid, gridInfo, iI, iJ, field, highlightZeroValsInField):
         valEqZero = True if (grid[iI, iJ].__dict__[fieldType] == 0 and highlightZeroValsInField) else False
 
     # noinspection PyUnboundLocalVariable
-    colorScaleIndex = np.where(iFieldsScale == myNumber)
-    if colorScaleIndex[0][0] == len(iStoColours):
-        print('OH MY LAWD ITS A FIRE')
-        colorScaleIndex[0][0] = len(iStoColours) - 1
+    colorScaleIndex = np.where(iFieldsScale == myNumber) if not np.isinf(myNumber) else myNumber
     if valEqZero:
         oOverRideColour = matList[-1][1]
+    elif np.isinf(myNumber):
+        oOverRideColour = '#000000'
     else:
         oOverRideColour = iStoColours[colorScaleIndex[0][0]]
 
@@ -65,10 +57,12 @@ def minMaxField(info, grid, attName, filtered, showFilter):
 
     tFilteredNoEmpties = list(filter(lambda x: True if x != [] else False, tFiltered))
 
-    maxScale = max(map(max, [[x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for x in y] for y in tFilteredNoEmpties]))
-    minScale = min(map(min, [[x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for x in y] for y in tFilteredNoEmpties]))
+    attrFieldList = [x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for y in tFilteredNoEmpties for x in y]
+    filteredAttrFieldList = list(filter(lambda x: not np.isinf(x), attrFieldList))
+    maxScale = max(filteredAttrFieldList)
+    minScale = min(filteredAttrFieldList)
 
-    return minScale.real, maxScale.real
+    return minScale, maxScale
 
 
 def combineFilterList(pixelsPer, unfilteredRows, unfilteredRowCols):

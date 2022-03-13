@@ -77,6 +77,7 @@ class EncoderDecoder(object):
             val = list(val)
 
         # Json dump and load cannot handle complex objects and must be an accepted dtype such as list
+        # TODO switch this to be in self.model.complexTypeList
         elif type(val) in [complex, np.complex128]:
             # 'plex_Signature' is used to identify if a list is a destructed complex number or not
             val = ['plex_Signature', val.real, val.imag]
@@ -151,9 +152,9 @@ def destruct(model):
     encodeModel.encodeErrorDict()
     encodeModel.encodeHmUnknownsList()
 
-    # # Update the model members
-    # model.typeList = encodeModel.typeList
-    # model.complexTypeList = encodeModel.complexList
+    # Update the model members
+    model.typeList = encodeModel.typeList
+    model.complexTypeList = encodeModel.complexList
 
     print(f'typeList: {encodeModel.typeList}, complexList: {encodeModel.complexList}')
 
