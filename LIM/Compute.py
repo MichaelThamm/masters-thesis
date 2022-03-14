@@ -128,21 +128,17 @@ class Model(Grid):
             # Hx Condition
             # MEC related equations
             eastRelDenom = row[iX].Rx + row[rNode].Rx
-            eeRelDenom = row[rNode].Rx + row[rrNode].Rx
             westRelDenom = row[iX].Rx + row[lNode].Rx
-            wwRelDenom = row[lNode].Rx + row[llNode].Rx
 
             # TODO This may not be correct. This affects the thrust result but not the waveform amplitude or shape
             eastMMF = row[iX].MMF + row[rNode].MMF
-            eeMMF = row[rNode].MMF + row[rrNode].MMF
             westMMF = row[iX].MMF + row[lNode].MMF
-            wwMMF = row[lNode].MMF + row[llNode].MMF
 
             # For this section refer to the 2015 HAM paper for these 3 cases
             # __________k = k - 1__________ #
             coeffIntegral_kn = self.__eqn23Integral(wn, row[lNode].x, row[lNode].x + row[lNode].lx, row[lNode].ur, row[lNode].Szy)
             resPsi_kn = coeffIntegral_kn / westRelDenom
-            resSource_kn = coeffIntegral_kn * (wwMMF / wwRelDenom + westMMF / westRelDenom)
+            resSource_kn = coeffIntegral_kn * (westMMF / westRelDenom)
 
             # __________k = k__________ #
             coeffIntegral_k = self.__eqn23Integral(wn, row[iX].x, row[iX].x + row[iX].lx, row[iX].ur, row[iX].Szy)
@@ -152,7 +148,7 @@ class Model(Grid):
             # __________k = k + 1__________ #
             coeffIntegral_kp = self.__eqn23Integral(wn, row[rNode].x, row[rNode].x + row[rNode].lx, row[rNode].ur, row[rNode].Szy)
             resPsi_kp = - coeffIntegral_kp / eastRelDenom
-            resSource_kp = coeffIntegral_kp * (eastMMF / eastRelDenom + eeMMF / eeRelDenom)
+            resSource_kp = coeffIntegral_kp * (eastMMF / eastRelDenom)
 
             combinedPsi_k = time_plex * coeff * (resPsi_kn + resPsi_k + resPsi_kp)
 
