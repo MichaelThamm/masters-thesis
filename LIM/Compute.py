@@ -883,8 +883,8 @@ class Model(Grid):
                         self.matrix[i, j].BxLower ** 2 + self.matrix[i, j].ByLower ** 2)
 
                     # Counter for each HM region
-                    if i in [self.vacLowerYIndexes[-1], self.airgapYIndexes[-1], self.bladerotorYIndexes[-1],
-                             self.ironYIndexes[-1], self.vacUpperYIndexes[-1]] and j == self.ppL - 1:
+                    if i in [self.yIndexesVacLower[-1], self.yIndexesAirgap[-1], self.yIndexesBladeRotor[-1],
+                             self.yIndexesBackIron[-1], self.yIndexesVacUpper[-1]] and j == self.ppL - 1:
                         regCnt += 1
 
                 else:
@@ -921,8 +921,8 @@ class Model(Grid):
             evenOdd = 'odd'
             centerAirgap_y = self.matrix[centerAirgapIdx_y][0].yCenter
 
-        ur = self.matrix[self.airgapYIndexes[0], 0].ur
-        sigma = self.matrix[self.airgapYIndexes[0], 0].sigma
+        ur = self.matrix[self.yIndexesAirgap[0], 0].ur
+        sigma = self.matrix[self.yIndexesAirgap[0], 0].sigma
 
         resFx, resFy = np.cdouble(0), np.cdouble(0)
         thrustGenerator = self.__genForces(ur * sigma, centerAirgap_y)

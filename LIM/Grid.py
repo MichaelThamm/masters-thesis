@@ -104,16 +104,22 @@ class Grid(LimMotor):
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
 
-        self.vacLowerYIndexes = list(range(0, self.ppVacuumLower))
-        self.vacUpperYIndexes = list(range(self.ppH-self.ppVacuumUpper, self.ppH))
-        self.yokeYIndexes = list(range(self.ppVacuumLower, self.ppVacuumLower+self.ppYokeheight))
-        self.upper_slotYIndexes1 = list(range(self.ppVacuumLower+self.ppYokeheight, self.ppVacuumLower+self.ppYokeheight+self.ppSlotheight//2))
-        self.lower_slotYIndexes1 = list(range(self.ppVacuumLower+self.ppYokeheight+self.ppSlotheight//2, self.ppVacuumLower+self.ppYokeheight+self.ppSlotheight))
-        self.airgapYIndexes = list(range(self.ppVacuumLower+self.ppHeight, self.ppVacuumLower+self.ppHeight+self.ppAirgap))
-        self.bladerotorYIndexes = list(range(self.ppVacuumLower+self.ppHeight+self.ppAirgap, self.ppVacuumLower+self.ppHeight+self.ppAirgap+self.ppBladerotor))
-        self.ironYIndexes = list(range(self.ppVacuumLower+self.ppHeight+self.ppAirgap+self.ppBladerotor, self.ppVacuumLower+self.ppHeight+self.ppAirgap+self.ppBladerotor+self.ppBackIron))
-        self.hmYIndexes = self.vacLowerYIndexes + self.airgapYIndexes + self.bladerotorYIndexes + self.ironYIndexes + self.vacUpperYIndexes
-        self.mecYIndexes = self.yokeYIndexes + self.upper_slotYIndexes1 + self.lower_slotYIndexes1
+        ironOffset = self.ppVacuumLower
+        bladerRotorOffset = ironOffset + self.ppBackIron
+        airgapOffset = bladerRotorOffset + self.ppBladerotor
+        slotOffset = airgapOffset + self.ppAirgap
+        yokeOffset = slotOffset + self.ppSlotheight
+
+        self.yIndexesVacLower = list(range(0, self.ppVacuumLower))
+        self.yIndexesBackIron = list(range(ironOffset, ironOffset + self.ppBackIron))
+        self.yIndexesBladeRotor = list(range(bladerRotorOffset, bladerRotorOffset + self.ppBladerotor))
+        self.yIndexesAirgap = list(range(airgapOffset, airgapOffset + self.ppAirgap))
+        self.yIndexesLowerSlot = list(range(slotOffset, slotOffset + self.ppSlotheight // 2))
+        self.yIndexesUpperSlot = list(range(slotOffset + self.ppSlotheight // 2, slotOffset + self.ppSlotheight))
+        self.yIndexesYoke = list(range(yokeOffset, yokeOffset + self.ppYokeheight))
+        self.yIndexesVacUpper = list(range(self.ppH - self.ppVacuumUpper, self.ppH))
+        self.hmYIndexes = self.yIndexesVacLower + self.yIndexesAirgap + self.yIndexesBladeRotor + self.yIndexesBackIron + self.yIndexesVacUpper
+        self.mecYIndexes = self.yIndexesYoke + self.yIndexesUpperSlot + self.yIndexesLowerSlot
 
         # Thrust of the entire integration region
         self.Fx = 0.0
@@ -303,28 +309,28 @@ class Grid(LimMotor):
                 delY = pixelSpacing / self.meshDensity[1]
             else:
                 # Vacuum lower
-                if a in self.vacLowerYIndexes:
+                if a in self.yIndexesVacLower:
                     delY = self.yMeshSizes[d]
                 # Yoke
-                elif a in self.yokeYIndexes:
+                elif a in self.yIndexesYoke:
                     delY = self.yMeshSizes[d]
                 # Lower coils
-                elif a in self.lower_slotYIndexes1:
+                elif a in self.yIndexesLowerSlot:
                     delY = self.yMeshSizes[d]
                 # Upper coils
-                elif a in self.upper_slotYIndexes1:
+                elif a in self.yIndexesUpperSlot:
                     delY = self.yMeshSizes[d]
                 # Air gap
-                elif a in self.airgapYIndexes:
+                elif a in self.yIndexesAirgap:
                     delY = self.yMeshSizes[d]
                 # Blade rotor
-                elif a in self.bladerotorYIndexes:
+                elif a in self.yIndexesBladeRotor:
                     delY = self.yMeshSizes[d]
                 # Back iron
-                elif a in self.ironYIndexes:
+                elif a in self.yIndexesBackIron:
                     delY = self.yMeshSizes[d]
                 # Vacuum upper
-                elif a in self.vacUpperYIndexes:
+                elif a in self.yIndexesVacUpper:
                     delY = self.yMeshSizes[d]
                 else:
                     delY = pixelSpacing
@@ -391,28 +397,28 @@ class Grid(LimMotor):
                 yCnt += pixelSpacing / self.meshDensity[1]
             else:
                 # Vacuum lower
-                if a in self.vacLowerYIndexes:
+                if a in self.yIndexesVacLower:
                     yCnt += self.yMeshSizes[f]
                 # Yoke
-                elif a in self.yokeYIndexes:
+                elif a in self.yIndexesYoke:
                     yCnt += self.yMeshSizes[f]
                 # Lower coils
-                elif a in self.lower_slotYIndexes1:
+                elif a in self.yIndexesLowerSlot:
                     yCnt += self.yMeshSizes[f]
                 # Upper coils
-                elif a in self.upper_slotYIndexes1:
+                elif a in self.yIndexesUpperSlot:
                     yCnt += self.yMeshSizes[f]
                 # Air gap
-                elif a in self.airgapYIndexes:
+                elif a in self.yIndexesAirgap:
                     yCnt += self.yMeshSizes[f]
                 # Blade rotor
-                elif a in self.bladerotorYIndexes:
+                elif a in self.yIndexesBladeRotor:
                     yCnt += self.yMeshSizes[f]
                 # Back iron
-                elif a in self.ironYIndexes:
+                elif a in self.yIndexesBackIron:
                     yCnt += self.yMeshSizes[f]
                 # Vacuum upper
-                elif a in self.vacUpperYIndexes:
+                elif a in self.yIndexesVacUpper:
                     yCnt += self.yMeshSizes[f]
                 else:
                     yCnt += pixelSpacing
@@ -428,32 +434,32 @@ class Grid(LimMotor):
         a, b = 0, 0
         while a < self.ppH:
             while b < self.ppL:
-                if a in self.yokeYIndexes and b not in self.bufferArray:
+                if a in self.yIndexesYoke and b not in self.bufferArray:
                     self.matrix[a][b].material = 'iron'
                     self.matrix[a][b].ur = self.ur_iron
                     self.matrix[a][b].sigma = self.sigma_iron
-                elif a in self.airgapYIndexes:
+                elif a in self.yIndexesAirgap:
                     self.matrix[a][b].material = 'vacuum'
                     self.matrix[a][b].ur = self.ur_air
                     self.matrix[a][b].sigma = self.sigma_air
-                elif a in self.vacLowerYIndexes or a in self.vacUpperYIndexes:
+                elif a in self.yIndexesVacLower or a in self.yIndexesVacUpper:
                     self.matrix[a][b].material = 'vacuum'
                     self.matrix[a][b].ur = self.ur_air
                     self.matrix[a][b].sigma = self.sigma_air
-                elif a in self.bladerotorYIndexes:
+                elif a in self.yIndexesBladeRotor:
                     self.matrix[a][b].material = 'aluminum'
                     self.matrix[a][b].ur = self.ur_alum
                     self.matrix[a][b].sigma = self.sigma_alum
-                elif a in self.ironYIndexes:
+                elif a in self.yIndexesBackIron:
                     self.matrix[a][b].material = 'iron'
                     self.matrix[a][b].ur = self.ur_iron
                     self.matrix[a][b].sigma = self.sigma_iron
                 else:
-                    if a in self.upper_slotYIndexes1:
+                    if a in self.yIndexesUpperSlot:
                         aIdx = self.upper_slotsA
                         bIdx = self.upper_slotsB
                         cIdx = self.upper_slotsC
-                    elif a in self.lower_slotYIndexes1:
+                    elif a in self.yIndexesLowerSlot:
                         aIdx = self.lower_slotsA
                         bIdx = self.lower_slotsB
                         cIdx = self.lower_slotsC
@@ -521,7 +527,7 @@ class Grid(LimMotor):
 
                 self.matrix[i][j].Rx, self.matrix[i][j].Ry = self.matrix[i][j].getReluctance()
 
-                if i in self.lower_slotYIndexes1 and j in self.coilArray:
+                if i in self.yIndexesLowerSlot and j in self.coilArray:
                     if j in self.lower_slotsA:
                         angle_plex = cmath.exp(0)
                     elif j in self.lower_slotsB:
@@ -534,14 +540,14 @@ class Grid(LimMotor):
                     # Set the scaling factor for MMF in equation 18
                     # 2 coils in slot
                     if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotheight // 2][j].material[:-1] == 'copper':
-                        index_ = self.lower_slotYIndexes1.index(i)
+                        index_ = self.yIndexesLowerSlot.index(i)
                         scalingLower = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # coil in upper slot only
                     elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i - self.ppSlotheight // 2][j].material[:-1] == 'copper':
                         scalingLower = 0.0
                     # coil in lower slot only
                     elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotheight // 2][j].material[:-1] != 'copper':
-                        index_ = self.lower_slotYIndexes1.index(i)
+                        index_ = self.yIndexesLowerSlot.index(i)
                         scalingLower = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # empty slot
                     elif self.matrix[i][j].material == 'vacuum' and self.matrix[i - self.ppSlotheight // 2][j].material == 'vacuum':
@@ -549,7 +555,7 @@ class Grid(LimMotor):
                     else:
                         scalingLower = 0.0
 
-                elif i in self.upper_slotYIndexes1 and j in self.coilArray:
+                elif i in self.yIndexesUpperSlot and j in self.coilArray:
                     if j in self.upper_slotsA:
                         angle_plex = cmath.exp(0)
                     elif j in self.upper_slotsB:
@@ -562,14 +568,14 @@ class Grid(LimMotor):
                     # Set the scaling factor for MMF in equation 18
                     # 2 coils in slot
                     if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotheight // 2][j].material[:-1] == 'copper':
-                        index_ = self.upper_slotYIndexes1.index(i)
+                        index_ = self.yIndexesUpperSlot.index(i)
                         scalingUpper = doubleCoilScaling[index_]
                     # coil in lower slot only
                     elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i + self.ppSlotheight // 2][j].material[:-1] == 'copper':
                         scalingUpper = 0
                     # coil in upper slot only
                     elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotheight // 2][j].material[:-1] != 'copper':
-                        index_ = self.upper_slotYIndexes1.index(i)
+                        index_ = self.yIndexesUpperSlot.index(i)
                         scalingUpper = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # empty slot
                     elif self.matrix[i][j].material == 'vacuum' and self.matrix[i + self.ppSlotheight // 2][j].material == 'vacuum':
@@ -585,7 +591,7 @@ class Grid(LimMotor):
                 self.matrix[i][j].Iph = self.Ip * angle_plex * time_plex
 
                 # Lower slots only
-                if i in self.lower_slotYIndexes1 and j in self.coilArray:
+                if i in self.yIndexesLowerSlot and j in self.coilArray:
                     if j in self.inLower_slotsA or j in self.inLower_slotsB or j in self.inLower_slotsC:
                         inOutCoeffMMF = -1
                     elif j in self.outLower_slotsA or j in self.outLower_slotsB or j in self.outLower_slotsC:
@@ -598,7 +604,7 @@ class Grid(LimMotor):
                     self.matrix[i][j].MMF = inOutCoeffMMF * scalingLower * self.N * self.matrix[i][j].Iph / (2 * turnAreaRatio)
 
                 # Upper slots only
-                elif i in self.upper_slotYIndexes1 and j in self.coilArray:
+                elif i in self.yIndexesUpperSlot and j in self.coilArray:
                     if j in self.inUpper_slotsA or j in self.inUpper_slotsB or j in self.inUpper_slotsC:
                         inOutCoeffMMF = -1
                     elif j in self.outUpper_slotsA or j in self.outUpper_slotsB or j in self.outUpper_slotsC:
@@ -625,11 +631,11 @@ class Grid(LimMotor):
 
         # Create the starting index for each region in the columns of matrix A
         regionIndex, hmCount, mecCount = 0, 0, 0
-        for count in np.arange(len(self.mecRegions) + len(self.hmRegions) + 1):
+        for count in np.arange(1, len(self.mecRegions) + len(self.hmRegions) + 2):
             if count in self.hmRegions or count == self.hmRegions[-1] + 1:
                 # Dirichlet boundaries which have half the unknown coefficients
                 # TODO Simplify this code if we decide to not include the removed equations and unknowns from the start
-                if count == 0 or count == self.hmRegions[-1]:
+                if count == self.hmRegions[0] or count == self.hmRegions[-1]:
                     self.hmRegionsIndex[hmCount] = regionIndex
                     regionIndex += 2 * len(self.n)
                 else:

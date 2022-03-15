@@ -305,7 +305,7 @@ def main():
     # Object for the model design, grid, and matrices
     model = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                   meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                  hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16), mecRegions=np.array([1], dtype=np.int16))
+                  hmRegions=np.array([1, 3, 4, 5, 6], dtype=np.int16), mecRegions=np.array([2], dtype=np.int16))
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
