@@ -695,6 +695,12 @@ class Model(Grid):
             print('neither even nor odd was chosen')
             return
 
+        # TODO This inverts the y axis for the plot
+        # bxInvertYaxis = np.flip(yBxList)
+        # byInvertYaxis = np.flip(yByList)
+        # dataArray[1] = bxInvertYaxis
+        # dataArray[2] = byInvertYaxis
+
         dataArray[1] = yBxList
         dataArray[2] = yByList
         dataArray[3] = yB_List
