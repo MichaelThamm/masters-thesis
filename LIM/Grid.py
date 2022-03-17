@@ -254,7 +254,7 @@ class Grid(LimMotor):
             idxRight += idxOffset
             Cnt += 1
 
-        # Z Mesh Density
+        # Y Mesh Density
         Cnt = 0
         idxOffset = self.yListPixelsPerRegion[Cnt]
         idxLeft, idxRight = 0, idxOffset
