@@ -47,7 +47,7 @@ class Grid(LimMotor):
         self.ppLeftEndTooth = self.setPixelsPerLength(length=self.endTeeth, minimum=1)
         self.ppRightEndTooth = self.ppLeftEndTooth
         # Y-direction
-        self.ppVacuumLower = self.setPixelsPerLength(length=self.vacuumBoundary, minimum=1)
+        self.ppVacuumLower = self.setPixelsPerLength(length=self.vac, minimum=1)
         self.ppVacuumUpper = self.ppVacuumLower
         self.ppYokeheight = self.setPixelsPerLength(length=self.hy, minimum=1)
         self.ppAirgap = self.setPixelsPerLength(length=self.g, minimum=1)
@@ -79,8 +79,10 @@ class Grid(LimMotor):
         self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
         self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppLeftEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppRightEndTooth, self.ppAirBuffer]
-        self.yListSpatialDatum = [self.vacuumBoundary, self.hy, self.hs/2, self.hs/2, self.g, self.dr, self.bi, self.vacuumBoundary]
-        self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppYokeheight, self.ppSlotheight//2, self.ppSlotheight//2, self.ppAirgap, self.ppBladerotor, self.ppBackIron, self.ppVacuumUpper]
+        # self.yListSpatialDatum = [self.vac, self.hy, self.hs/2, self.hs/2, self.g, self.dr, self.bi, self.vac]
+        # self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppYokeheight, self.ppSlotheight//2, self.ppSlotheight//2, self.ppAirgap, self.ppBladerotor, self.ppBackIron, self.ppVacuumUpper]
+        self.yListSpatialDatum = [self.vac, self.bi, self.dr, self.g, self.hs / 2, self.hs / 2, self.hy, self.vac]
+        self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppBackIron, self.ppBladerotor, self.ppAirgap, self.ppSlotheight//2, self.ppSlotheight//2, self.ppYokeheight, self.ppVacuumUpper]
 
         for Cnt in np.arange(len(self.xMeshSizes)):
             self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
@@ -118,8 +120,8 @@ class Grid(LimMotor):
         self.yIndexesUpperSlot = list(range(slotOffset + self.ppSlotheight // 2, slotOffset + self.ppSlotheight))
         self.yIndexesYoke = list(range(yokeOffset, yokeOffset + self.ppYokeheight))
         self.yIndexesVacUpper = list(range(self.ppH - self.ppVacuumUpper, self.ppH))
-        self.hmYIndexes = self.yIndexesVacLower + self.yIndexesAirgap + self.yIndexesBladeRotor + self.yIndexesBackIron + self.yIndexesVacUpper
-        self.mecYIndexes = self.yIndexesYoke + self.yIndexesUpperSlot + self.yIndexesLowerSlot
+        self.yIndexesHM = self.yIndexesVacLower + self.yIndexesBackIron + self.yIndexesBladeRotor + self.yIndexesAirgap + self.yIndexesVacUpper
+        self.yIndexesMEC = self.yIndexesLowerSlot + self.yIndexesUpperSlot + self.yIndexesYoke
 
         # Thrust of the entire integration region
         self.Fx = 0.0
@@ -237,12 +239,13 @@ class Grid(LimMotor):
         self.inUpper_slotsC = np.array(upperCoilsC[::2])
         self.outUpper_slotsC = np.array(upperCoilsC[1::2])
 
+        # MeshIndexes is a list of 1s and 0s for each boundary for each region to say whether or not
+        #  dense meshing is required at the boundary
         # X Mesh Density
         Cnt = 0
         idxOffset = self.xListPixelsPerRegion[Cnt]
         idxLeft, idxRight = 0, idxOffset
         idxList = range(self.ppL)
-        # iXmeshIndexes is a list of 1s and 0s for each boundary for each region to say whether or not dense meshing is required at the boundary
         for boundary in xMeshIndexes:
             if boundary[0]:  # Left Boundary in the region
                 firstIndexes = idxList[idxLeft]
@@ -260,7 +263,7 @@ class Grid(LimMotor):
             idxRight += idxOffset
             Cnt += 1
 
-        # Z Mesh Density
+        # Y Mesh Density
         Cnt = 0
         idxOffset = self.yListPixelsPerRegion[Cnt]
         idxLeft, idxRight = 0, idxOffset
@@ -284,14 +287,15 @@ class Grid(LimMotor):
 
         xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1], self.toothArray[self.ppLeftEndTooth - 1]] + self.coilArray[self.ppSlot-1::self.ppSlot] + self.toothArray[self.ppLeftEndTooth + self.ppTooth - 1:-self.ppRightEndTooth:self.ppTooth] + [self.toothArray[-1], self.bufferArray[-1]]
         yVac1Boundary = self.ppVacuumLower-1
-        yYokeBoundary = yVac1Boundary + self.ppYokeheight
-        yLowerCoilsBoundary = yYokeBoundary + self.ppSlotheight//2
+        yBackIronBoundary = yVac1Boundary + self.ppBackIron
+        yBladeBoundary = yBackIronBoundary + self.ppBladerotor
+        yAirBoundary = yBladeBoundary + self.ppAirgap
+        yLowerCoilsBoundary = yAirBoundary + self.ppSlotheight//2
         yUpperCoilsBoundary = yLowerCoilsBoundary + self.ppSlotheight//2
-        yAirBoundary = yUpperCoilsBoundary + self.ppAirgap
-        yBladeBoundary = yAirBoundary + self.ppBladerotor
-        yBackIronBoundary = yBladeBoundary + self.ppBackIron
-        yVac2Boundary = yBackIronBoundary + self.ppVacuumUpper
-        yBoundaryList = [yVac1Boundary, yYokeBoundary, yLowerCoilsBoundary, yUpperCoilsBoundary, yAirBoundary, yBladeBoundary, yBackIronBoundary, yVac2Boundary]
+        yYokeBoundary = yUpperCoilsBoundary + self.ppYokeheight
+        yVac2Boundary = yYokeBoundary + self.ppVacuumUpper
+
+        yBoundaryList = [yVac1Boundary, yBackIronBoundary, yBladeBoundary, yAirBoundary, yLowerCoilsBoundary, yUpperCoilsBoundary, yYokeBoundary, yVac2Boundary]
 
         a, b = 0, 0
         c, d, e, f = 0, 0, 0, 0
@@ -702,38 +706,45 @@ class Grid(LimMotor):
 
         xIdx = 0
         # Check Vacuum Lower
-        if round(self.vacuumBoundary - (self.matrix[self.ppVacuumLower][xIdx].y - self.matrix[0][xIdx].y), 12) != 0:
-            print(f'flag - vacuum lower: {self.vacuumBoundary - (self.matrix[self.ppVacuumLower][xIdx].y - self.matrix[0][xIdx].y)}')
-            spatialDomainFlag = True
-        # Check Vacuum Upper
-        if round(self.vacuumBoundary - (self.matrix[-1][xIdx].y + self.matrix[-1][xIdx].ly - self.matrix[-self.ppVacuumUpper][xIdx].y), 12) != 0:
-            print(f'flag - vacuum upper: {self.vacuumBoundary - (self.matrix[-1][xIdx].y + self.matrix[-1][xIdx].ly - self.matrix[-self.ppVacuumUpper][xIdx].y)}')
-            spatialDomainFlag = True
-        # Check Yoke
-        if round(self.hy - (self.matrix[self.ppVacuumLower + self.ppYokeheight][xIdx].y - self.matrix[self.ppVacuumLower][xIdx].y), 12) != 0:
-            print(f'flag - yoke: {self.hy - (self.matrix[self.ppVacuumLower + self.ppYokeheight][xIdx].y - self.matrix[self.ppVacuumLower][xIdx].y)}')
-            spatialDomainFlag = True
-        # Check Slot/Tooth Height
-        if round(self.hs - (self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight - self.ppSlotheight][xIdx].y), 12) != 0:
-            print(f'flag - slot height: {self.hs - (self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight - self.ppSlotheight][xIdx].y)}')
-            spatialDomainFlag = True
-        # Check Air Gap
-        if round(self.g - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y), 12) != 0:
-            print(f'flag - air gap: {self.g - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight][xIdx].y)}')
-            spatialDomainFlag = True
-        # Check Blade Rotor
-        if round(self.dr - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y), 12) != 0:
-            print(f'flag - blade rotor: {self.dr - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap][xIdx].y)}')
+        diffVacLowerDims = self.vac - (self.matrix[self.yIndexesBackIron[0]][xIdx].y - self.matrix[self.yIndexesVacLower[0]][xIdx].y)
+        if round(diffVacLowerDims, 12) != 0:
+            print(f'flag - vacuum lower: {diffVacLowerDims}')
             spatialDomainFlag = True
         # Check Back Iron
-        if round(self.bi - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y), 12) != 0:
-            print(f'flag - blade rotor: {self.bi - (self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron][xIdx].y - self.matrix[self.ppVacuumLower + self.ppHeight + self.ppAirgap + self.ppBladerotor][xIdx].y)}')
+        diffBackIronDims = self.bi - (self.matrix[self.yIndexesBladeRotor[0]][xIdx].y - self.matrix[self.yIndexesBackIron[0]][xIdx].y)
+        if round(diffBackIronDims, 12) != 0:
+            print(f'flag - blade rotor: {diffBackIronDims}')
+            spatialDomainFlag = True
+        # Check Blade Rotor
+        diffBladeRotorDims = self.dr - (self.matrix[self.yIndexesAirgap[0]][xIdx].y - self.matrix[self.yIndexesBladeRotor[0]][xIdx].y)
+        if round(diffBladeRotorDims, 12) != 0:
+            print(f'flag - blade rotor: {diffBladeRotorDims}')
+            spatialDomainFlag = True
+        # Check Air Gap
+        diffAirGapDims = self.g - (self.matrix[self.yIndexesLowerSlot[0]][xIdx].y - self.matrix[self.yIndexesAirgap[0]][xIdx].y)
+        if round(diffAirGapDims, 12) != 0:
+            print(f'flag - air gap: {diffAirGapDims}')
+            spatialDomainFlag = True
+        # Check Slot/Tooth Height
+        diffSlotHeightDims = self.hs - (self.matrix[self.yIndexesYoke[0]][xIdx].y - self.matrix[self.yIndexesLowerSlot[0]][xIdx].y)
+        if round(diffSlotHeightDims, 12) != 0:
+            print(f'flag - slot height: {diffSlotHeightDims}')
+            spatialDomainFlag = True
+        # Check Yoke
+        diffYokeDims = self.hy - (self.matrix[self.yIndexesVacUpper[0]][xIdx].y - self.matrix[self.yIndexesYoke[0]][xIdx].y)
+        if round(diffYokeDims, 12) != 0:
+            print(f'flag - yoke: {diffYokeDims}')
+            spatialDomainFlag = True
+        # Check Vacuum Upper
+        diffVacUpperDims = self.vac - (self.matrix[-1][xIdx].y + self.matrix[-1][xIdx].ly - self.matrix[self.yIndexesVacUpper[0]][xIdx].y)
+        if round(diffVacUpperDims, 12) != 0:
+            print(f'flag - vacuum upper: {diffVacUpperDims}')
             spatialDomainFlag = True
 
         self.writeErrorToDict(key='name',
-                                 error=Error(name='domainMapping',
-                                             description='ERROR - The spatial domain does not match with the canvas domain',
-                                             cause=spatialDomainFlag))
+                              error=Error(name='domainMapping',
+                                          description='ERROR - The spatial domain does not match with the canvas domain',
+                                          cause=spatialDomainFlag))
 
 
 class Node(object):

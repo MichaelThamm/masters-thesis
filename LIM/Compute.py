@@ -31,17 +31,17 @@ class Model(Grid):
         self.hmUnknownsList = [Region(np.zeros(len(self.n)),
                                       np.zeros(len(self.n))) for _ in np.arange(len(self.hmRegions))]
 
-        # HM and MEC unknown indexes in matrix A, these lists are different from hm and mec RegionsIndex
-        # which are actually used to index matrix A
-        self.canvasRowRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-                                       self.mecRegionLength + 2 * len(self.n), self.mecRegionLength + 4 * len(self.n),
-                                       self.mecRegionLength + 6 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-        self.canvasColRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-                                       self.mecRegionLength + 3 * len(self.n), self.mecRegionLength + 5 * len(self.n),
-                                       self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
+        # HM and MEC unknown indexes in matrix A, used for visualization
+        # TODO I could make these lists more robust
+        # self.canvasRowRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
+        #                                self.mecRegionLength + 2 * len(self.n), self.mecRegionLength + 4 * len(self.n),
+        #                                self.mecRegionLength + 6 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
+        # self.canvasColRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
+        #                                self.mecRegionLength + 3 * len(self.n), self.mecRegionLength + 5 * len(self.n),
+        #                                self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
+        # self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
 
-        self.hmIdxs = list(range(2 * len(self.n))) + list(range(self.hmRegionsIndex[1], lenUnknowns))
+        self.hmIdxs = list(range(self.mecRegionsIndex[0])) + list(range(self.hmRegionsIndex[4], lenUnknowns))
         self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
 
         self.hmMatrixX = []
@@ -55,13 +55,13 @@ class Model(Grid):
         # bn can be taken out of the matrix eqn because it is solved.
         if yBoundary == '-inf':
             self.matrixA[self.nLoop, regCountOffset + self.currColCount] = 0.0  # an
-            self.matrixA[self.nLoop, regCountOffset + 1 + self.currColCount] = np.inf  # bn - Note: bn is being removed
+            self.matrixA[self.nLoop, regCountOffset + self.currColCount + 1] = np.inf  # bn - Note: bn is being removed
 
         # Eqn 22 in Aleksandrov2018 states that at y = inf: an = 0 and the coefficient on bn = 0
         # an can be taken out of the matrix eqn because it is solved.
         elif yBoundary == 'inf':
             self.matrixA[self.nLoop, regCountOffset + self.currColCount] = np.inf  # an - Note: an is being removed
-            self.matrixA[self.nLoop, regCountOffset + 1 + self.currColCount] = 0.0  # bn
+            self.matrixA[self.nLoop, regCountOffset + self.currColCount + 1] = 0.0  # bn
 
         else:
             print('You did not enter a valid yBoundary for Dirichlet condition')
@@ -106,17 +106,11 @@ class Model(Grid):
         # TODO My math shows this to be 1 2019 paper says 2
         coeff = 2 * j_plex / (wn * self.Tper)
 
-        if iY not in [self.mecYIndexes[0], self.mecYIndexes[-1] + 1]:
+        if iY not in [self.yIndexesMEC[0], self.yIndexesMEC[-1]]:
             print('Please choose a valid boundary index')
             return
 
-        if lowerUpper == 'lower':
-            row = self.matrix[iY]
-        elif lowerUpper == 'upper':
-            row = self.matrix[iY-1]
-        else:
-            print('Please choose a valid upper or lower boundary')
-            return
+        row = self.matrix[iY]
 
         sumResEqn22Source = np.cdouble(0)
         for iX in np.arange(self.ppL):
@@ -195,7 +189,7 @@ class Model(Grid):
         westMMFNum = self.matrix[i, j].MMF + self.matrix[i, lNode].MMF
 
         # Bottom layer of the mesh
-        if i == self.ppVacuumLower:
+        if i == self.yIndexesMEC[0]:
 
             self.__setCurrColCount(0)
             # South Node
@@ -216,7 +210,7 @@ class Model(Grid):
             self.matrixA[self.nLoop + node, mecRegCountOffset + node] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom)
 
         # Top layer of the mesh
-        elif i == self.ppVacuumLower + self.ppHeight - 1:
+        elif i == self.yIndexesMEC[-1]:
 
             self.__setCurrColCount(0)
             # North Node
@@ -425,9 +419,9 @@ class Model(Grid):
             ur1 = self.matrix[iY1 - 1, 0].ur
             sigma1 = self.matrix[iY1 - 1, 0].sigma
             urSigma1 = ur1 * sigma1
-            hb2 = self.matrix[iY2, 0].y
-            ur2 = self.matrix[iY2, 0].ur
-            sigma2 = self.matrix[iY2, 0].sigma
+            hb2 = self.matrix[iY2+1, 0].y
+            ur2 = self.matrix[iY2+1, 0].ur
+            sigma2 = self.matrix[iY2+1, 0].sigma
             urSigma2 = ur2 * sigma2
 
             return [hb1, urSigma1, hb2, urSigma2]
@@ -452,9 +446,9 @@ class Model(Grid):
             return [hb, ur, urSigma]
 
         elif boundaryType == 'mecHM' and not iY2:
-            hb = self.matrix[iY1, 0].y
-            ur = self.matrix[iY1, 0].ur
-            sigma = self.matrix[iY1, 0].sigma
+            hb = self.matrix[iY1 + 1, 0].y
+            ur = self.matrix[iY1 + 1, 0].ur
+            sigma = self.matrix[iY1 + 1, 0].sigma
             urSigma = ur * sigma
 
             return [hb, ur, urSigma]
@@ -464,11 +458,11 @@ class Model(Grid):
 
     def __buildMatAB(self):
 
-        [reg0Count, reg2Count, reg3Count, reg4Count, reg5Count, reg6Count] = self.hmRegionsIndex
-        [reg1Count] = self.mecRegionsIndex
+        [reg1Count, reg2Count, reg3Count, reg4Count, reg6Count, reg7Count] = self.hmRegionsIndex
+        [reg5Count] = self.mecRegionsIndex
 
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        lenUnknowns = reg6Count
+        lenUnknowns = reg7Count
 
         print('Asize: ', self.matrixA.shape, self.matrixA.size)
         print('Bsize: ', self.matrixB.shape)
@@ -477,32 +471,59 @@ class Model(Grid):
         # TODO There is potential here to use concurrent.futures.ProcessPoolExecutor since the indexing of the matrix A does not depend on previous boundary conditions
         # TODO This will require me to change the way I pass the nLoop and matBCount from boundary condition to boundary condition. Instead these need to be constants
 
-        # -----------Boundary 0 --> Vac1 Bottom [Dirichlet]-----------
+        # -----------Boundary 1 --> Vac1 Bottom [Dirichlet]-----------
         for _ in self.n:
-            self.__dirichlet(regCountOffset=reg0Count, yBoundary='-inf')
+            self.__dirichlet(regCountOffset=reg1Count, yBoundary='-inf')
 
-        # -----------Boundary 1 --> Vac1 Top [MEC-HM]-----------
-        iY1 = self.ppVacuumLower
+        # -----------Boundary 2 --> BackIron Bottom [HM-HM]-----------
+        iY1 = self.yIndexesBackIron[0]
         iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, None, 'hmMEC')
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
+        self.__setCurrColCount(0)
+        for nHM in self.n:
+            # TODO We can try to cache these kind of functions for speed
+            self.__hmHm(nHM, bcInfo, reg1Count, reg2Count)
+
+        # -----------Boundary 3 --> BladeRotor Bottom [HM-HM]-----------
+        iY1 = self.yIndexesBladeRotor[0]
+        iY2 = None
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
+        self.__setCurrColCount(0)
+        for nHM in self.n:
+            # TODO We can try to cache these kind of functions for speed
+            self.__hmHm(nHM, bcInfo, reg2Count, reg3Count)
+
+        # -----------Boundary 4 --> AirGap Bottom [HM-HM]-----------
+        iY1 = self.yIndexesAirgap[0]
+        iY2 = None
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
+        self.__setCurrColCount(0)
+        for nHM in self.n:
+            # TODO We can try to cache these kind of functions for speed
+            self.__hmHm(nHM, bcInfo, reg3Count, reg4Count)
+
+        # -----------Boundary 5 --> MEC Bottom [MEC-HM]-----------
+        iY1 = self.yIndexesMEC[0]
+        iY2 = None
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmMEC')
         self.__setCurrColCount(0)
         # TODO We can try to cache these kind of functions for speed
         for nHM in self.n:
             self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg0Count, mecRegCountOffset=reg1Count,
-                         removed_an=False, removed_bn=True, lowerUpper='lower')
+                         hmRegCountOffset=reg4Count, mecRegCountOffset=reg5Count,
+                         removed_an=False, removed_bn=False, lowerUpper='lower')
 
         # -----------KCL EQUATIONS [MEC]-----------
-        iY1 = self.ppVacuumLower
-        iY2 = self.ppVacuumLower + self.ppHeight
+        iY1 = self.yIndexesMEC[0]
+        iY2 = self.yIndexesMEC[-1]
         bcInfo = self.__boundaryInfo(iY1, iY2, 'mec')
 
         node = 0
         i, j = iY1, 0
-        while i < iY2:
+        while i < iY2 + 1:
             while j < self.ppL:
                 # TODO We can try to cache these kind of functions for speed
-                self.__mec(i, j, node, time_plex, bcInfo, reg0Count, reg2Count, reg1Count)
+                self.__mec(i, j, node, time_plex, bcInfo, reg4Count, reg6Count, reg5Count)
 
                 node += 1
                 j += 1
@@ -512,53 +533,26 @@ class Model(Grid):
         self.nLoop += node
         self.matBCount += node
 
-        # -----------Boundary 2 --> MEC1 Top [MEC-HM]-----------
-        iY1 = self.ppVacuumLower + self.ppHeight
+        # -----------Boundary 6 --> MEC Top [MEC-HM]-----------
+        iY1 = self.yIndexesMEC[-1]
         iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, None, 'mecHM')
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'mecHM')
         self.__setCurrColCount(0)
         for nHM in self.n:
             # TODO We can try to cache these kind of functions for speed
             self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg2Count, mecRegCountOffset=reg1Count,
-                         removed_an=False, removed_bn=False, lowerUpper='upper')
+                         hmRegCountOffset=reg6Count, mecRegCountOffset=reg5Count,
+                         removed_an=True, removed_bn=False, lowerUpper='upper')
 
-        # -----------Boundary 3 --> Airgap1 Top [HM-HM]-----------
-        iY1 += self.ppAirgap
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg2Count, reg3Count)
-
-        # -----------Boundary 4 --> BladeRotor Top [HM-HM]-----------
-        iY1 += self.ppBladerotor
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg3Count, reg4Count)
-
-        # -----------Boundary 5 --> BackIron Top [HM-HM]-----------
-        iY1 += self.ppBackIron
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg4Count, reg5Count)
-
-        # -----------Boundary 6 --> Vac2 Top-----------
+        # -----------Boundary 7 --> Vac2 Top-----------
         self.__setCurrColCount(0)
         for _ in self.n:
-            self.__dirichlet(regCountOffset=reg5Count, yBoundary='inf')
+            self.__dirichlet(regCountOffset=reg6Count, yBoundary='inf')
 
         # Remove N equations and N coefficients at the Dirichlet boundaries that are solved in HAM_2015
         rowRemoveIdx = np.array(list(range(len(self.n))) + list(range(lenUnknowns - len(self.n), lenUnknowns)))
         # print('removeRowsIdx', rowRemoveIdx)
-        colRemoveIdx = np.array(list(range(reg0Count + 1, reg1Count + 1, 2)) + list(range(reg5Count, lenUnknowns, 2)))
+        colRemoveIdx = np.array(list(range(reg1Count + 1, reg2Count + 1, 2)) + list(range(reg6Count, lenUnknowns, 2)))
         # print('removeColsIdx', colRemoveIdx)
 
         self.__checkForErrors()
@@ -763,7 +757,7 @@ class Model(Grid):
         Cnt = 0
         i, j = 0, 0
         while i < self.ppH:
-            if i in self.mecYIndexes:
+            if i in self.yIndexesMEC:
                 while j < self.ppL:
                     self.matrix[i, j].Yk = self.mecMatrixX[Cnt]
                     Cnt += 1
@@ -779,9 +773,9 @@ class Model(Grid):
 
                 _, lNode, rNode, _ = self.neighbourNodes(j)
 
-                if i in self.mecYIndexes:
+                if i in self.yIndexesMEC:
                     # Bottom layer of the MEC
-                    if i == self.mecYIndexes[0]:
+                    if i == self.yIndexesMEC[0]:
 
                         ur1 = self.matrix[i - 1, 0].ur
                         sigma1 = self.matrix[i - 1, 0].sigma
@@ -804,7 +798,7 @@ class Model(Grid):
                         self.matrix[i, j].phiYn = Flux_ySum
 
                     # Top layer of the MEC
-                    elif i == self.mecYIndexes[-1]:
+                    elif i == self.yIndexesMEC[-1]:
 
                         ur2 = self.matrix[i + 1, 0].ur
                         sigma2 = self.matrix[i + 1, 0].sigma
@@ -851,7 +845,7 @@ class Model(Grid):
                     self.matrix[i, j].By = self.postMECAvgB(self.matrix[i, j].phiYn, self.matrix[i, j].phiYp,
                                                               self.matrix[i, j].Sxz)
 
-                elif i in self.hmYIndexes:
+                elif i in self.yIndexesHM:
 
                     ur = self.matrix[i, 0].ur
                     sigma = self.matrix[i, 0].sigma
@@ -913,7 +907,7 @@ class Model(Grid):
                                                cause=True))
 
         # Thrust Calculation
-        centerAirgapIdx_y = self.ppVacuumLower + self.ppHeight + self.ppAirgap // 2
+        centerAirgapIdx_y = self.yIndexesAirgap[0] + self.ppAirgap // 2
         if self.ppAirgap % 2 == 0:  # even
             evenOdd = 'even'
             centerAirgap_y = self.matrix[centerAirgapIdx_y][0].y
@@ -981,8 +975,8 @@ def complexFourierTransform(model_in, harmonics_in):
     idx_FT = 0
     harmonics = harmonics_in
 
-    yIdx_lower = model.ppVacuumLower
-    yIdx_upper = yIdx_lower + model.ppHeight - 1
+    yIdx_lower = model.yIndexesMEC[0]
+    yIdx_upper = model.yIndexesMEC[-1]
     row_upper_FT = model.matrix[yIdx_upper]
     leftNodeEdges = [node.x for node in row_upper_FT]
     slices = 10
