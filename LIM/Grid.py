@@ -60,7 +60,7 @@ class Grid(LimMotor):
 
         self.ppHeight = self.ppYokeheight + self.ppSlotheight
         self.ppLength = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + self.ppLeftEndTooth + self.ppRightEndTooth + 2 * self.ppAirBuffer
-        self.matrix = np.array([[type('', (Node,), {}) for _ in np.arange(self.ppLength)] for _ in np.arange(self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron + self.ppVacuumLower + self.ppVacuumUpper)])
+        self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppLength)] for _ in range(self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron + self.ppVacuumLower + self.ppVacuumUpper)])
         self.ppL = len(self.matrix[0])
         self.ppH = len(self.matrix)
 
@@ -84,13 +84,13 @@ class Grid(LimMotor):
         self.yListSpatialDatum = [self.vac, self.bi, self.dr, self.g, self.hs / 2, self.hs / 2, self.hy, self.vac]
         self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppBackIron, self.ppBladerotor, self.ppAirgap, self.ppSlotheight//2, self.ppSlotheight//2, self.ppYokeheight, self.ppVacuumUpper]
 
-        for Cnt in np.arange(len(self.xMeshSizes)):
+        for Cnt in range(len(self.xMeshSizes)):
             self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
             if self.xMeshSizes[Cnt] < 0:
                 print('negative x mesh sizes', Cnt)
                 return
 
-        for Cnt in np.arange(len(self.yMeshSizes)):
+        for Cnt in range(len(self.yMeshSizes)):
             self.yMeshSizes[Cnt] = meshBoundary(self.yListSpatialDatum[Cnt], self.yListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(yMeshIndexes[Cnt]), self.meshDensity)
             if self.yMeshSizes[Cnt] < 0:
                 print('negative y mesh sizes')
@@ -173,7 +173,7 @@ class Grid(LimMotor):
 
         upper_slotArrayA, upper_slotArrayB, upper_slotArrayC = [], [], []
         lower_slotArrayA, lower_slotArrayB, lower_slotArrayC = [], [], []
-        for threeSlots in np.arange(0, self.slots, 3):
+        for threeSlots in range(0, self.slots, 3):
             upper_slotArrayA += upper_slotArray[(threeSlots+1)*offset:(threeSlots+2)*offset]
             upper_slotArrayB += upper_slotArray[threeSlots*offset:(threeSlots+1)*offset]
             upper_slotArrayC += upper_slotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
@@ -635,13 +635,13 @@ class Grid(LimMotor):
 
         # Create the starting index for each region in the columns of matrix A
         regionIndex, hmCount, mecCount = 0, 0, 0
-        for count in np.arange(1, len(self.mecRegions) + len(self.hmRegions) + 2):
-            if count in self.hmRegions or count == self.hmRegions[-1] + 1:
+        for count in range(1, len(self.mecRegions) + len(self.hmRegions) + 2):
+            if count in self.hmRegions:
                 # Dirichlet boundaries which have half the unknown coefficients
-                # TODO Simplify this code if we decide to not include the removed equations and unknowns from the start
-                if count == self.hmRegions[0] or count == self.hmRegions[-1]:
+                if self.hmRegions[count] == 'vac':
                     self.hmRegionsIndex[hmCount] = regionIndex
                     regionIndex += 2 * len(self.n)
+
                 else:
                     self.hmRegionsIndex[hmCount] = regionIndex
                     regionIndex += 2 * len(self.n)
@@ -651,6 +651,9 @@ class Grid(LimMotor):
                 self.mecRegionsIndex[mecCount] = regionIndex
                 regionIndex += self.mecRegionLength
                 mecCount += 1
+
+            elif count == list(self.hmRegions)[-1] + 1:
+                self.hmRegionsIndex[hmCount] = regionIndex
 
             else:
                 self.writeErrorToDict(key='name',
@@ -874,10 +877,12 @@ class Node(object):
 
 
 class Region(object):
-    def __init__(self, iAn, iBn):
+    def __init__(self, idx, type_, an, bn):
 
-        self.an = iAn
-        self.bn = iBn
+        self.index = idx
+        self.type = type_
+        self.an = an
+        self.bn = bn
 
 
 def meshBoundary(spatial, pixels, spacing, fraction, numBoundaries, meshDensity):

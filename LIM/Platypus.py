@@ -130,18 +130,23 @@ class EncoderDecoder(object):
 
     # Encode a 1D list of Region objects
     def encodeHmUnknownsList(self):
-        for countReg, region in enumerate(self.model.hmUnknownsList):  # iterate through Regions
+        for countReg, regionNum in enumerate(self.model.hmUnknownsList):  # iterate through Regions
             listDict = {}
-            for key in region.__dict__:  # iterate through .an and .bn per Region
-                valList = region.__dict__[key]
+            # TODO Continue here
+            for key in self.model.hmUnknownsList[regionNum].__dict__:  # iterate through .an and .bn per Region
+                assigned = self.model.hmUnknownsList[regionNum].__dict__[key]
                 valDict = {}
-                for countVal, val in enumerate(valList):  # iterate through arrays of .an or .bn
-                    self.__buildTypeList(val)
-                    self.__buildComplexList()
-                    val = self.filterValType(val)
-                    valDict[countVal] = val
+                if type(assigned) in [list, np.ndarray]:
+                    for countVal, val in enumerate(assigned):  # iterate through arrays of .an or .bn
+                        self.__buildTypeList(val)
+                        self.__buildComplexList()
+                        val = self.filterValType(val)
+                        valDict[countVal] = val
 
-                listDict[key] = valDict
+                    listDict[key] = valDict
+                else:
+                    listDict[key] = assigned
+
             self.hmUnknownsListRes[countReg] = listDict
 
 
@@ -182,7 +187,7 @@ def construct(iDict, iArrayShape):
     hmUnknownsListDict = iDict['hmUnknownsList']
 
     lenKeys = len(dict.keys(matrix))
-    mirrorMatrix = np.array([type('', (object,), {}) for _ in np.arange(lenKeys)])
+    mirrorMatrix = np.array([type('', (object,), {}) for _ in range(lenKeys)])
     for key in dict.keys(matrix):
         nodeInfo = matrix[key]
         emptyNode = Node()
@@ -206,7 +211,7 @@ def jsonStoreSolution(model):
         dictionary = json.load(StoredSolutionData)
 
     gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList = construct(iDict=dictionary, iArrayShape=model.matrix.shape)
-    checkIdenticalLists = np.array([[model.matrix[y, x] == rebuiltGridMatrix[y, x] for x in np.arange(model.ppL)] for y in np.arange(model.ppH)])
+    checkIdenticalLists = np.array([[model.matrix[y, x] == rebuiltGridMatrix[y, x] for x in range(model.ppL)] for y in range(model.ppH)])
 
     return gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList, checkIdenticalLists
 
@@ -242,7 +247,7 @@ def main():
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
     # since there are no magnets or anything constantly creating a magnetic field when input is off
-    n = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
+    n = range(-lowDiscrete, lowDiscrete + 1)
     n = np.delete(n, len(n)//2, 0)
     slots = 16
     poles = 6
@@ -271,16 +276,16 @@ def main():
 
     # fig, axs = plt.subplots(2)
     # fig.suptitle('Mass and Thrust')
-    # axs[0].scatter(np.arange(1, cnt), [x[1, 0] for x in plotResults])
+    # axs[0].scatter(range(1, cnt), [x[1, 0] for x in plotResults])
     # axs[0].set_title('Mass')
-    # axs[1].scatter(np.arange(1, cnt), [x[1, 1] for x in plotResults])
+    # axs[1].scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     # axs[1].set_title('Thrust')
-    # axs[2].scatter(np.arange(1, cnt), [x[0, 0] for x in plotResults])
+    # axs[2].scatter(range(1, cnt), [x[0, 0] for x in plotResults])
     # axs[2].set_title('mass obj')
-    # axs[3].scatter(np.arange(1, cnt), [x[0, 1] for x in plotResults])
+    # axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
     # axs[3].set_title('thrust obj')
-    # plt.scatter(np.arange(1, cnt), [x[1, 1] for x in pltResults])
-    # # plt.scatter(np.arange(1, cnt), [x[1, 1] for x in plotResults])
+    # plt.scatter(range(1, cnt), [x[1, 1] for x in pltResults])
+    # # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     # plt.xlabel('Generations')
     # plt.ylabel('Thrust Objective Value')
     # plt.show()
@@ -305,7 +310,10 @@ def main():
     # Object for the model design, grid, and matrices
     model = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                   meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                  hmRegions=np.array([1, 2, 3, 4, 6], dtype=np.int16), mecRegions=np.array([5], dtype=np.int16))
+                  hmRegions=
+                  {1: 'vac', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac'},
+                  mecRegions=
+                  {5: 'core_1'})
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)

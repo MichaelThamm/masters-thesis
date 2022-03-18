@@ -28,8 +28,7 @@ class Model(Grid):
         self.nLoop = 0
         self.matBCount = 0
 
-        self.hmUnknownsList = [Region(np.zeros(len(self.n)),
-                                      np.zeros(len(self.n))) for _ in np.arange(len(self.hmRegions))]
+        self.hmUnknownsList = {i: Region(i, self.hmRegions[i], np.zeros(len(self.n)), np.zeros(len(self.n))) for i in self.hmRegions}
 
         # HM and MEC unknown indexes in matrix A, used for visualization
         # TODO I could make these lists more robust
@@ -113,8 +112,8 @@ class Model(Grid):
         row = self.matrix[iY]
 
         sumResEqn22Source = np.cdouble(0)
-        for iX in np.arange(self.ppL):
-            llNode, lNode, rNode, rrNode = self.neighbourNodes(iX)
+        for iX in range(self.ppL):
+            lNode, rNode = self.neighbourNodes(iX)
 
             # By Condition
             # This is handled in the MEC region KCL equations using Eqn 21
@@ -178,7 +177,7 @@ class Model(Grid):
 
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
 
-        _, lNode, rNode, _ = self.neighbourNodes(j)
+        lNode, rNode = self.neighbourNodes(j)
 
         northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
         eastRelDenom = self.matrix[i, j].Rx + self.matrix[i, rNode].Rx
@@ -378,38 +377,19 @@ class Model(Grid):
                                              cause=self.hmRegionsIndex[-1] != self.matrixA.shape[1]))
 
     def neighbourNodes(self, j):
-        # boundary 2 to the left
-        if j == 1:
-            llNode = self.ppL - 1
-            lNode = j - 1
-            rNode = j + 1
-            rrNode = j + 2
         # boundary 1 to the left
-        elif j == 0:
-            llNode = self.ppL - 2
+        if j == 0:
             lNode = self.ppL - 1
             rNode = j + 1
-            rrNode = j + 2
         # boundary 1 to the right
         elif j == self.ppL - 1:
-            llNode = j - 2
             lNode = j - 1
             rNode = 0
-            rrNode = 1
-        # boundary 2 to the right
-        elif j == self.ppL - 2:
-            llNode = j - 2
-            lNode = j - 1
-            rNode = j + 1
-            rrNode = 0
-
         else:
-            llNode = j - 2
             lNode = j - 1
             rNode = j + 1
-            rrNode = j + 2
 
-        return llNode, lNode, rNode, rrNode
+        return lNode, rNode
 
     # TODO We can cache functions like this for time improvement
     def __boundaryInfo(self, iY1, iY2, boundaryType):
@@ -609,6 +589,11 @@ class Model(Grid):
 
     def __linalg_lu(self, tolerance):
 
+        self.writeErrorToDict(key='name',
+                              error=Error(name='linalg deepcopy',
+                                          description="ERROR - Matrix A and B should be ndarray so matrix deep copy is not performed",
+                                          cause=type(self.matrixA) != np.ndarray or type(self.matrixB) != np.ndarray))
+
         if self.matrixA.shape[0] == self.matrixA.shape[1]:
             lu, piv = lu_factor(self.matrixA)
             resX = lu_solve((lu, piv), self.matrixB)
@@ -629,9 +614,9 @@ class Model(Grid):
 
         Cnt = 0
         for nHM in self.n:
-            # The airgap is always index 1 of the hm regions in SLIM and DSLIM
-            an = self.hmUnknownsList[1].an[Cnt]
-            bn = self.hmUnknownsList[1].bn[Cnt]
+            gIdx = list(self.hmRegions.values()).index('g') + 1
+            an = self.hmUnknownsList[gIdx].an[Cnt]
+            bn = self.hmUnknownsList[gIdx].bn[Cnt]
             an_, bn_ = np.conj(an), np.conj(bn)
 
             wn = 2 * nHM * pi / self.Tper
@@ -676,14 +661,14 @@ class Model(Grid):
 
         #  Y axis array
         if evenOdd == 'even':  # even - calculated at lower node boundary in the y-direction
-            yBxList = np.array([self.matrix[iY, j].BxLower for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yByList = np.array([self.matrix[iY, j].ByLower for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yB_List = np.array([self.matrix[iY, j].B_Lower for j in np.arange(self.ppL)], dtype=np.cdouble)
+            yBxList = np.array([self.matrix[iY, j].BxLower for j in range(self.ppL)], dtype=np.cdouble)
+            yByList = np.array([self.matrix[iY, j].ByLower for j in range(self.ppL)], dtype=np.cdouble)
+            yB_List = np.array([self.matrix[iY, j].B_Lower for j in range(self.ppL)], dtype=np.cdouble)
 
         elif evenOdd == 'odd':  # odd - calculated at node center in the y-direction
-            yBxList = np.array([self.matrix[iY, j].Bx for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yByList = np.array([self.matrix[iY, j].By for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yB_List = np.array([self.matrix[iY, j].B for j in np.arange(self.ppL)], dtype=np.cdouble)
+            yBxList = np.array([self.matrix[iY, j].Bx for j in range(self.ppL)], dtype=np.cdouble)
+            yByList = np.array([self.matrix[iY, j].By for j in range(self.ppL)], dtype=np.cdouble)
+            yB_List = np.array([self.matrix[iY, j].B for j in range(self.ppL)], dtype=np.cdouble)
 
         else:
             print('neither even nor odd was chosen')
@@ -719,14 +704,6 @@ class Model(Grid):
         plt.title('By field in airgap')
         plt.show()
 
-        # tempReal = np.array([j.real for j in dataArray[3]], dtype=np.float64)
-        # plt.scatter(xSorted, tempReal.flatten())
-        # plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
-        # plt.xlabel('Position [m]')
-        # plt.ylabel('|B| [T]]')
-        # plt.title('B field in airgap')
-        # plt.show()
-
     def __setCurrColCount(self, value):
         self.currColCount = value
 
@@ -737,14 +714,14 @@ class Model(Grid):
 
         # Unknowns in HM regions
         matIdx = 0
-        for i in np.arange(len(self.hmRegions)):
+        for i in self.hmRegions:
             # lower boundary
-            if i == 0:
+            if i == list(self.hmRegions)[0]:
                 self.hmUnknownsList[i].an = self.hmMatrixX[:len(self.n)]
                 # self.hmUnknownsList[i].bn = self.hmMatrixX[]
                 matIdx += len(self.n)
             # upper boundary
-            elif i == len(self.hmRegions) - 1:
+            elif i == list(self.hmRegions)[-1]:
                 # self.hmUnknownsList[i].an = self.hmMatrixX[]
                 self.hmUnknownsList[i].bn = self.hmMatrixX[-len(self.n):]
                 matIdx += len(self.n)
@@ -754,24 +731,25 @@ class Model(Grid):
                 matIdx += 2 * len(self.n)
 
         # Unknowns in MEC regions
-        Cnt = 0
-        i, j = 0, 0
-        while i < self.ppH:
-            if i in self.yIndexesMEC:
-                while j < self.ppL:
-                    self.matrix[i, j].Yk = self.mecMatrixX[Cnt]
-                    Cnt += 1
-                    j += 1
-                j = 0
-            i += 1
+        for i in range(len(self.mecRegions)):
+            Cnt = 0
+            i, j = self.yIndexesMEC[0], 0
+            while i < self.yIndexesMEC[-1]:
+                if i in self.yIndexesMEC:
+                    while j < self.ppL:
+                        self.matrix[i, j].Yk = self.mecMatrixX[Cnt]
+                        Cnt += 1
+                        j += 1
+                    j = 0
+                i += 1
 
         # Solve for B in the mesh
         i, j = 0, 0
-        regCnt = 0
+        regCnt = 1
         while i < self.ppH:
             while j < self.ppL:
 
-                _, lNode, rNode, _ = self.neighbourNodes(j)
+                lNode, rNode = self.neighbourNodes(j)
 
                 if i in self.yIndexesMEC:
                     # Bottom layer of the MEC
@@ -787,8 +765,9 @@ class Model(Grid):
                             lambdaN1 = self.__lambda_n(wn, urSigma1)
                             Flux_ySum += self.__postEqn21(lambdaN1, wn, self.matrix[i, j].x,
                                                           self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                          self.matrix[i, j].y, self.hmUnknownsList[0].an[nCnt],
-                                                          self.hmUnknownsList[0].bn[nCnt])
+                                                          self.matrix[i, j].y,
+                                                          self.hmUnknownsList[regCnt-1].an[nCnt],
+                                                          self.hmUnknownsList[regCnt-1].bn[nCnt])
                             nCnt += 1
 
                         # Eqn 16
@@ -809,8 +788,9 @@ class Model(Grid):
                             lambdaN2 = self.__lambda_n(wn, urSigma2)
                             Flux_ySum += self.__postEqn21(lambdaN2, wn, self.matrix[i, j].x,
                                                           self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                          self.matrix[i + 1, j].y, self.hmUnknownsList[1].an[nCnt],
-                                                          self.hmUnknownsList[1].bn[nCnt])
+                                                          self.matrix[i + 1, j].y,
+                                                          self.hmUnknownsList[regCnt + 1].an[nCnt],
+                                                          self.hmUnknownsList[regCnt + 1].bn[nCnt])
                             nCnt += 1
 
                         # Eqn 16
@@ -841,9 +821,9 @@ class Model(Grid):
 
                     # Eqn 40_HAM
                     self.matrix[i, j].Bx = self.postMECAvgB(self.matrix[i, j].phiXn, self.matrix[i, j].phiXp,
-                                                              self.matrix[i, j].Szy)
+                                                            self.matrix[i, j].Szy)
                     self.matrix[i, j].By = self.postMECAvgB(self.matrix[i, j].phiYn, self.matrix[i, j].phiYp,
-                                                              self.matrix[i, j].Sxz)
+                                                            self.matrix[i, j].Sxz)
 
                 elif i in self.yIndexesHM:
 
@@ -873,19 +853,16 @@ class Model(Grid):
                     self.matrix[i, j].By = BySumCenter
                     self.matrix[i, j].ByLower = BySumLower
 
-                    self.matrix[i, j].B_Lower = cmath.sqrt(
-                        self.matrix[i, j].BxLower ** 2 + self.matrix[i, j].ByLower ** 2)
-
-                    # Counter for each HM region
-                    if i in [self.yIndexesVacLower[-1], self.yIndexesAirgap[-1], self.yIndexesBladeRotor[-1],
-                             self.yIndexesBackIron[-1], self.yIndexesVacUpper[-1]] and j == self.ppL - 1:
-                        regCnt += 1
-
                 else:
                     print('we cant be here')
                     return
 
                 self.matrix[i, j].B = cmath.sqrt(self.matrix[i, j].Bx ** 2 + self.matrix[i, j].By ** 2)
+
+                # Counter for each HM region
+                if i in [self.yIndexesVacLower[-1], self.yIndexesBackIron[-1], self.yIndexesBladeRotor[-1],
+                         self.yIndexesAirgap[-1], self.yIndexesMEC[-1], self.yIndexesVacUpper[-1]] and j == self.ppL - 1:
+                    regCnt += 1
 
                 j += 1
             j = 0
@@ -940,16 +917,14 @@ class Model(Grid):
         # matrix A and B are trimmed to remove any empty rows or columns using reduceMatrix function
         self.__reduceMatrix(removeRows, removeCols)
 
-        print('This should be ndarray so matrix deepCody is not performed: ', type(self.matrixA))
-
         # Solve for the unknown matrix X
         self.matrixX, preProcessError_matX = self.__linalg_lu(iTol)
 
         # update the index-tracking lists that are affected by the trimming of matrices A and B
         self.__updateLists(len(self.n))
 
-        self.hmMatrixX = [self.matrixX[self.hmIdxs[i]] for i in np.arange(len(self.hmIdxs))]
-        self.mecMatrixX = [self.matrixX[self.mecIdxs[i]] for i in np.arange(len(self.mecIdxs))]
+        self.hmMatrixX = [self.matrixX[self.hmIdxs[i]] for i in range(len(self.hmIdxs))]
+        self.mecMatrixX = [self.matrixX[self.mecIdxs[i]] for i in range(len(self.mecIdxs))]
         self.hmMatrixX = np.array(self.hmMatrixX, dtype=np.cdouble)
         self.mecMatrixX = np.array(self.mecMatrixX, dtype=np.cdouble)
 
@@ -996,7 +971,7 @@ def complexFourierTransform(model_in, harmonics_in):
     def fluxAtBoundary():
         global row_upper_FT, idx_FT, model
 
-        _, lNode, rNode, _ = model.neighbourNodes(idx_FT)
+        lNode, rNode = model.neighbourNodes(idx_FT)
         phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
                 / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
         phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
@@ -1065,7 +1040,7 @@ def plotFourierError():
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
     lowDiscrete = 30
-    n = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
+    n = range(-lowDiscrete, lowDiscrete + 1)
     n = np.delete(n, len(n) // 2, 0)
     slots = 16
     poles = 6

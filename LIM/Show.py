@@ -72,13 +72,13 @@ def combineFilterList(pixelsPer, unfilteredRows, unfilteredRowCols):
     oFilteredRowCols = []
 
     # List of row indexes for keeping rows from 0 to ppH
-    for a in np.arange(len(unfilteredRows)):
+    for a in range(len(unfilteredRows)):
         oFilteredRows += unfilteredRows[a]
 
     # List of (row, col) indexes for keeping nodes in mesh
-    for a in np.arange(len(unfilteredRowCols)):
-        for y in np.arange(ppH):
-            for x in np.arange(ppL):
+    for a in range(len(unfilteredRowCols)):
+        for y in range(ppH):
+            for x in range(ppL):
                 if y in unfilteredRowCols[a][0] and x in unfilteredRowCols[a][1]:
                     oFilteredRowCols += [(y, x)]
 
@@ -290,7 +290,7 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
 
         # Create fields canvas to display the selected field result on the mesh
         else:
-            fieldsScale = np.arange(minScale, maxScale + normScale, normScale)
+            fieldsScale = range(minScale, maxScale + normScale, normScale)
             colorScaleIndex = np.where(fieldsScale == fieldsScale[0])
 
             cFields.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")

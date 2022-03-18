@@ -17,18 +17,18 @@ def plotPointsAlongX(iGridInfo, iGridMatrix, iY):
     #  Y axis array
     if evenOdd == 'even':  # even
 
-        yBxLowerList = np.array([iGridMatrix[iY, j].BxLower for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
-        yByLowerList = np.array([iGridMatrix[iY, j].ByLower for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
-        yB_LowerList = np.array([iGridMatrix[iY, j].B_Lower for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
+        yBxLowerList = np.array([iGridMatrix[iY, j].BxLower for j in range(iGridInfo['ppL'])], dtype=np.cdouble)
+        yByLowerList = np.array([iGridMatrix[iY, j].ByLower for j in range(iGridInfo['ppL'])], dtype=np.cdouble)
+        yB_LowerList = np.array([iGridMatrix[iY, j].B_Lower for j in range(iGridInfo['ppL'])], dtype=np.cdouble)
 
         dataArray[1] = yBxLowerList
         dataArray[2] = yByLowerList
         dataArray[3] = yB_LowerList
 
     else:  # odd
-        yBxCenterList = np.array([iGridMatrix[iY, j].Bx for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
-        yByCenterList = np.array([iGridMatrix[iY, j].By for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
-        yB_CenterList = np.array([iGridMatrix[iY, j].B for j in np.arange(iGridInfo['ppL'])], dtype=np.cdouble)
+        yBxCenterList = np.array([iGridMatrix[iY, j].Bx for j in range(iGridInfo['ppL'])], dtype=np.cdouble)
+        yByCenterList = np.array([iGridMatrix[iY, j].By for j in range(iGridInfo['ppL'])], dtype=np.cdouble)
+        yB_CenterList = np.array([iGridMatrix[iY, j].B for j in range(iGridInfo['ppL'])], dtype=np.cdouble)
 
         dataArray[1] = yBxCenterList
         dataArray[2] = yByCenterList
