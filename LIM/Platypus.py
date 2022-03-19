@@ -58,27 +58,28 @@ class EncoderDecoder(object):
         self.encoded = False
         # After instantiating seld.model with model. this should be used rather than the old model
         # TODO There could be an issue with self.complexList and self.model.complexList value difference because
-        self.model = model
+        self.rawModel = model
+        self.rebuiltModel = None
 
+        self.unacceptedJsonAttributes = ['matrix', 'errorDict', 'hmUnknownsList']
         # These members are the dictionary results of the json serialization format required in json.dump
-        self.infoRes = {}
-        self.matrixRes = {}
-        self.errorDictRes = {}
-        self.hmUnknownsListRes = {}
+        self.encodedAttributes = {}
+        self.encodedMatrix = {}
+        self.encodedErrorDict = {}
+        self.encodedHmUnknownsList = {}
 
         self.typeList = []
-        self.complexList = []
-        # TODO This is not robust, what if I missed a type???
-        self.nonComplexList = ['int', 'numpy.float64', 'float', 'str', 'bool']
+        self.unacceptedTypeList = [complex, np.complex128]
 
     def filterValType(self, val):
         # JSON dump cannot handle numpy arrays
         if type(val) == np.ndarray:
-            val = list(val)
+            val = val.tolist()
+            # these lists can still contain unacceptable types so I need to filter that. Use the map or filter methods
+            # I should also replace all instances of list(ndarray) to ndarray.tolist()
 
         # Json dump and load cannot handle complex objects and must be an accepted dtype such as list
-        # TODO switch this to be in self.model.complexTypeList
-        elif type(val) in [complex, np.complex128]:
+        elif type(val) in self.unacceptedTypeList:
             # 'plex_Signature' is used to identify if a list is a destructed complex number or not
             val = ['plex_Signature', val.real, val.imag]
 
@@ -89,57 +90,61 @@ class EncoderDecoder(object):
 
     def __buildTypeList(self, val):
         # Generate a list of data types before destructing the matrix
-        if str(type(val)).split("'")[1] not in self.typeList:
-            strType = str(type(val)).split("'")
-            self.typeList += [strType[1]]
+        if self.getType(val) not in self.typeList:
+            self.typeList += [self.getType(val)]
 
-    def __buildComplexList(self):
-        self.complexList = [i for i in self.typeList if i not in self.nonComplexList]
+    def getType(self, val):
+        return str(type(val)).split("'")[1]
+
+    # Encode all attributes that have valid json data types
+    def encodeAttributes(self):
+        self.encodedAttributes = {}
+        # TODO I need to make a filter here turn ndarray into list - IS A LOT OF WORK
+        # InfoRes includes all the grid info that is serializable for a JSON object
+        for attr, val in self.rawModel.__dict__.items():
+            if attr not in self.unacceptedJsonAttributes:
+                self.__buildTypeList(val)
+                self.encodedAttributes[attr] = self.filterValType(val)
 
     # Encode a 2D matrix of Node objects
     def encodeMatrix(self):
         Cnt = 0
-        for row in self.model.matrix:
-            for col in row:
+        for row in self.rawModel.matrix:
+            for node in row:
                 nodeDictList = []
-                for attr, val in col.__dict__.items():
+                for attr, val in node.__dict__.items():
 
                     self.__buildTypeList(val)
-                    self.__buildComplexList()
                     val = self.filterValType(val)
                     nodeDictList.append((attr, val))
 
-                x = dict(nodeDictList)
-                self.matrixRes[Cnt] = x
+                self.encodedMatrix[Cnt] = dict(nodeDictList)
 
                 Cnt += 1
 
     # Encode a 1D TransformedDict of Error objects
     def encodeErrorDict(self):
-        for count, error_name in enumerate(self.model.errorDict):
+        for error_name in self.rawModel.errorDict:
             listDict = {}
-            for error_member in self.model.errorDict[error_name].__dict__:
+            for error_member in self.rawModel.errorDict[error_name].__dict__:
 
-                val = self.model.errorDict[error_name].__dict__[error_member]
+                val = self.rawModel.errorDict[error_name].__dict__[error_member]
                 self.__buildTypeList(val)
-                self.__buildComplexList()
                 val = self.filterValType(val)
                 listDict[error_member] = val
 
-            self.errorDictRes[count] = listDict
+            self.encodedErrorDict[error_name] = listDict
 
     # Encode a 1D list of Region objects
     def encodeHmUnknownsList(self):
-        for countReg, regionNum in enumerate(self.model.hmUnknownsList):  # iterate through Regions
+        for regionNum in self.rawModel.hmUnknownsList:  # iterate through Regions
             listDict = {}
-            # TODO Continue here
-            for key in self.model.hmUnknownsList[regionNum].__dict__:  # iterate through .an and .bn per Region
-                assigned = self.model.hmUnknownsList[regionNum].__dict__[key]
+            for key in self.rawModel.hmUnknownsList[regionNum].__dict__:  # iterate through .an and .bn per Region
+                assigned = self.rawModel.hmUnknownsList[regionNum].__dict__[key]
                 valDict = {}
                 if type(assigned) in [list, np.ndarray]:
                     for countVal, val in enumerate(assigned):  # iterate through arrays of .an or .bn
                         self.__buildTypeList(val)
-                        self.__buildComplexList()
                         val = self.filterValType(val)
                         valDict[countVal] = val
 
@@ -147,73 +152,78 @@ class EncoderDecoder(object):
                 else:
                     listDict[key] = assigned
 
-            self.hmUnknownsListRes[countReg] = listDict
+            self.encodedHmUnknownsList[regionNum] = listDict
 
+    def destruct(self):
 
-def destruct(model):
+        self.encodeAttributes()
+        self.encodeMatrix()
+        self.encodeErrorDict()
+        self.encodeHmUnknownsList()
 
-    encodeModel = EncoderDecoder(model)
-    encodeModel.encodeMatrix()
-    encodeModel.encodeErrorDict()
-    encodeModel.encodeHmUnknownsList()
+        print(f'typeList: {self.typeList}, unacceptedTypeList: {self.unacceptedTypeList}')
 
-    # Update the model members
-    model.typeList = encodeModel.typeList
-    model.complexTypeList = encodeModel.complexList
+        attributesDict = {'attributes': self.encodedAttributes, 'matrix': self.encodedMatrix,
+                          'errorDict': self.encodedErrorDict, 'hmUnknownsList': self.encodedHmUnknownsList}
 
-    print(f'typeList: {encodeModel.typeList}, complexList: {encodeModel.complexList}')
+        return attributesDict
 
-    # TODO I need to make a filter here turn ndarray into list - IS A LOT OF WORK
-    # InfoRes includes all the grid info that is serializable for a JSON object
-    encodeModel.infoRes = {attr: val for attr, val in encodeModel.model.__dict__.items()
-                           if attr != 'matrix' and attr != 'errorDict' and attr != 'hmUnknownsList'
-                           and type(val) != np.ndarray
-                           and str(type(val)).split("'")[1] not in encodeModel.complexList}
+    # Rebuild objects that were deconstructed to store in JSON object
+    def construct(self, iDict):
 
-    # matrixRes is the destructed matrix array from the grid
-    dictRes = {'info': encodeModel.infoRes, 'matrix': encodeModel.matrixRes, 'errorDict': encodeModel.errorDictRes,
-               'hmUnknownsList': encodeModel.hmUnknownsListRes}
+        attributes = iDict['attributes']
+        matrix = iDict['matrix']
+        errors = iDict['errorDict']
+        hmUnknowns = iDict['hmUnknownsList']
 
-    return dictRes
+        # Matrix Reconstruction
+        lenKeys = len(dict.keys(matrix))
+        constructedMatrix = np.array([type('', (object,), {}) for _ in range(lenKeys)])
+        for key in dict.keys(matrix):
+            nodeInfo = matrix[key]
+            emptyNode = Node()
+            rebuiltNode = emptyNode.rebuildNode(nodeInfo)
+            constructedMatrix[int(key)] = rebuiltNode
 
+        rawArrShape = self.rawModel.matrix.shape
+        constructedMatrix = constructedMatrix.reshape(rawArrShape[0], rawArrShape[1])
 
-# Rebuild the grid.matrix array
-def construct(iDict, iArrayShape):
+        # HmUnknownsList Reconstruction
+        constructedHmUnknowns = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in attributes['hmRegions']}
 
-    info = iDict['info']
-    matrix = iDict['matrix']
-    # errorDict and hmUnknownsListDict are not used in the GUI so are not rebuilt and left as a dict
-    errorDict = iDict['errorDict']
-    hmUnknownsListDict = iDict['hmUnknownsList']
+        self.rebuiltModel = Model.buildFromJson(jsonObject={'attributes': attributes, 'matrix': constructedMatrix,
+                                                            'hmUnknowns': constructedHmUnknowns})
 
-    lenKeys = len(dict.keys(matrix))
-    mirrorMatrix = np.array([type('', (object,), {}) for _ in range(lenKeys)])
-    for key in dict.keys(matrix):
-        nodeInfo = matrix[key]
-        emptyNode = Node()
-        rebuiltNode = emptyNode.rebuildNode(nodeInfo)
-        mirrorMatrix[int(key)] = rebuiltNode
-    mirrorMatrix = mirrorMatrix.reshape(iArrayShape[0], iArrayShape[1])
+        # ErrorDict Reconstruction
+        for error_name in errors:
+            self.rebuiltModel.writeErrorToDict(key='name',
+                                               error=Error.buildFromJson(jsonObject=errors[error_name]))
 
-    return info, mirrorMatrix, errorDict, hmUnknownsListDict
+    def jsonStoreSolution(self):
 
+        destructed = self.destruct()
+        # Data written to file
+        if not os.path.isdir(OUTPUT_PATH):
+            os.mkdir(OUTPUT_PATH)
+        with open(DATA_PATH, 'w') as StoredSolutionData:
+            json.dump(destructed, StoredSolutionData)
+        # Data read from file
+        with open(DATA_PATH) as StoredSolutionData:
+            dictionary = json.load(StoredSolutionData)
 
-def jsonStoreSolution(model):
+        self.construct(iDict=dictionary)
+        # TODO I should override the equals method of model to check that the entire object is the same not just matrix
+        if self.rebuiltModel == self.rawModel:
+            self.encoded = True
+        checkIdenticalLists = np.array([[self.rawModel.matrix[y, x] == self.rebuiltModel.matrix[y, x] for x in range(self.rebuiltModel.ppL)] for y in range(self.rebuiltModel.ppH)])
 
-    destructedMatA = destruct(model)
-    # Data written to file
-    if not os.path.isdir(OUTPUT_PATH):
-        os.mkdir(OUTPUT_PATH)
-    with open(DATA_PATH, 'w') as StoredSolutionData:
-        json.dump(destructedMatA, StoredSolutionData)
-    # Data read from file
-    with open(DATA_PATH) as StoredSolutionData:
-        dictionary = json.load(StoredSolutionData)
-
-    gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList = construct(iDict=dictionary, iArrayShape=model.matrix.shape)
-    checkIdenticalLists = np.array([[model.matrix[y, x] == rebuiltGridMatrix[y, x] for x in range(model.ppL)] for y in range(model.ppH)])
-
-    return gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList, checkIdenticalLists
+        if np.all(np.all(checkIdenticalLists, axis=1)):
+            self.encoded = True
+        else:
+            self.rebuiltModel.writeErrorToDict(key='name',
+                                               error=Error.buildFromScratch(name='gridMatrixJSON',
+                                                                            description="ERROR - The JSON object matrix does not match the original matrix",
+                                                                            cause=True))
 
 
 def profile_main():
@@ -308,12 +318,13 @@ def main():
     canvasSpacing = 80
 
     # Object for the model design, grid, and matrices
-    model = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                  meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                  hmRegions=
-                  {1: 'vac', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac'},
-                  mecRegions=
-                  {5: 'core_1'})
+    model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
+                                   pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
+                                   meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
+                                   hmRegions=
+                                   {1: 'vac', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac'},
+                                   mecRegions=
+                                   {5: 'core_1'})
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
@@ -321,26 +332,24 @@ def main():
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-15)
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    model.updateGrid(errorInX, showAirgapPlot=False)
 
     # After this point, the json implementations should be used to not branch code direction
-    gridInfo, gridMatrix, gridErrorDict, gridHmUnknownsList, boolIdenticalLists = jsonStoreSolution(model)
+    encodeModel = EncoderDecoder(model)
+    encodeModel.jsonStoreSolution()
 
-    if np.all(np.all(boolIdenticalLists, axis=1)):
+    if encodeModel.rebuiltModel.errorDict.isEmpty():
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(gridInfo, gridMatrix, model, fieldType='Yk',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
-                  numColours=20, dims=[1080, 1920])
-
+        # showModel(gridInfo, gridMatrix, model, fieldType='Yk',
+        #           showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        #           numColours=20, dims=[1080, 1920])
+        pass
     else:
-        model.writeErrorToDict(key='name',
-                               error=Error(name='gridMatrixJSON',
-                                           description="ERROR - The JSON object matrix does not match the original matrix",
-                                           cause=True))
+        print('Resolve errors to show model')
 
     print('\nBelow are a list of warnings and errors:')
-    if model.errorDict:
-        model.errorDict.printErrorsByAttr('description')
+    if encodeModel.rebuiltModel.errorDict:
+        encodeModel.rebuiltModel.errorDict.printErrorsByAttr('description')
     else:
         print('   - there are no errors')
 

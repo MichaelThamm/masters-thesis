@@ -37,7 +37,7 @@ Filters:
 class LimMotor(object):
     def __init__(self, slots, poles, length):
 
-        self.errorDict = TransformedDict()
+        self.errorDict = TransformedDict.emptyDict()
 
         # Kinematic Variables
         mass = 250
@@ -138,6 +138,14 @@ class TransformedDict(MutableMapping):
         self.store = dict()
         self.update(dict(*args, **kwargs))  # use the free update to set keys
 
+    @classmethod
+    def emptyDict(cls):
+        return cls()
+
+    @classmethod
+    def rebuildFromJson(cls, jsonDict):
+        return cls(jsonDict)
+
     def __getitem__(self, key):
         return self.store[key]
 
@@ -160,15 +168,26 @@ class TransformedDict(MutableMapping):
         for key in self:
             print(self[key].__dict__[strName])
 
+    def isEmpty(self):
+        return False if self.store else False
+
 
 class Error(object):
-    def __init__(self, name, description, cause):
-        self.name = name
-        self.description = description
-        self.cause = bool(cause)  # This was done to handle np.bool_ not being json serializable
+    def __init__(self, kwargs, buildFromJson=False):
+        self.name = kwargs['name']
+        self.description = kwargs['description']
+        self.cause = bool(kwargs['cause'])  # This was done to handle np.bool_ not being json serializable
         self.state = False
 
         self.setState()
+
+    @classmethod
+    def buildFromScratch(cls, **kwargs):
+        return cls(kwargs=kwargs)
+
+    @classmethod
+    def buildFromJson(cls, jsonObject):
+        return cls(kwargs=jsonObject, buildFromJson=True)
 
     def setState(self):
         if self.cause:
@@ -189,6 +208,14 @@ def timing():
     yield
     e = timer()
     print('execution time: {:.2f}s'.format(e - s))
+
+
+def rebuildPlex(val):
+    try:
+        if val[0] == 'plex_Signature':
+            return np.cdouble(val[1] + j_plex * val[2])
+    except TypeError:
+        return val
 
 
 pi = math.pi
@@ -229,3 +256,6 @@ with open('BuildTable.csv', 'w', newline='') as csvFile:
     for value in table:
         writer.writerow(value)
 '''
+
+if __name__ == '__main__':
+    pass

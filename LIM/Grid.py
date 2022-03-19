@@ -27,6 +27,7 @@ class Grid(LimMotor):
     outUpper_slotsC: ndarray
 
     def __init__(self, kwargs):
+
         super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'])
 
         xMeshIndexes = kwargs['meshIndexes'][0]
@@ -657,9 +658,9 @@ class Grid(LimMotor):
 
             else:
                 self.writeErrorToDict(key='name',
-                                      error=Error(name='gridRegion',
-                                                  description='ERROR - Error in the iGrid regions list',
-                                                  cause=True))
+                                      error=Error.buildFromScratch(name='gridRegion',
+                                                                   description='ERROR - Error in the iGrid regions list',
+                                                                   cause=True))
 
     # This function is written to catch any errors in the mapping between canvas and space for both x and y coordinates
     def checkSpatialMapping(self, pixelDivision, spatialDomainFlag, iIdxs):
@@ -745,9 +746,9 @@ class Grid(LimMotor):
             spatialDomainFlag = True
 
         self.writeErrorToDict(key='name',
-                              error=Error(name='domainMapping',
-                                          description='ERROR - The spatial domain does not match with the canvas domain',
-                                          cause=spatialDomainFlag))
+                              error=Error.buildFromScratch(name='domainMapping',
+                                                           description='ERROR - The spatial domain does not match with the canvas domain',
+                                                           cause=spatialDomainFlag))
 
 
 class Node(object):
@@ -877,12 +878,29 @@ class Node(object):
 
 
 class Region(object):
-    def __init__(self, idx, type_, an, bn):
+    def __init__(self, kwargs, buildFromJson=False):
 
-        self.index = idx
-        self.type = type_
-        self.an = an
-        self.bn = bn
+        if buildFromJson:
+            for key in kwargs:
+                if key in ['an', 'bn']:
+                    valList = [rebuildPlex(kwargs[key][index]) for index in kwargs[key]]
+                    valArray = np.array(valList)
+                    self.__dict__[key] = valArray
+                else:
+                    self.__dict__[key] = kwargs[key]
+        else:
+            self.index = kwargs['index']
+            self.type = kwargs['type']
+            self.an = kwargs['an']
+            self.bn = kwargs['bn']
+
+    @classmethod
+    def buildFromScratch(cls, **kwargs):
+        return cls(kwargs=kwargs)
+
+    @classmethod
+    def rebuildFromJson(cls, jsonObject):
+        return cls(kwargs=jsonObject, buildFromJson=True)
 
 
 def meshBoundary(spatial, pixels, spacing, fraction, numBoundaries, meshDensity):

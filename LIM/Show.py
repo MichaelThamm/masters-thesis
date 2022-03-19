@@ -284,9 +284,9 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
         if [minScale, maxScale, normScale] == [0, 0, 0]:
 
             model.writeErrorToDict(key='name',
-                                   error=Error(name='emptyField',
-                                               description=f'Field Analysis Error. All values are zero! Type: {fieldType}',
-                                               cause=True))
+                                   error=Error.buildFromScratch(name='emptyField',
+                                                                description=f'Field Analysis Error. All values are zero! Type: {fieldType}',
+                                                                cause=True))
 
         # Create fields canvas to display the selected field result on the mesh
         else:
