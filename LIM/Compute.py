@@ -12,16 +12,8 @@ class Model(Grid):
     def __init__(self, kwargs, buildFromJson=False):
 
         if buildFromJson:
-            for type_key in kwargs:
-                if type_key == 'attributes':
-                    for att_key in kwargs[type_key]:
-                        self.__dict__[att_key] = kwargs[type_key][att_key]
-                elif type_key in ['matrix', 'hmUnknowns']:
-                    self.__dict__[type_key] = kwargs[type_key]
-                else:
-                    print('unexpected key found')
-                    return
-            self.errorDict = TransformedDict.emptyDict()
+            for attr_key in kwargs:
+                self.__dict__[attr_key] = kwargs[attr_key]
         else:
             super().__init__(kwargs)
 
@@ -66,11 +58,23 @@ class Model(Grid):
     def buildFromJson(cls, jsonObject):
         return cls(kwargs=jsonObject, buildFromJson=True)
 
-    def __eq__(self, other):
-        if self.__dict__ == other.__dict__:
-            return True
-        for key in self.__dict__:
-            pass
+    def equals(self, otherObject, removedAtts):
+        equality = True
+        if not isinstance(otherObject, Model):
+            # don't attempt to compare against unrelated types
+            equality = False
+
+        else:
+            # Compare items between objects
+            selfItems = list(filter(lambda x: True if x[0] not in removedAtts else False, self.__dict__.items()))
+            otherItems = list(otherObject.__dict__.items())
+            for cnt, value in enumerate(selfItems):
+                if value[0] == otherItems[cnt][0]:
+                    pass
+                else:
+                    equality = False
+
+        return True if equality else False
         # return isinstance(obj, MyFoo) and obj.equalityprop == self.equalityprop
 
     # TODO We can comment these out for computation efficiency since the bn term is getting removed entirely and
@@ -1084,11 +1088,11 @@ def plotFourierError():
     for idx, pixelDivisions in enumerate(pixDivs):
 
         pixelSpacing = slotpitch / pixelDivisions
-        loopedModel = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing,
-                          canvasSpacing=canvasSpacing,
-                          meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                          hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16),
-                          mecRegions=np.array([1], dtype=np.int16))
+        loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing,
+                                             canvasSpacing=canvasSpacing,
+                                             meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
+                                             hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16),
+                                             mecRegions=np.array([1], dtype=np.int16))
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
         loopedModel.finalizeGrid(pixelDivisions)
         modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))

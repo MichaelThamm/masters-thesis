@@ -56,173 +56,142 @@ class EncoderDecoder(object):
     def __init__(self, model):
 
         self.encoded = False
-        # After instantiating seld.model with model. this should be used rather than the old model
-        # TODO There could be an issue with self.complexList and self.model.complexList value difference because
         self.rawModel = model
         self.rebuiltModel = None
 
-        self.unacceptedJsonAttributes = ['matrix', 'errorDict', 'hmUnknownsList']
+        self.removedAttributesList = ['matrixA', 'matrixB', 'matrixX']
+
         # These members are the dictionary results of the json serialization format required in json.dump
         self.encodedAttributes = {}
-        self.encodedMatrix = {}
-        self.encodedErrorDict = {}
-        self.encodedHmUnknownsList = {}
 
         self.typeList = []
         self.unacceptedTypeList = [complex, np.complex128]
 
-    def filterValType(self, val):
-        # JSON dump cannot handle numpy arrays
-        if type(val) == np.ndarray:
-            val = val.tolist()
-            # these lists can still contain unacceptable types so I need to filter that. Use the map or filter methods
-            # I should also replace all instances of list(ndarray) to ndarray.tolist()
+        # This dict contains the attributes that contain unaccepted objects as values
+        self.unacceptedJsonAttributes = {'matrix': Node, 'errorDict': (TransformedDict, Error), 'hmUnknownsList': Region}
+        self.unacceptedJsonObjects = []
+        self.__setFlattenJsonObjects()
 
-        # Json dump and load cannot handle complex objects and must be an accepted dtype such as list
-        elif type(val) in self.unacceptedTypeList:
+    def __setFlattenJsonObjects(self):
+        for value in self.unacceptedJsonAttributes.values():
+            try:
+                for nestedVal in value:
+                    self.unacceptedJsonObjects.append(nestedVal)
+            except TypeError:
+                self.unacceptedJsonObjects.append(value)
+
+    def __convertComplexInList(self, inList):
+        # 'plex_Signature' is used to identify if a list is a destructed complex number or not
+        return list(map(lambda x: ['plex_Signature', x.real, x.imag], inList))
+
+    def __objectToDict(self, attribute, originalValue):
+        if attribute == 'errorDict':
+            errorDict = originalValue.__dict__['store']
+            returnVal = {key: error.__dict__ for key, error in errorDict.items()}
+        elif attribute == 'matrix':
+            listedMatrix = originalValue.tolist()
+            # Case 2D list
+            for idxRow, row in enumerate(listedMatrix):
+                for idxCol, col in enumerate(row):
+                    listedMatrix[idxRow][idxCol] = {key: value if type(value) not in self.unacceptedTypeList else ['plex_Signature', value.real, value.imag] for key, value in row[idxCol].__dict__.items()}
+            returnVal = listedMatrix
+        elif attribute == 'hmUnknownsList':
+            returnVal = {}
+            for regionKey, regionVal in originalValue.items():
+                returnVal[regionKey] = {dictKey: dictVal if dictKey not in ['an', 'bn'] else self.__convertComplexInList(dictVal.tolist()) for dictKey, dictVal in regionVal.__dict__.items()}
+        else:
+            print('The object does not match a conditional')
+            return
+
+        return returnVal
+
+    def __filterValType(self, inAttr, inVal):
+
+        # Json dump cannot handle user defined class objects
+        if inAttr in self.unacceptedJsonAttributes:
+            outVal = self.__objectToDict(inAttr, inVal)
+
+        # Json dump cannot handle numpy arrays
+        elif type(inVal) == np.ndarray:
+            outVal = inVal.tolist()
+
+            # Case 1D list containing unacceptedTypes
+            if type(outVal[0]) in self.unacceptedTypeList:
+                outVal = self.__convertComplexInList(outVal)
+
+        # Json dump and load cannot handle complex types
+        elif type(inVal) in self.unacceptedTypeList:
             # 'plex_Signature' is used to identify if a list is a destructed complex number or not
-            val = ['plex_Signature', val.real, val.imag]
+            outVal = ['plex_Signature', inVal.real, inVal.imag]
 
         else:
-            pass
+            outVal = inVal
 
-        return val
+        return outVal
 
     def __buildTypeList(self, val):
         # Generate a list of data types before destructing the matrix
-        if self.getType(val) not in self.typeList:
-            self.typeList += [self.getType(val)]
+        if type(val) not in self.typeList:
+            self.typeList.append(type(val))
 
-    def getType(self, val):
+    def __getType(self, val):
         return str(type(val)).split("'")[1]
 
     # Encode all attributes that have valid json data types
-    def encodeAttributes(self):
+    def __destruct(self):
         self.encodedAttributes = {}
-        # TODO I need to make a filter here turn ndarray into list - IS A LOT OF WORK
-        # InfoRes includes all the grid info that is serializable for a JSON object
         for attr, val in self.rawModel.__dict__.items():
-            if attr not in self.unacceptedJsonAttributes:
+            # Matrices included in the set of linear equations were excluded due to computation considerations
+            if attr not in self.removedAttributesList:
                 self.__buildTypeList(val)
-                self.encodedAttributes[attr] = self.filterValType(val)
-
-    # Encode a 2D matrix of Node objects
-    def encodeMatrix(self):
-        Cnt = 0
-        for row in self.rawModel.matrix:
-            for node in row:
-                nodeDictList = []
-                for attr, val in node.__dict__.items():
-
-                    self.__buildTypeList(val)
-                    val = self.filterValType(val)
-                    nodeDictList.append((attr, val))
-
-                self.encodedMatrix[Cnt] = dict(nodeDictList)
-
-                Cnt += 1
-
-    # Encode a 1D TransformedDict of Error objects
-    def encodeErrorDict(self):
-        for error_name in self.rawModel.errorDict:
-            listDict = {}
-            for error_member in self.rawModel.errorDict[error_name].__dict__:
-
-                val = self.rawModel.errorDict[error_name].__dict__[error_member]
-                self.__buildTypeList(val)
-                val = self.filterValType(val)
-                listDict[error_member] = val
-
-            self.encodedErrorDict[error_name] = listDict
-
-    # Encode a 1D list of Region objects
-    def encodeHmUnknownsList(self):
-        for regionNum in self.rawModel.hmUnknownsList:  # iterate through Regions
-            listDict = {}
-            for key in self.rawModel.hmUnknownsList[regionNum].__dict__:  # iterate through .an and .bn per Region
-                assigned = self.rawModel.hmUnknownsList[regionNum].__dict__[key]
-                valDict = {}
-                if type(assigned) in [list, np.ndarray]:
-                    for countVal, val in enumerate(assigned):  # iterate through arrays of .an or .bn
-                        self.__buildTypeList(val)
-                        val = self.filterValType(val)
-                        valDict[countVal] = val
-
-                    listDict[key] = valDict
-                else:
-                    listDict[key] = assigned
-
-            self.encodedHmUnknownsList[regionNum] = listDict
-
-    def destruct(self):
-
-        self.encodeAttributes()
-        self.encodeMatrix()
-        self.encodeErrorDict()
-        self.encodeHmUnknownsList()
-
-        print(f'typeList: {self.typeList}, unacceptedTypeList: {self.unacceptedTypeList}')
-
-        attributesDict = {'attributes': self.encodedAttributes, 'matrix': self.encodedMatrix,
-                          'errorDict': self.encodedErrorDict, 'hmUnknownsList': self.encodedHmUnknownsList}
-
-        return attributesDict
+                self.encodedAttributes[attr] = self.__filterValType(attr, val)
 
     # Rebuild objects that were deconstructed to store in JSON object
-    def construct(self, iDict):
+    def __construct(self, iDict):
 
-        attributes = iDict['attributes']
-        matrix = iDict['matrix']
-        errors = iDict['errorDict']
-        hmUnknowns = iDict['hmUnknownsList']
+        errors = self.encodedAttributes['errorDict']
+        matrix = self.encodedAttributes['matrix']
+        hmUnknowns = self.encodedAttributes['hmUnknownsList']
 
-        # Matrix Reconstruction
-        lenKeys = len(dict.keys(matrix))
-        constructedMatrix = np.array([type('', (object,), {}) for _ in range(lenKeys)])
-        for key in dict.keys(matrix):
-            nodeInfo = matrix[key]
-            emptyNode = Node()
-            rebuiltNode = emptyNode.rebuildNode(nodeInfo)
-            constructedMatrix[int(key)] = rebuiltNode
+        # ErrorDict reconstruction
+        self.encodedAttributes['errorDict'] = TransformedDict.rebuildFromJson(errors)
 
+        # Matrix reconstruction
+        Cnt = 0
+        lenKeys = len(matrix)*len(matrix[0])
+        constructedMatrix = np.array([type('', (Node,), {}) for _ in range(lenKeys)])
+        for row in matrix:
+            for nodeInfo in row:
+                constructedMatrix[Cnt] = Node.buildFromJson(nodeInfo)
+                Cnt += 1
         rawArrShape = self.rawModel.matrix.shape
         constructedMatrix = constructedMatrix.reshape(rawArrShape[0], rawArrShape[1])
+        self.encodedAttributes['matrix'] = constructedMatrix
 
         # HmUnknownsList Reconstruction
-        constructedHmUnknowns = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in attributes['hmRegions']}
+        self.encodedAttributes['hmUnknownsList'] = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in self.encodedAttributes['hmRegions']}
 
-        self.rebuiltModel = Model.buildFromJson(jsonObject={'attributes': attributes, 'matrix': constructedMatrix,
-                                                            'hmUnknowns': constructedHmUnknowns})
-
-        # ErrorDict Reconstruction
-        for error_name in errors:
-            self.rebuiltModel.writeErrorToDict(key='name',
-                                               error=Error.buildFromJson(jsonObject=errors[error_name]))
+        self.rebuiltModel = Model.buildFromJson(jsonObject=self.encodedAttributes)
 
     def jsonStoreSolution(self):
 
-        destructed = self.destruct()
+        self.__destruct()
         # Data written to file
         if not os.path.isdir(OUTPUT_PATH):
             os.mkdir(OUTPUT_PATH)
         with open(DATA_PATH, 'w') as StoredSolutionData:
-            json.dump(destructed, StoredSolutionData)
+            json.dump(self.encodedAttributes, StoredSolutionData)
         # Data read from file
         with open(DATA_PATH) as StoredSolutionData:
             dictionary = json.load(StoredSolutionData)
 
-        self.construct(iDict=dictionary)
-        # TODO I should override the equals method of model to check that the entire object is the same not just matrix
-        if self.rebuiltModel == self.rawModel:
-            self.encoded = True
-        checkIdenticalLists = np.array([[self.rawModel.matrix[y, x] == self.rebuiltModel.matrix[y, x] for x in range(self.rebuiltModel.ppL)] for y in range(self.rebuiltModel.ppH)])
-
-        if np.all(np.all(checkIdenticalLists, axis=1)):
+        self.__construct(iDict=dictionary)
+        if self.rawModel.equals(self.rebuiltModel, self.removedAttributesList):
             self.encoded = True
         else:
             self.rebuiltModel.writeErrorToDict(key='name',
-                                               error=Error.buildFromScratch(name='gridMatrixJSON',
-                                                                            description="ERROR - The JSON object matrix does not match the original matrix",
+                                               error=Error.buildFromScratch(name='JsonRebuild',
+                                                                            description="ERROR - Model Did Not Rebuild Correctly",
                                                                             cause=True))
 
 

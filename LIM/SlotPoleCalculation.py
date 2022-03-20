@@ -166,7 +166,7 @@ class TransformedDict(MutableMapping):
 
     def printErrorsByAttr(self, strName):
         for key in self:
-            print(self[key].__dict__[strName])
+            print(self[key]['description'])
 
     def isEmpty(self):
         return False if self.store else False

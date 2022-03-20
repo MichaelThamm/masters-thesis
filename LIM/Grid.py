@@ -364,7 +364,7 @@ class Grid(LimMotor):
                         delX = pixelSpacing
 
                 # delX can be negative which means x can be 0
-                self.matrix[a][b] = Node(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY], modelDepth=self.D)
+                self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY], modelDepth=self.D)
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
@@ -752,9 +752,15 @@ class Grid(LimMotor):
 
 
 class Node(object):
-    def __init__(self, **kwargs):
-        if kwargs:
+    def __init__(self, kwargs, buildFromJson=False):
 
+        if buildFromJson:
+            for attr_key in kwargs:
+                if type(kwargs[attr_key]) == list and kwargs[attr_key][0] == 'plex_Signature':
+                    self.__dict__[attr_key] = rebuildPlex(kwargs[attr_key])
+                else:
+                    self.__dict__[attr_key] = kwargs[attr_key]
+        else:
             self.xIndex = kwargs['iIndex'][0]
             self.yIndex = kwargs['iIndex'][1]
 
@@ -770,63 +776,51 @@ class Node(object):
             self.Szy = self.ly*kwargs['modelDepth']
             self.Sxz = self.lx*kwargs['modelDepth']
 
-        else:
+            self.xCenter = self.x + self.lx/2
+            self.yCenter = self.y + self.ly/2
 
-            self.xIndex = 0
-            self.yIndex = 0
+            # Node properties
+            self.ur = 0.0
+            self.sigma = 0.0
+            self.material = ''
+            self.colour = ''
 
-            # Initialize dense meshing near slot and teeth edges in x direction
-            self.x = 0.0
-            self.lx = 0.0
+            # Potential
+            self.Yk = np.cdouble(0.0)
 
-            # Initialize dense meshing near slot and teeth edges in y direction
-            self.y = 0.0
-            self.ly = 0.0
+            # Thrust
+            self.Fx, self.Fy, self.F = np.zeros(3, dtype=np.cdouble)
 
-            # Cross sectional area
-            self.Szy = 0.0
-            self.Sxz = 0.0
+            # B field
+            self.Bx, self.By, self.B, self.BxLower, self.ByLower, self.B_Lower = np.zeros(6, dtype=np.cdouble)
 
-        self.xCenter = self.x + self.lx/2
-        self.yCenter = self.y + self.ly/2
+            # Flux
+            self.phiXp, self.phiXn, self.phiYp, self.phiYn, self.phiX, self.phiY, self.phi = np.zeros(7, dtype=np.cdouble)
+            self.phiError = np.cdouble(0.0)
 
-        # Node properties
-        self.ur = 0.0
-        self.sigma = 0.0
-        self.material = ''
-        self.colour = ''
+            # Current
+            self.Iph = np.cdouble(0.0)  # phase
 
-        # Potential
-        self.Yk = np.cdouble(0.0)
+            # MMF
+            self.MMF = np.cdouble(0.0)  # AmpereTurns
 
-        # Thrust
-        self.Fx, self.Fy, self.F = np.zeros(3, dtype=np.cdouble)
+            # Reluctance
+            self.Rx, self.Ry, self.R = np.zeros(3, dtype=np.float64)
 
-        # B field
-        self.Bx, self.By, self.B, self.BxLower, self.ByLower, self.B_Lower = np.zeros(6, dtype=np.cdouble)
+    @classmethod
+    def buildFromScratch(cls, **kwargs):
+        return cls(kwargs=kwargs)
 
-        # Flux
-        self.phiXp, self.phiXn, self.phiYp, self.phiYn, self.phiX, self.phiY, self.phi = np.zeros(7, dtype=np.cdouble)
-        self.phiError = np.cdouble(0.0)
+    @classmethod
+    def buildFromJson(cls, jsonObject):
+        return cls(kwargs=jsonObject, buildFromJson=True)
 
-        # Current
-        self.Iph = np.cdouble(0.0)  # phase
-
-        # MMF
-        self.MMF = np.cdouble(0.0)  # AmpereTurns
-
-        # Reluctance
-        self.Rx, self.Ry, self.R = np.zeros(3, dtype=np.float64)
-
-    '''https://stackoverflow.com/questions/1227121/compare-object-instances-for-equality-by-their-attributes'''
-    # This method was created to check if two objects are identical when both use the Node base class.
-    # If checking nodeA == nodeB this would return false regardless due to object id but now returns true if equal
     def __eq__(self, otherObject):
         if not isinstance(otherObject, Node):
             # don't attempt to compare against unrelated types
             return NotImplemented
         # If the objects are the same then set the IDs to be equal
-        if self.__dict__.items() == otherObject.__dict__.items():
+        elif self.__dict__.items() == otherObject.__dict__.items():
             for attr, val in otherObject.__dict__.items():
                 return self.__dict__[attr] == otherObject.__dict__[attr]
         # The objects are not the same
@@ -853,22 +847,6 @@ class Node(object):
 
         c.create_rectangle(x_old, y_old, x_new, y_new, width=nodeWidth, fill=fillColour)
 
-    def rebuildNode(self, *argv):
-        nodeInfo = argv[0]
-        attributeNames = list(nodeInfo.keys())
-        attributeVals = list(nodeInfo.values())
-
-        for i in range(len(nodeInfo)):
-            variableName = attributeNames[i]
-            if variableName in self.__dict__:
-                # These are all the variables that are complex which JSON can't handle as a dtype
-                if type(attributeVals[i]) == list and attributeVals[i][0] == 'plex_Signature':
-                    attributeVal = np.cdouble(attributeVals[i][1] + j_plex*attributeVals[i][2])
-                else:
-                    attributeVal = attributeVals[i]
-                self.__dict__[variableName] = attributeVal
-        return self
-
     def getReluctance(self):
 
         ResX = self.lx / (2 * uo * self.ur * self.Szy)
@@ -883,7 +861,7 @@ class Region(object):
         if buildFromJson:
             for key in kwargs:
                 if key in ['an', 'bn']:
-                    valList = [rebuildPlex(kwargs[key][index]) for index in kwargs[key]]
+                    valList = [rebuildPlex(index) for index in kwargs[key]]
                     valArray = np.array(valList)
                     self.__dict__[key] = valArray
                 else:
