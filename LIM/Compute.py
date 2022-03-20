@@ -68,8 +68,19 @@ class Model(Grid):
             # Compare items between objects
             selfItems = list(filter(lambda x: True if x[0] not in removedAtts else False, self.__dict__.items()))
             otherItems = list(otherObject.__dict__.items())
-            for cnt, value in enumerate(selfItems):
-                if value[0] == otherItems[cnt][0]:
+            for cnt, entry in enumerate(selfItems):
+                # if entry[0] == 'matrix':
+                #     if  :
+                #
+                #     else:
+                #         equality = False
+                if type(entry[1]) == np.ndarray:
+                    value = entry[1].tolist()
+                else:
+                    value = entry[1]
+
+                # Check keys and values
+                if entry[0] == otherItems[cnt][0] and value == otherItems[cnt][1]:
                     pass
                 else:
                     equality = False

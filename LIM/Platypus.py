@@ -149,12 +149,12 @@ class EncoderDecoder(object):
     # Rebuild objects that were deconstructed to store in JSON object
     def __construct(self, iDict):
 
-        errors = self.encodedAttributes['errorDict']
-        matrix = self.encodedAttributes['matrix']
-        hmUnknowns = self.encodedAttributes['hmUnknownsList']
+        errors = iDict['errorDict']
+        matrix = iDict['matrix']
+        hmUnknowns = iDict['hmUnknownsList']
 
         # ErrorDict reconstruction
-        self.encodedAttributes['errorDict'] = TransformedDict.rebuildFromJson(errors)
+        self.encodedAttributes['errorDict'] = TransformedDict.buildFromJson(errors)
 
         # Matrix reconstruction
         Cnt = 0
@@ -169,7 +169,7 @@ class EncoderDecoder(object):
         self.encodedAttributes['matrix'] = constructedMatrix
 
         # HmUnknownsList Reconstruction
-        self.encodedAttributes['hmUnknownsList'] = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in self.encodedAttributes['hmRegions']}
+        self.encodedAttributes['hmUnknownsList'] = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in iDict['hmRegions']}
 
         self.rebuiltModel = Model.buildFromJson(jsonObject=self.encodedAttributes)
 

@@ -37,7 +37,7 @@ Filters:
 class LimMotor(object):
     def __init__(self, slots, poles, length):
 
-        self.errorDict = TransformedDict.emptyDict()
+        self.errorDict = TransformedDict.buildFromScratch()
 
         # Kinematic Variables
         mass = 250
@@ -134,17 +134,35 @@ class TransformedDict(MutableMapping):
     """A dictionary that applies an arbitrary key-altering
        function before accessing the keys"""
 
-    def __init__(self, *args, **kwargs):
-        self.store = dict()
-        self.update(dict(*args, **kwargs))  # use the free update to set keys
+    def __init__(self, kwargs, buildFromJson=False):
+
+        if buildFromJson:
+            self.store = dict()
+            for key, error in kwargs.items():
+                self.__setitem__(key, Error.buildFromJson(error))
+        else:
+            self.store = dict()
+            self.update(dict(kwargs))  # use the free update to set keys
 
     @classmethod
-    def emptyDict(cls):
-        return cls()
+    def buildFromScratch(cls, **kwargs):
+        return cls(kwargs=kwargs)
 
     @classmethod
-    def rebuildFromJson(cls, jsonDict):
-        return cls(jsonDict)
+    def buildFromJson(cls, jsonObject):
+        return cls(kwargs=jsonObject, buildFromJson=True)
+
+    def __eq__(self, otherObject):
+        if not isinstance(otherObject, TransformedDict):
+            # don't attempt to compare against unrelated types
+            return NotImplemented
+        # If the objects are the same then set the IDs to be equal
+        elif self.__dict__.items() == otherObject.__dict__.items():
+            for attr, val in otherObject.__dict__.items():
+                return self.__dict__[attr] == otherObject.__dict__[attr]
+        # The objects are not the same
+        else:
+            pass
 
     def __getitem__(self, key):
         return self.store[key]
@@ -174,12 +192,17 @@ class TransformedDict(MutableMapping):
 
 class Error(object):
     def __init__(self, kwargs, buildFromJson=False):
-        self.name = kwargs['name']
-        self.description = kwargs['description']
-        self.cause = bool(kwargs['cause'])  # This was done to handle np.bool_ not being json serializable
-        self.state = False
 
-        self.setState()
+        if buildFromJson:
+            for key in kwargs:
+                self.__dict__[key] = kwargs[key]
+        else:
+            self.name = kwargs['name']
+            self.description = kwargs['description']
+            self.cause = bool(kwargs['cause'])  # This was done to handle np.bool_ not being json serializable
+            self.state = False
+
+            self.setState()
 
     @classmethod
     def buildFromScratch(cls, **kwargs):
@@ -188,6 +211,18 @@ class Error(object):
     @classmethod
     def buildFromJson(cls, jsonObject):
         return cls(kwargs=jsonObject, buildFromJson=True)
+
+    def __eq__(self, otherObject):
+        if not isinstance(otherObject, Error):
+            # don't attempt to compare against unrelated types
+            return NotImplemented
+        # If the objects are the same then set the IDs to be equal
+        elif self.__dict__.items() == otherObject.__dict__.items():
+            for attr, val in otherObject.__dict__.items():
+                return self.__dict__[attr] == otherObject.__dict__[attr]
+        # The objects are not the same
+        else:
+            pass
 
     def setState(self):
         if self.cause:
