@@ -292,7 +292,7 @@ def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatri
 
         # Create fields canvas to display the selected field result on the mesh
         else:
-            fieldsScale = range(minScale, maxScale + normScale, normScale)
+            fieldsScale = np.arange(minScale, maxScale + normScale, normScale)
             colorScaleIndex = np.where(fieldsScale == fieldsScale[0])
 
             cFields.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
