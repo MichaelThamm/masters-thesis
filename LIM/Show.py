@@ -22,16 +22,18 @@ def myColourNumber(fieldScale, val):
     return val if np.isinf(val) else min(fieldScale, key=lambda x: abs(x - val))
 
 
-def determineColour(grid, gridInfo, iI, iJ, field, highlightZeroValsInField):
+def determineColour(jsonObject, iI, iJ, field, highlightZeroValsInField):
+
+    model = jsonObject.rebuiltModel
 
     fieldType, iFieldsScale, iStoColours, iPosInf, iNegInf = field
 
-    if str(type(grid[iI, iJ].__dict__[fieldType])).split("'")[1] in gridInfo['complexTypeList']:
-        myNumber = myColourNumber(iFieldsScale, grid[iI, iJ].__dict__[fieldType].real)
-        valEqZero = True if (grid[iI, iJ].__dict__[fieldType].real == 0 and highlightZeroValsInField) else False
+    if str(type(jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType])).split("'")[1] in jsonObject.unacceptedTypeList:
+        myNumber = myColourNumber(iFieldsScale, jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType].real)
+        valEqZero = True if (jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType].real == 0 and highlightZeroValsInField) else False
     else:
-        myNumber = myColourNumber(iFieldsScale, grid[iI, iJ].__dict__[fieldType])
-        valEqZero = True if (grid[iI, iJ].__dict__[fieldType] == 0 and highlightZeroValsInField) else False
+        myNumber = myColourNumber(iFieldsScale, jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType])
+        valEqZero = True if (jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType] == 0 and highlightZeroValsInField) else False
 
     # noinspection PyUnboundLocalVariable
     colorScaleIndex = np.where(iFieldsScale == myNumber) if not np.isinf(myNumber) else myNumber
@@ -45,19 +47,20 @@ def determineColour(grid, gridInfo, iI, iJ, field, highlightZeroValsInField):
     return oOverRideColour
 
 
-def minMaxField(info, grid, attName, filtered, showFilter):
+def minMaxField(jsonObject, attName, filtered, showFilter):
 
+    model = jsonObject.rebuiltModel
     iFilteredRows, iFilteredRowCols = filtered
 
     if showFilter:
-        tFiltered = [[grid[x.yIndex, x.xIndex] for x in y if x.yIndex in iFilteredRows or (x.yIndex, x.xIndex) in iFilteredRowCols] for y in grid]
+        tFiltered = [[model.matrix[x.yIndex, x.xIndex] for x in y if x.yIndex in iFilteredRows or (x.yIndex, x.xIndex) in iFilteredRowCols] for y in model.matrix]
 
     else:
-        tFiltered = grid
+        tFiltered = model.matrix
 
     tFilteredNoEmpties = list(filter(lambda x: True if x != [] else False, tFiltered))
 
-    attrFieldList = [x.__dict__[attName].real if str(type(x.__dict__[attName])).split("'")[1] in info['complexTypeList'] else x.__dict__[attName] for y in tFilteredNoEmpties for x in y]
+    attrFieldList = [x.__dict__[attName].real if type(x.__dict__[attName]) in jsonObject.unacceptedTypeList else x.__dict__[attName] for y in tFilteredNoEmpties for x in y]
     filteredAttrFieldList = list(filter(lambda x: not np.isinf(x), attrFieldList))
     maxScale = max(filteredAttrFieldList)
     minScale = min(filteredAttrFieldList)
@@ -230,18 +233,17 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
     mGrid.mainloop()
 
 
-def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims):
+def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims):
 
-    # TODO Why would we pass in both gridInfo and gridMatrix? Doesn't that defeat the purpose of dumping to json
     # Create the grid canvas to display the grid mesh
     if showGrid:
         rootGrid = Tk()
         cGrid: Canvas = Canvas(rootGrid, height=dims[0], width=dims[1], bg='gray30')
         cGrid.pack()
         i, j = 0, 0
-        while i < gridMatrix.shape[0]:
-            while j < gridMatrix.shape[1]:
-                gridMatrix[i, j].drawNode(canvasSpacing=gridInfo['Cspacing'], overRideColour=False, c=cGrid, nodeWidth=1)
+        while i < jsonObject.rebuiltModel.matrix.shape[0]:
+            while j < jsonObject.rebuiltModel.matrix.shape[1]:
+                jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing, overRideColour=False, c=cGrid, nodeWidth=1)
                 j += 1
             j = 0
             i += 1
@@ -268,22 +270,22 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
 
         # [row]
         # Rule 1
-        keepRows[0] = gridInfo['airgapYIndexes']
+        keepRows[0] = jsonObject.rebuiltModel.yIndexesAirgap
 
         # [row, col] - Make sure to put the rules in order of ascending rows or the list wont be sorted (shouldnt matter)
         # Rule 1
-        keepRowColsUnfiltered[0] = [gridInfo['yokeYIndexes'], gridInfo['toothArray'] + gridInfo['coilArray']]
+        keepRowColsUnfiltered[0] = [jsonObject.rebuiltModel.yIndexesYoke, jsonObject.rebuiltModel.toothArray + jsonObject.rebuiltModel.coilArray]
         # Rule 2
-        keepRowColsUnfiltered[1] = [gridInfo['lower_slotYIndexes1'] + gridInfo['upper_slotYIndexes1'], gridInfo['toothArray']]
+        keepRowColsUnfiltered[1] = [jsonObject.rebuiltModel.yIndexesLowerSlot + jsonObject.rebuiltModel.yIndexesUpperSlot, jsonObject.rebuiltModel.toothArray]
 
-        filteredRows, filteredRowCols = combineFilterList([gridInfo['ppH'], gridInfo['ppL']], keepRows, keepRowColsUnfiltered)
+        filteredRows, filteredRowCols = combineFilterList([jsonObject.rebuiltModel.ppH, jsonObject.rebuiltModel.ppL], keepRows, keepRowColsUnfiltered)
 
-        minScale, maxScale = minMaxField(gridInfo, gridMatrix, fieldType, [filteredRows, filteredRowCols], showFilter)
+        minScale, maxScale = minMaxField(jsonObject, fieldType, [filteredRows, filteredRowCols], showFilter)
         normScale = (maxScale - minScale) / (numColours - 1)
 
         if [minScale, maxScale, normScale] == [0, 0, 0]:
 
-            model.writeErrorToDict(key='name',
+            jsonObject.rebuiltModel.writeErrorToDict(key='name',
                                    error=Error.buildFromScratch(name='emptyField',
                                                                 description=f'Field Analysis Error. All values are zero! Type: {fieldType}',
                                                                 cause=True))
@@ -298,30 +300,30 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
 
             # All drawing is done at the bottom of the node
             def horCoreBoundary(tuple_in):
-                if tuple_in[0] == gridInfo['yokeYIndexes'][0] and tuple_in[1] in gridInfo['toothArray'] + gridInfo['coilArray']:
+                if tuple_in[0] == jsonObject.rebuiltModel.yIndexesYoke[0] and tuple_in[1] in jsonObject.rebuiltModel.toothArray + jsonObject.rebuiltModel.coilArray:
                     return True
-                elif tuple_in[0] == gridInfo['upper_slotYIndexes1'][0] and tuple_in[1] in gridInfo['coilArray']:
+                elif tuple_in[0] == jsonObject.rebuiltModel.yIndexesUpperSlot[0] and tuple_in[1] in jsonObject.rebuiltModel.coilArray:
                     return True
-                elif tuple_in[0] == gridInfo['mecYIndexes'][-1] + 1 and tuple_in[1] in gridInfo['toothArray']:
+                elif tuple_in[0] == jsonObject.rebuiltModel.yIndexesMEC[-1] + 1 and tuple_in[1] in jsonObject.rebuiltModel.toothArray:
                     return True
                 else:
                     return False
 
             # All drawing is done to the right of the node
             def vertCoreBoundary(tuple_in):
-                if tuple_in[0] in gridInfo['mecYIndexes']:
+                if tuple_in[0] in jsonObject.rebuiltModel.yIndexesMEC:
 
                     # Left end tooth
-                    if tuple_in[1] in [gridInfo['toothArray'][0] - 1] + [gridInfo['toothArray'][gridInfo['ppLeftEndTooth']-1]]:
+                    if tuple_in[1] in [jsonObject.rebuiltModel.toothArray[0] - 1] + [jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppLeftEndTooth-1]]:
                         return True
                     # Right end tooth
-                    elif tuple_in[1] in [gridInfo['toothArray'][-gridInfo['ppRightEndTooth']-1]] + [gridInfo['toothArray'][-1]]:
+                    elif tuple_in[1] in [jsonObject.rebuiltModel.toothArray[-jsonObject.rebuiltModel.ppRightEndTooth-1]] + [jsonObject.rebuiltModel.toothArray[-1]]:
                         return True
                     # Remaining teeth left edge
-                    elif tuple_in[0] not in gridInfo['yokeYIndexes'] and tuple_in[1] in gridInfo['toothArray'][gridInfo['ppLeftEndTooth']:-gridInfo['ppRightEndTooth']:gridInfo['ppSlotpitch']]:
+                    elif tuple_in[0] not in jsonObject.rebuiltModel.yIndexesYoke and tuple_in[1] in jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppLeftEndTooth:-jsonObject.rebuiltModel.ppRightEndTooth:jsonObject.rebuiltModel.ppSlotpitch]:
                         return True
                     # Remaining teeth right edge
-                    elif tuple_in[0] not in gridInfo['yokeYIndexes'] and tuple_in[1] in gridInfo['toothArray'][gridInfo['ppLeftEndTooth']+gridInfo['ppTooth']:-gridInfo['ppRightEndTooth']:gridInfo['ppSlotpitch']]:
+                    elif tuple_in[0] not in jsonObject.rebuiltModel.yIndexesYoke and tuple_in[1] in jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppLeftEndTooth+jsonObject.rebuiltModel.ppTooth:-jsonObject.rebuiltModel.ppRightEndTooth:jsonObject.rebuiltModel.ppSlotpitch]:
                         return True
                     else:
                         return False
@@ -329,28 +331,28 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
                 else:
                     return False
 
-            nodeIndexes = [(node.yIndex, node.xIndex) for row in gridMatrix for node in row]
+            nodeIndexes = [(node.yIndex, node.xIndex) for row in jsonObject.rebuiltModel.matrix for node in row]
             horCoreBoundaryIdxs = filter(horCoreBoundary, nodeIndexes)
             vertCoreBoundaryIdxs = filter(vertCoreBoundary, nodeIndexes)
 
             # Assigns a colour to a node based on its relative position in the range of values and the range of available colours
             i, j, k = 0, 0, 0
-            while i < gridMatrix.shape[0]:
-                while j < gridMatrix.shape[1]:
+            while i < jsonObject.rebuiltModel.matrix.shape[0]:
+                while j < jsonObject.rebuiltModel.matrix.shape[1]:
                     if showFilter:
                         if i in filteredRows or (i, j) in filteredRowCols:
-                            overRideColour = determineColour(gridMatrix, gridInfo, i, j,
+                            overRideColour = determineColour(jsonObject, i, j,
                                                              [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
                                                              highlightZeroValsInField=showZeros)
 
                         else:
                             overRideColour = '#000000'
                     else:
-                        overRideColour = determineColour(gridMatrix, gridInfo, i, j,
+                        overRideColour = determineColour(jsonObject, i, j,
                                                          [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
                                                          highlightZeroValsInField=showZeros)
 
-                    gridMatrix[i, j].drawNode(canvasSpacing=gridInfo['Cspacing'], overRideColour=overRideColour, c=cFields, nodeWidth=1)
+                    jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing, overRideColour=overRideColour, c=cFields, nodeWidth=1)
                     j += 1
                     k += 1
                 j = 0
@@ -359,6 +361,6 @@ def showModel(gridInfo, gridMatrix, model, fieldType, showGrid, showFields, show
         rootFields.mainloop()
 
     if showMatrix:
-        visualizeMatrix(dims, model, bShowA=True)
-        visualizeMatrix(dims, model, bShowB=True)
+        visualizeMatrix(dims, jsonObject.rebuiltModel, bShowA=True)
+        visualizeMatrix(dims, jsonObject.rebuiltModel, bShowB=True)
 

@@ -147,11 +147,11 @@ class EncoderDecoder(object):
                 self.encodedAttributes[attr] = self.__filterValType(attr, val)
 
     # Rebuild objects that were deconstructed to store in JSON object
-    def __construct(self, iDict):
+    def __construct(self):
 
-        errors = iDict['errorDict']
-        matrix = iDict['matrix']
-        hmUnknowns = iDict['hmUnknownsList']
+        errors = self.encodedAttributes['errorDict']
+        matrix = self.encodedAttributes['matrix']
+        hmUnknowns = self.encodedAttributes['hmUnknownsList']
 
         # ErrorDict reconstruction
         self.encodedAttributes['errorDict'] = TransformedDict.buildFromJson(errors)
@@ -169,7 +169,7 @@ class EncoderDecoder(object):
         self.encodedAttributes['matrix'] = constructedMatrix
 
         # HmUnknownsList Reconstruction
-        self.encodedAttributes['hmUnknownsList'] = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in iDict['hmRegions']}
+        self.encodedAttributes['hmUnknownsList'] = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in self.encodedAttributes['hmRegions']}
 
         self.rebuiltModel = Model.buildFromJson(jsonObject=self.encodedAttributes)
 
@@ -183,9 +183,10 @@ class EncoderDecoder(object):
             json.dump(self.encodedAttributes, StoredSolutionData)
         # Data read from file
         with open(DATA_PATH) as StoredSolutionData:
-            dictionary = json.load(StoredSolutionData)
+            # json.load returns dicts where keys are converted to strings
+            self.encodedAttributes = json.load(StoredSolutionData)
 
-        self.__construct(iDict=dictionary)
+        self.__construct()
         if self.rawModel.equals(self.rebuiltModel, self.removedAttributesList):
             self.encoded = True
         else:
@@ -307,11 +308,11 @@ def main():
     encodeModel = EncoderDecoder(model)
     encodeModel.jsonStoreSolution()
 
-    if encodeModel.rebuiltModel.errorDict.isEmpty():
+    if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        # showModel(gridInfo, gridMatrix, model, fieldType='Yk',
-        #           showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
-        #           numColours=20, dims=[1080, 1920])
+        showModel(encodeModel, fieldType='Yk',
+                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+                  numColours=20, dims=[1080, 1920])
         pass
     else:
         print('Resolve errors to show model')

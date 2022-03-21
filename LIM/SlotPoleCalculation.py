@@ -182,9 +182,9 @@ class TransformedDict(MutableMapping):
     def genStoreByValueAttr(self, strName):
         return (self.store[strName] for _ in range(self.store.__len__()))
 
-    def printErrorsByAttr(self, strName):
-        for key in self:
-            print(self[key]['description'])
+    def printErrorsByAttr(self, attrString):
+        for key in self.store:
+            print(self.__getitem__(key).__dict__[attrString])
 
     def isEmpty(self):
         return False if self.store else False

@@ -69,24 +69,35 @@ class Model(Grid):
             selfItems = list(filter(lambda x: True if x[0] not in removedAtts else False, self.__dict__.items()))
             otherItems = list(otherObject.__dict__.items())
             for cnt, entry in enumerate(selfItems):
-                # if entry[0] == 'matrix':
-                #     if  :
-                #
-                #     else:
-                #         equality = False
-                if type(entry[1]) == np.ndarray:
-                    value = entry[1].tolist()
-                else:
-                    value = entry[1]
-
-                # Check keys and values
-                if entry[0] == otherItems[cnt][0] and value == otherItems[cnt][1]:
-                    pass
+                # Check keys are equal
+                if entry[0] == otherItems[cnt][0]:
+                    # np.ndarray were converted to lists to dump data to json object, now compare against those lists
+                    if type(entry[1]) == np.ndarray:
+                        # Greater than 1D array
+                        if len(entry[1].shape) > 1:
+                            # Check that 2D array are equal
+                            if np.all(np.all(entry[1] != otherItems[cnt][1], axis=1)):
+                                equality = False
+                        # 1D array
+                        else:
+                            if entry[1].tolist() != otherItems[cnt][1]:
+                                # The contents of the array or list may be a deconstructed complex type
+                                if np.all(list(map(lambda val: val[1] == rebuildPlex(otherItems[cnt][1][val[0]]), enumerate(entry[1])))):
+                                    pass
+                                else:
+                                    equality = False
+                    else:
+                        if entry[1] != otherItems[cnt][1]:
+                            # Check to see if keys of the value are equal to string versions of otherItems keys
+                            try:
+                                if list(map(lambda x: str(x), entry[1].keys())) != list(otherItems[cnt][1].keys()):
+                                    equality = False
+                            except ValueError:
+                                pass
                 else:
                     equality = False
 
-        return True if equality else False
-        # return isinstance(obj, MyFoo) and obj.equalityprop == self.equalityprop
+        return equality
 
     # TODO We can comment these out for computation efficiency since the bn term is getting removed entirely and
     #  the an term is getting 0 always which matrix A is initialized as np.zeros()
@@ -165,7 +176,6 @@ class Model(Grid):
             eastRelDenom = row[iX].Rx + row[rNode].Rx
             westRelDenom = row[iX].Rx + row[lNode].Rx
 
-            # TODO This may not be correct. This affects the thrust result but not the waveform amplitude or shape
             eastMMF = row[iX].MMF + row[rNode].MMF
             westMMF = row[iX].MMF + row[lNode].MMF
 
@@ -880,8 +890,8 @@ class Model(Grid):
                                                                    self.matrix[i, j].MMF, self.matrix[i, lNode].MMF,
                                                                    self.matrix[i, j].Rx, self.matrix[i, lNode].Rx)
 
-                    self.matrix[i, j].phiError = self.matrix[i, j].phiXn + self.matrix[i, j].phiYn - self.matrix[
-                        i, j].phiXp - self.matrix[i, j].phiYp
+                    # TODO The error is significant starting at i = 11 which is the yoke elements. This could be due to pre processing
+                    self.matrix[i, j].phiError = self.matrix[i, j].phiXn + self.matrix[i, j].phiYn - self.matrix[i, j].phiXp - self.matrix[i, j].phiYp
 
                     # Eqn 40_HAM
                     self.matrix[i, j].Bx = self.postMECAvgB(self.matrix[i, j].phiXn, self.matrix[i, j].phiXp,

@@ -37,8 +37,6 @@ class Grid(LimMotor):
         self.Cspacing = kwargs['canvasSpacing'] / self.H
         self.meshDensity = kwargs['meshDensity']
         self.n = kwargs['n']
-        self.typeList = []
-        self.complexTypeList = []
 
         # X-direction
         self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2)
