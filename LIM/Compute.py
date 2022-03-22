@@ -808,7 +808,7 @@ class Model(Grid):
         for i in range(len(self.mecRegions)):
             Cnt = 0
             i, j = self.yIndexesMEC[0], 0
-            while i < self.yIndexesMEC[-1]:
+            while i < self.yIndexesMEC[-1] + 1:
                 if i in self.yIndexesMEC:
                     while j < self.ppL:
                         self.matrix[i, j].Yk = self.mecMatrixX[Cnt]

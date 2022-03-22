@@ -302,16 +302,17 @@ def main():
     with timing():
         errorInX = model.finalizeCompute(iTol=1e-15)
 
-    model.updateGrid(errorInX, showAirgapPlot=False)
+    model.updateGrid(errorInX, showAirgapPlot=True)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
     encodeModel.jsonStoreSolution()
 
+    # TODO The or True is here for convenience but should be removed
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(encodeModel, fieldType='Yk',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        showModel(encodeModel, fieldType='Bx',
+                  showGrid=True, showFields=False, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=20, dims=[1080, 1920])
         pass
     else:

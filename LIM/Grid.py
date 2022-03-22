@@ -803,7 +803,7 @@ class Node(object):
             self.MMF = np.cdouble(0.0)  # AmpereTurns
 
             # Reluctance
-            self.Rx, self.Ry, self.R = np.zeros(3, dtype=np.float64)
+            self.Rx, self.Ry = np.zeros(2, dtype=np.float64)
 
     @classmethod
     def buildFromScratch(cls, **kwargs):
