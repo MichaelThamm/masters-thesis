@@ -292,9 +292,9 @@ def main():
                                    pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                    meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
                                    hmRegions=
-                                   {1: 'vac', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac'},
+                                   {1: 'vac', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac'},
                                    mecRegions=
-                                   {5: 'core_1'})
+                                   {2: 'core_1'})
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
@@ -311,8 +311,8 @@ def main():
     # TODO The or True is here for convenience but should be removed
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(encodeModel, fieldType='Bx',
-                  showGrid=True, showFields=False, showFilter=False, showMatrix=False, showZeros=True,
+        showModel(encodeModel, fieldType='y',
+                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=20, dims=[1080, 1920])
         pass
     else:

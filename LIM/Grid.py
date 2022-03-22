@@ -57,11 +57,11 @@ class Grid(LimMotor):
         if self.ppSlotheight % 2 != 0:
             self.ppSlotheight += 1
 
+        ppHM = self.ppAirgap + self.ppBladerotor + self.ppBackIron + self.ppVacuumLower + self.ppVacuumUpper
         self.ppHeight = self.ppYokeheight + self.ppSlotheight
-        self.ppLength = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + self.ppLeftEndTooth + self.ppRightEndTooth + 2 * self.ppAirBuffer
-        self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppLength)] for _ in range(self.ppHeight + self.ppAirgap + self.ppBladerotor + self.ppBackIron + self.ppVacuumLower + self.ppVacuumUpper)])
-        self.ppL = len(self.matrix[0])
-        self.ppH = len(self.matrix)
+        self.ppH = self.ppHeight + ppHM
+        self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + self.ppLeftEndTooth + self.ppRightEndTooth + 2 * self.ppAirBuffer
+        self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppHeight + ppHM)])
 
         self.toothArray, self.coilArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
         self.removeLowerCoils, self.removeUpperCoils = np.zeros((2, 1), dtype=np.int16)
@@ -78,10 +78,8 @@ class Grid(LimMotor):
         self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
         self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppLeftEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppRightEndTooth, self.ppAirBuffer]
-        # self.yListSpatialDatum = [self.vac, self.hy, self.hs/2, self.hs/2, self.g, self.dr, self.bi, self.vac]
-        # self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppYokeheight, self.ppSlotheight//2, self.ppSlotheight//2, self.ppAirgap, self.ppBladerotor, self.ppBackIron, self.ppVacuumUpper]
-        self.yListSpatialDatum = [self.vac, self.bi, self.dr, self.g, self.hs / 2, self.hs / 2, self.hy, self.vac]
-        self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppBackIron, self.ppBladerotor, self.ppAirgap, self.ppSlotheight//2, self.ppSlotheight//2, self.ppYokeheight, self.ppVacuumUpper]
+        self.yListSpatialDatum = [self.vac, self.hy, self.hs/2, self.hs/2, self.g, self.dr, self.bi, self.vac]
+        self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppYokeheight, self.ppSlotheight//2, self.ppSlotheight//2, self.ppAirgap, self.ppBladerotor, self.ppBackIron, self.ppVacuumUpper]
 
         for Cnt in range(len(self.xMeshSizes)):
             self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
@@ -100,27 +98,28 @@ class Grid(LimMotor):
         self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
         self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
 
-        self.mecRegionLength = self.matrix[self.ppVacuumLower:self.ppHeight + self.ppVacuumLower, :].size
+        self.mecRegionLength = self.ppHeight * self.ppL
 
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
 
-        ironOffset = self.ppVacuumLower
-        bladerRotorOffset = ironOffset + self.ppBackIron
-        airgapOffset = bladerRotorOffset + self.ppBladerotor
-        slotOffset = airgapOffset + self.ppAirgap
-        yokeOffset = slotOffset + self.ppSlotheight
+        yokeOffset = self.ppVacuumLower
+        slotOffset = yokeOffset + self.ppYokeheight
+        airgapOffset = slotOffset + self.ppSlotheight
+        bladeRotorOffset = airgapOffset + self.ppAirgap
+        ironOffset = bladeRotorOffset + self.ppBladerotor
 
+        # TODO The solution is to distinguish between the yIndexes and the spatial .y of those indexes
         self.yIndexesVacLower = list(range(0, self.ppVacuumLower))
-        self.yIndexesBackIron = list(range(ironOffset, ironOffset + self.ppBackIron))
-        self.yIndexesBladeRotor = list(range(bladerRotorOffset, bladerRotorOffset + self.ppBladerotor))
-        self.yIndexesAirgap = list(range(airgapOffset, airgapOffset + self.ppAirgap))
-        self.yIndexesLowerSlot = list(range(slotOffset, slotOffset + self.ppSlotheight // 2))
-        self.yIndexesUpperSlot = list(range(slotOffset + self.ppSlotheight // 2, slotOffset + self.ppSlotheight))
         self.yIndexesYoke = list(range(yokeOffset, yokeOffset + self.ppYokeheight))
+        self.yIndexesUpperSlot = list(range(slotOffset, slotOffset + self.ppSlotheight // 2))
+        self.yIndexesLowerSlot = list(range(slotOffset + self.ppSlotheight // 2, slotOffset + self.ppSlotheight))
+        self.yIndexesAirgap = list(range(airgapOffset, airgapOffset + self.ppAirgap))
+        self.yIndexesBladeRotor = list(range(bladeRotorOffset, bladeRotorOffset + self.ppBladerotor))
+        self.yIndexesBackIron = list(range(ironOffset, ironOffset + self.ppBackIron))
         self.yIndexesVacUpper = list(range(self.ppH - self.ppVacuumUpper, self.ppH))
-        self.yIndexesHM = self.yIndexesVacLower + self.yIndexesBackIron + self.yIndexesBladeRotor + self.yIndexesAirgap + self.yIndexesVacUpper
-        self.yIndexesMEC = self.yIndexesLowerSlot + self.yIndexesUpperSlot + self.yIndexesYoke
+        self.yIndexesHM = self.yIndexesVacLower + self.yIndexesAirgap + self.yIndexesBladeRotor + self.yIndexesBackIron + self.yIndexesVacUpper
+        self.yIndexesMEC = self.yIndexesYoke + self.yIndexesUpperSlot + self.yIndexesLowerSlot
 
         # Thrust of the entire integration region
         self.Fx = 0.0
@@ -286,21 +285,20 @@ class Grid(LimMotor):
 
         xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1], self.toothArray[self.ppLeftEndTooth - 1]] + self.coilArray[self.ppSlot-1::self.ppSlot] + self.toothArray[self.ppLeftEndTooth + self.ppTooth - 1:-self.ppRightEndTooth:self.ppTooth] + [self.toothArray[-1], self.bufferArray[-1]]
         yVac1Boundary = self.ppVacuumLower-1
-        yBackIronBoundary = yVac1Boundary + self.ppBackIron
-        yBladeBoundary = yBackIronBoundary + self.ppBladerotor
-        yAirBoundary = yBladeBoundary + self.ppAirgap
-        yLowerCoilsBoundary = yAirBoundary + self.ppSlotheight//2
-        yUpperCoilsBoundary = yLowerCoilsBoundary + self.ppSlotheight//2
-        yYokeBoundary = yUpperCoilsBoundary + self.ppYokeheight
-        yVac2Boundary = yYokeBoundary + self.ppVacuumUpper
+        yYokeBoundary = yVac1Boundary + self.ppYokeheight
+        yUpperCoilsBoundary = yYokeBoundary + self.ppSlotheight//2
+        yLowerCoilsBoundary = yYokeBoundary + self.ppSlotheight
+        yAirBoundary = yLowerCoilsBoundary + self.ppAirgap
+        yBladeBoundary = yAirBoundary + self.ppBladerotor
+        yBackIronBoundary = yBladeBoundary + self.ppBackIron
+        yVac2Boundary = yBackIronBoundary + self.ppVacuumUpper
 
-        yBoundaryList = [yVac1Boundary, yBackIronBoundary, yBladeBoundary, yAirBoundary, yLowerCoilsBoundary, yUpperCoilsBoundary, yYokeBoundary, yVac2Boundary]
+        yBoundaryList = [yVac1Boundary, yYokeBoundary, yUpperCoilsBoundary, yLowerCoilsBoundary, yAirBoundary, yBladeBoundary, yBackIronBoundary, yVac2Boundary]
 
         a, b = 0, 0
         c, d, e, f = 0, 0, 0, 0
         Cnt = 0
         yCnt = 0
-
         # Assign spatial data to the nodes
         while a < self.ppH:
 
@@ -311,32 +309,7 @@ class Grid(LimMotor):
             elif a in self.ySecondEdgeNodes:
                 delY = pixelSpacing / self.meshDensity[1]
             else:
-                # Vacuum lower
-                if a in self.yIndexesVacLower:
-                    delY = self.yMeshSizes[d]
-                # Yoke
-                elif a in self.yIndexesYoke:
-                    delY = self.yMeshSizes[d]
-                # Lower coils
-                elif a in self.yIndexesLowerSlot:
-                    delY = self.yMeshSizes[d]
-                # Upper coils
-                elif a in self.yIndexesUpperSlot:
-                    delY = self.yMeshSizes[d]
-                # Air gap
-                elif a in self.yIndexesAirgap:
-                    delY = self.yMeshSizes[d]
-                # Blade rotor
-                elif a in self.yIndexesBladeRotor:
-                    delY = self.yMeshSizes[d]
-                # Back iron
-                elif a in self.yIndexesBackIron:
-                    delY = self.yMeshSizes[d]
-                # Vacuum upper
-                elif a in self.yIndexesVacUpper:
-                    delY = self.yMeshSizes[d]
-                else:
-                    delY = pixelSpacing
+                delY = self.yMeshSizes[d]
 
             while b < self.ppL:
 
@@ -346,20 +319,7 @@ class Grid(LimMotor):
                 elif b in self.xSecondEdgeNodes:
                     delX = pixelSpacing / self.meshDensity[1]
                 else:
-                    # Air buffer
-                    if b in self.bufferArray:
-                        delX = self.xMeshSizes[c]
-                    # End teeth
-                    elif b in self.toothArray[:self.ppLeftEndTooth] + self.toothArray[-self.ppRightEndTooth:]:
-                        delX = self.xMeshSizes[c]
-                    # Coils
-                    elif b in self.coilArray:
-                        delX = self.xMeshSizes[c]
-                    # Full teeth
-                    elif b in self.toothArray and b not in self.toothArray[:self.ppLeftEndTooth] + self.toothArray[-self.ppRightEndTooth:]:
-                        delX = self.xMeshSizes[c]
-                    else:
-                        delX = pixelSpacing
+                    delX = self.xMeshSizes[c]
 
                 # delX can be negative which means x can be 0
                 self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY], modelDepth=self.D)
@@ -370,20 +330,7 @@ class Grid(LimMotor):
                 elif b in self.xSecondEdgeNodes:
                     xCnt += pixelSpacing / self.meshDensity[1]
                 else:
-                    # Air buffer
-                    if b in self.bufferArray:
-                        xCnt += self.xMeshSizes[e]
-                    # End teeth
-                    elif b in self.toothArray[:self.ppLeftEndTooth] + self.toothArray[-self.ppRightEndTooth:]:
-                        xCnt += self.xMeshSizes[e]
-                    # Coils
-                    elif b in self.coilArray:
-                        xCnt += self.xMeshSizes[e]
-                    # Full teeth
-                    elif b in self.toothArray and b not in self.toothArray[:self.ppLeftEndTooth] + self.toothArray[-self.ppRightEndTooth:]:
-                        xCnt += self.xMeshSizes[e]
-                    else:
-                        xCnt += pixelSpacing
+                    xCnt += self.xMeshSizes[e]
 
                 if b in xBoundaryList:
                     c += 1
@@ -399,32 +346,7 @@ class Grid(LimMotor):
             elif a in self.ySecondEdgeNodes:
                 yCnt += pixelSpacing / self.meshDensity[1]
             else:
-                # Vacuum lower
-                if a in self.yIndexesVacLower:
-                    yCnt += self.yMeshSizes[f]
-                # Yoke
-                elif a in self.yIndexesYoke:
-                    yCnt += self.yMeshSizes[f]
-                # Lower coils
-                elif a in self.yIndexesLowerSlot:
-                    yCnt += self.yMeshSizes[f]
-                # Upper coils
-                elif a in self.yIndexesUpperSlot:
-                    yCnt += self.yMeshSizes[f]
-                # Air gap
-                elif a in self.yIndexesAirgap:
-                    yCnt += self.yMeshSizes[f]
-                # Blade rotor
-                elif a in self.yIndexesBladeRotor:
-                    yCnt += self.yMeshSizes[f]
-                # Back iron
-                elif a in self.yIndexesBackIron:
-                    yCnt += self.yMeshSizes[f]
-                # Vacuum upper
-                elif a in self.yIndexesVacUpper:
-                    yCnt += self.yMeshSizes[f]
-                else:
-                    yCnt += pixelSpacing
+                yCnt += self.yMeshSizes[f]
 
             if a in yBoundaryList:
                 d += 1

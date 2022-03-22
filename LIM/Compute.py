@@ -609,6 +609,8 @@ class Model(Grid):
 
     def __plotPointsAlongX(self, evenOdd, iY):
 
+        # TODO Although I now have the correct y values, I have to check the right hand rule on the positive x and y directions
+        #  if they axis do not follow right hand rule then the graph will be flipped.
         # X axis array
         xCenterPosList = np.array([node.xCenter for node in self.matrix[iY, :]])
         dataArray = np.zeros((4, len(xCenterPosList)), dtype=np.cdouble)
