@@ -294,13 +294,14 @@ def main():
                                    hmRegions=
                                    {1: 'vac', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac'},
                                    mecRegions=
-                                   {2: 'core_1'})
+                                   {2: 'core_1'},
+                                   errorTolerance=1e-15)
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
 
     with timing():
-        errorInX = model.finalizeCompute(iTol=1e-15)
+        errorInX = model.finalizeCompute()
 
     model.updateGrid(errorInX, showAirgapPlot=True)
 
@@ -311,7 +312,7 @@ def main():
     # TODO The or True is here for convenience but should be removed
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(encodeModel, fieldType='y',
+        showModel(encodeModel, fieldType='yIndex',
                   showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=20, dims=[1080, 1920])
         pass

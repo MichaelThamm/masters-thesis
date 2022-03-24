@@ -3,6 +3,7 @@ from LIM.SlotPoleCalculation import np
 from scipy.linalg import lu_factor, lu_solve
 import matplotlib.pyplot as plt
 from functools import lru_cache
+import itertools
 
 
 # This performs the lower-upper decomposition of A to solve for x in Ax = B
@@ -21,6 +22,8 @@ class Model(Grid):
                                   error=Error.buildFromScratch(name='meshDensityDiscrepancy',
                                                                description="ERROR - The last slot has a different mesh density than all other slots",
                                                                cause=kwargs['meshIndexes'][0][2] != kwargs['meshIndexes'][0][-3]))
+
+            self.errorTolerance = kwargs['errorTolerance']
 
             self.currColCount = 0
             self.nLoop = 0
@@ -44,8 +47,8 @@ class Model(Grid):
             #                                self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
             # self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
 
-            self.hmIdxs = list(range(self.mecRegionsIndex[0])) + list(range(self.hmRegionsIndex[4], lenUnknowns))
-            self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
+            self.mecIdxs = list(itertools.chain.from_iterable([list(range(i, i + self.mecRegionLength)) for i in self.mecRegionsIndex]))
+            self.hmIdxs = [i for i in range(len(self.matrixX)) if i not in self.mecIdxs]
 
             self.hmMatrixX = []
             self.mecMatrixX = []
@@ -536,7 +539,7 @@ class Model(Grid):
     def __shiftHmIdxList(self, idx):
         self.hmIdxs = self.hmIdxs[:len(self.n)] + [i - idx for i in self.hmIdxs[len(self.n):]]
 
-    def __linalg_lu(self, tolerance):
+    def __linalg_lu(self):
 
         self.writeErrorToDict(key='name',
                               error=Error.buildFromScratch(name='linalg deepcopy',
@@ -548,8 +551,8 @@ class Model(Grid):
             resX = lu_solve((lu, piv), self.matrixB)
             remainder = self.matrixA @ resX - self.matrixB
             print(f'This was the max error seen in the solution for x: {max(remainder)} vs min: {min(remainder)}')
-            testPass = np.allclose(remainder, np.zeros((len(self.matrixA),)), atol=tolerance)
-            print(f'LU Decomp test: {testPass}, if True then x is a solution of Ax = iB with a tolerance of {tolerance}')
+            testPass = np.allclose(remainder, np.zeros((len(self.matrixA),)), atol=self.errorTolerance)
+            print(f'LU Decomp test: {testPass}, if True then x is a solution of Ax = iB with a tolerance of {self.errorTolerance}')
             if testPass:
                 return resX, max(remainder)
             else:
@@ -569,7 +572,7 @@ class Model(Grid):
 
         Cnt = 0
         for nHM in self.n:
-            gIdx = list(self.hmRegions.values()).index('g') + 1
+            gIdx = list(self.hmRegions.keys())[list(self.hmRegions.values()).index('g')]
             an = self.hmUnknownsList[gIdx].an[Cnt]
             bn = self.hmUnknownsList[gIdx].bn[Cnt]
             an_, bn_ = np.conj(an), np.conj(bn)
@@ -663,11 +666,10 @@ class Model(Grid):
 
     def __buildMatAB(self):
 
-        [reg1Count, reg2Count, reg3Count, reg4Count, reg6Count, reg7Count] = self.hmRegionsIndex
-        [reg5Count] = self.mecRegionsIndex
+        [reg1Count, reg3Count, reg4Count, reg5Count, reg6Count, lenUnknowns] = self.hmRegionsIndex
+        [reg2Count] = self.mecRegionsIndex
 
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        lenUnknowns = reg7Count
 
         print('Asize: ', self.matrixA.shape, self.matrixA.size)
         print('Bsize: ', self.matrixB.shape)
@@ -680,34 +682,7 @@ class Model(Grid):
         for _ in self.n:
             self.__dirichlet(regCountOffset=reg1Count, yBoundary='-inf')
 
-        # -----------Boundary 2 --> BackIron Bottom [HM-HM]-----------
-        iY1 = self.yIndexesBackIron[0]
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg1Count, reg2Count)
-
-        # -----------Boundary 3 --> BladeRotor Bottom [HM-HM]-----------
-        iY1 = self.yIndexesBladeRotor[0]
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg2Count, reg3Count)
-
-        # -----------Boundary 4 --> AirGap Bottom [HM-HM]-----------
-        iY1 = self.yIndexesAirgap[0]
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg3Count, reg4Count)
-
-        # -----------Boundary 5 --> MEC Bottom [MEC-HM]-----------
+        # -----------Boundary 2 --> MEC Bottom [MEC-HM]-----------
         iY1 = self.yIndexesMEC[0]
         iY2 = None
         bcInfo = self.__boundaryInfo(iY1, iY2, 'hmMEC')
@@ -715,8 +690,8 @@ class Model(Grid):
         # TODO We can try to cache these kind of functions for speed
         for nHM in self.n:
             self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg4Count, mecRegCountOffset=reg5Count,
-                         removed_an=False, removed_bn=False, lowerUpper='lower')
+                         hmRegCountOffset=reg1Count, mecRegCountOffset=reg2Count,
+                         removed_an=False, removed_bn=True, lowerUpper='lower')
 
         # -----------KCL EQUATIONS [MEC]-----------
         iY1 = self.yIndexesMEC[0]
@@ -728,7 +703,10 @@ class Model(Grid):
         while i < iY2 + 1:
             while j < self.ppL:
                 # TODO We can try to cache these kind of functions for speed
-                self.__mec(i, j, node, time_plex, bcInfo, reg4Count, reg6Count, reg5Count)
+                self.__mec(i, j, node, time_plex, bcInfo,
+                           hmRegCountOffset1=reg1Count,
+                           hmRegCountOffset2=reg3Count,
+                           mecRegCountOffset=reg2Count)
 
                 node += 1
                 j += 1
@@ -738,7 +716,7 @@ class Model(Grid):
         self.nLoop += node
         self.matBCount += node
 
-        # -----------Boundary 6 --> MEC Top [MEC-HM]-----------
+        # -----------Boundary 3 --> MEC Top [MEC-HM]-----------
         iY1 = self.yIndexesMEC[-1]
         iY2 = None
         bcInfo = self.__boundaryInfo(iY1, iY2, 'mecHM')
@@ -746,8 +724,35 @@ class Model(Grid):
         for nHM in self.n:
             # TODO We can try to cache these kind of functions for speed
             self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg6Count, mecRegCountOffset=reg5Count,
-                         removed_an=True, removed_bn=False, lowerUpper='upper')
+                         hmRegCountOffset=reg3Count, mecRegCountOffset=reg2Count,
+                         removed_an=False, removed_bn=False, lowerUpper='upper')
+
+        # -----------Boundary 4 --> BladeRotor Bottom [HM-HM]-----------
+        iY1 = self.yIndexesBladeRotor[0]
+        iY2 = None
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
+        self.__setCurrColCount(0)
+        for nHM in self.n:
+            # TODO We can try to cache these kind of functions for speed
+            self.__hmHm(nHM, bcInfo, reg3Count, reg4Count)
+
+        # -----------Boundary 5 --> BackIron Bottom [HM-HM]-----------
+        iY1 = self.yIndexesBackIron[0]
+        iY2 = None
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
+        self.__setCurrColCount(0)
+        for nHM in self.n:
+            # TODO We can try to cache these kind of functions for speed
+            self.__hmHm(nHM, bcInfo, reg4Count, reg5Count)
+
+        # -----------Boundary 6 --> Vac2 Bottom [HM-HM]-----------
+        iY1 = self.yIndexesVacUpper[0]
+        iY2 = None
+        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
+        self.__setCurrColCount(0)
+        for nHM in self.n:
+            # TODO We can try to cache these kind of functions for speed
+            self.__hmHm(nHM, bcInfo, reg5Count, reg6Count)
 
         # -----------Boundary 7 --> Vac2 Top-----------
         self.__setCurrColCount(0)
@@ -764,7 +769,7 @@ class Model(Grid):
 
         return rowRemoveIdx, colRemoveIdx
 
-    def finalizeCompute(self, iTol):
+    def finalizeCompute(self):
 
         print('region indexes: ', self.hmRegionsIndex, self.mecRegionsIndex, self.mecRegionLength)
 
@@ -774,7 +779,7 @@ class Model(Grid):
         self.__reduceMatrix(removeRows, removeCols)
 
         # Solve for the unknown matrix X
-        self.matrixX, preProcessError_matX = self.__linalg_lu(iTol)
+        self.matrixX, preProcessError_matX = self.__linalg_lu()
 
         # update the index-tracking lists that are affected by the trimming of matrices A and B
         self.__updateLists(len(self.n))
@@ -892,7 +897,6 @@ class Model(Grid):
                                                                    self.matrix[i, j].MMF, self.matrix[i, lNode].MMF,
                                                                    self.matrix[i, j].Rx, self.matrix[i, lNode].Rx)
 
-                    # TODO The error is significant starting at i = 11 which is the yoke elements. This could be due to pre processing
                     self.matrix[i, j].phiError = self.matrix[i, j].phiXn + self.matrix[i, j].phiYn - self.matrix[i, j].phiXp - self.matrix[i, j].phiYp
 
                     # Eqn 40_HAM
@@ -952,8 +956,7 @@ class Model(Grid):
         print(
             f'max error post processing is: {postProcessError_Phi} vs min error post processing: {min(genPhiError_min)} vs error in matX: {iErrorInX}')
 
-        allowableError = 10 ** (-14)
-        if postProcessError_Phi > allowableError or iErrorInX > allowableError:
+        if postProcessError_Phi > self.errorTolerance or iErrorInX > self.errorTolerance:
             self.writeErrorToDict(key='name',
                                   error=Error.buildFromScratch(name='violatedKCL',
                                                                description="ERROR - Kirchhoff's current law is violated",

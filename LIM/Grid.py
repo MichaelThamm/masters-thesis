@@ -296,7 +296,7 @@ class Grid(LimMotor):
         yBoundaryList = [yVac1Boundary, yYokeBoundary, yUpperCoilsBoundary, yLowerCoilsBoundary, yAirBoundary, yBladeBoundary, yBackIronBoundary, yVac2Boundary]
 
         a, b = 0, 0
-        c, d, e, f = 0, 0, 0, 0
+        c, d = 0, 0
         Cnt = 0
         yCnt = 0
         # Assign spatial data to the nodes
@@ -321,7 +321,6 @@ class Grid(LimMotor):
                 else:
                     delX = self.xMeshSizes[c]
 
-                # delX can be negative which means x can be 0
                 self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY], modelDepth=self.D)
 
                 # Keep track of the x coordinate for each node
@@ -330,15 +329,14 @@ class Grid(LimMotor):
                 elif b in self.xSecondEdgeNodes:
                     xCnt += pixelSpacing / self.meshDensity[1]
                 else:
-                    xCnt += self.xMeshSizes[e]
+                    xCnt += delX
 
                 if b in xBoundaryList:
                     c += 1
-                    e += 1
 
                 b += 1
                 Cnt += 1
-            c, e = 0, 0
+            c = 0
 
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
@@ -346,11 +344,10 @@ class Grid(LimMotor):
             elif a in self.ySecondEdgeNodes:
                 yCnt += pixelSpacing / self.meshDensity[1]
             else:
-                yCnt += self.yMeshSizes[f]
+                yCnt += delY
 
             if a in yBoundaryList:
                 d += 1
-                f += 1
 
             b = 0
             a += 1
@@ -630,32 +627,32 @@ class Grid(LimMotor):
 
         xIdx = 0
         # Check Vacuum Lower
-        diffVacLowerDims = self.vac - (self.matrix[self.yIndexesBackIron[0]][xIdx].y - self.matrix[self.yIndexesVacLower[0]][xIdx].y)
+        diffVacLowerDims = self.vac - (self.matrix[self.yIndexesVacLower[-1]+1][xIdx].y - self.matrix[self.yIndexesVacLower[0]][xIdx].y)
         if round(diffVacLowerDims, 12) != 0:
             print(f'flag - vacuum lower: {diffVacLowerDims}')
             spatialDomainFlag = True
         # Check Back Iron
-        diffBackIronDims = self.bi - (self.matrix[self.yIndexesBladeRotor[0]][xIdx].y - self.matrix[self.yIndexesBackIron[0]][xIdx].y)
+        diffBackIronDims = self.bi - (self.matrix[self.yIndexesBackIron[-1]+1][xIdx].y - self.matrix[self.yIndexesBackIron[0]][xIdx].y)
         if round(diffBackIronDims, 12) != 0:
             print(f'flag - blade rotor: {diffBackIronDims}')
             spatialDomainFlag = True
         # Check Blade Rotor
-        diffBladeRotorDims = self.dr - (self.matrix[self.yIndexesAirgap[0]][xIdx].y - self.matrix[self.yIndexesBladeRotor[0]][xIdx].y)
+        diffBladeRotorDims = self.dr - (self.matrix[self.yIndexesBladeRotor[-1]+1][xIdx].y - self.matrix[self.yIndexesBladeRotor[0]][xIdx].y)
         if round(diffBladeRotorDims, 12) != 0:
             print(f'flag - blade rotor: {diffBladeRotorDims}')
             spatialDomainFlag = True
         # Check Air Gap
-        diffAirGapDims = self.g - (self.matrix[self.yIndexesLowerSlot[0]][xIdx].y - self.matrix[self.yIndexesAirgap[0]][xIdx].y)
+        diffAirGapDims = self.g - (self.matrix[self.yIndexesAirgap[-1]+1][xIdx].y - self.matrix[self.yIndexesAirgap[0]][xIdx].y)
         if round(diffAirGapDims, 12) != 0:
             print(f'flag - air gap: {diffAirGapDims}')
             spatialDomainFlag = True
         # Check Slot/Tooth Height
-        diffSlotHeightDims = self.hs - (self.matrix[self.yIndexesYoke[0]][xIdx].y - self.matrix[self.yIndexesLowerSlot[0]][xIdx].y)
+        diffSlotHeightDims = self.hs - (self.matrix[self.yIndexesLowerSlot[-1]+1][xIdx].y - self.matrix[self.yIndexesUpperSlot[0]][xIdx].y)
         if round(diffSlotHeightDims, 12) != 0:
             print(f'flag - slot height: {diffSlotHeightDims}')
             spatialDomainFlag = True
         # Check Yoke
-        diffYokeDims = self.hy - (self.matrix[self.yIndexesVacUpper[0]][xIdx].y - self.matrix[self.yIndexesYoke[0]][xIdx].y)
+        diffYokeDims = self.hy - (self.matrix[self.yIndexesYoke[-1]+1][xIdx].y - self.matrix[self.yIndexesYoke[0]][xIdx].y)
         if round(diffYokeDims, 12) != 0:
             print(f'flag - yoke: {diffYokeDims}')
             spatialDomainFlag = True
