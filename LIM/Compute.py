@@ -15,43 +15,44 @@ class Model(Grid):
         if buildFromJson:
             for attr_key in kwargs:
                 self.__dict__[attr_key] = kwargs[attr_key]
-        else:
-            super().__init__(kwargs)
+            return
 
-            self.writeErrorToDict(key='name',
-                                  error=Error.buildFromScratch(name='meshDensityDiscrepancy',
-                                                               description="ERROR - The last slot has a different mesh density than all other slots",
-                                                               cause=kwargs['meshIndexes'][0][2] != kwargs['meshIndexes'][0][-3]))
+        super().__init__(kwargs)
 
-            self.errorTolerance = kwargs['errorTolerance']
+        self.writeErrorToDict(key='name',
+                              error=Error.buildFromScratch(name='meshDensityDiscrepancy',
+                                                           description="ERROR - The last slot has a different mesh density than all other slots",
+                                                           cause=kwargs['meshIndexes'][0][2] != kwargs['meshIndexes'][0][-3]))
 
-            self.currColCount = 0
-            self.nLoop = 0
-            self.matBCount = 0
+        self.errorTolerance = kwargs['errorTolerance']
 
-            lenUnknowns = self.hmRegionsIndex[-1]
+        self.currColCount = 0
+        self.nLoop = 0
+        self.matBCount = 0
 
-            self.matrixA = np.zeros((lenUnknowns, lenUnknowns), dtype=np.cdouble)
-            self.matrixB = np.zeros(len(self.matrixA), dtype=np.cdouble)
-            self.matrixX = np.zeros(len(self.matrixA), dtype=np.cdouble)
+        lenUnknowns = self.hmRegionsIndex[-1]
 
-            self.hmUnknownsList = {i: Region.buildFromScratch(index=i, type=self.hmRegions[i], an=np.zeros(len(self.n)), bn=np.zeros(len(self.n))) for i in self.hmRegions}
+        self.matrixA = np.zeros((lenUnknowns, lenUnknowns), dtype=np.cdouble)
+        self.matrixB = np.zeros(len(self.matrixA), dtype=np.cdouble)
+        self.matrixX = np.zeros(len(self.matrixA), dtype=np.cdouble)
 
-            # HM and MEC unknown indexes in matrix A, used for visualization
-            # TODO I could make these lists more robust
-            # self.canvasRowRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-            #                                self.mecRegionLength + 2 * len(self.n), self.mecRegionLength + 4 * len(self.n),
-            #                                self.mecRegionLength + 6 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-            # self.canvasColRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-            #                                self.mecRegionLength + 3 * len(self.n), self.mecRegionLength + 5 * len(self.n),
-            #                                self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-            # self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
+        self.hmUnknownsList = {i: Region.buildFromScratch(index=i, type=self.hmRegions[i], an=np.zeros(len(self.n)), bn=np.zeros(len(self.n))) for i in self.hmRegions}
 
-            self.mecIdxs = list(itertools.chain.from_iterable([list(range(i, i + self.mecRegionLength)) for i in self.mecRegionsIndex]))
-            self.hmIdxs = [i for i in range(len(self.matrixX)) if i not in self.mecIdxs]
+        # HM and MEC unknown indexes in matrix A, used for visualization
+        # TODO I could make these lists more robust
+        # self.canvasRowRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
+        #                                self.mecRegionLength + 2 * len(self.n), self.mecRegionLength + 4 * len(self.n),
+        #                                self.mecRegionLength + 6 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
+        # self.canvasColRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
+        #                                self.mecRegionLength + 3 * len(self.n), self.mecRegionLength + 5 * len(self.n),
+        #                                self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
+        # self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
 
-            self.hmMatrixX = []
-            self.mecMatrixX = []
+        self.mecIdxs = list(itertools.chain.from_iterable([list(range(i, i + self.mecRegionLength)) for i in self.mecRegionsIndex]))
+        self.hmIdxs = [i for i in range(len(self.matrixX)) if i not in self.mecIdxs]
+
+        self.hmMatrixX = []
+        self.mecMatrixX = []
 
     @classmethod
     def buildFromScratch(cls, **kwargs):

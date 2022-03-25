@@ -141,9 +141,10 @@ class TransformedDict(MutableMapping):
             self.store = dict()
             for key, error in kwargs.items():
                 self.__setitem__(key, Error.buildFromJson(error))
-        else:
-            self.store = dict()
-            self.update(dict(kwargs))  # use the free update to set keys
+            return
+
+        self.store = dict()
+        self.update(dict(kwargs))  # use the free update to set keys
 
     @classmethod
     def buildFromScratch(cls, **kwargs):
@@ -197,13 +198,14 @@ class Error(object):
         if buildFromJson:
             for key in kwargs:
                 self.__dict__[key] = kwargs[key]
-        else:
-            self.name = kwargs['name']
-            self.description = kwargs['description']
-            self.cause = bool(kwargs['cause'])  # This was done to handle np.bool_ not being json serializable
-            self.state = False
+            return
 
-            self.setState()
+        self.name = kwargs['name']
+        self.description = kwargs['description']
+        self.cause = bool(kwargs['cause'])  # This was done to handle np.bool_ not being json serializable
+        self.state = False
+
+        self.setState()
 
     @classmethod
     def buildFromScratch(cls, **kwargs):

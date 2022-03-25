@@ -2,6 +2,7 @@ from LIM.Compute import *
 from tkinter import *
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from CanvasModel import CanvasInFrame
 
 
 # class GUI:
@@ -23,8 +24,6 @@ def myColourNumber(fieldScale, val):
 
 
 def determineColour(jsonObject, iI, iJ, field, highlightZeroValsInField):
-
-    model = jsonObject.rebuiltModel
 
     fieldType, iFieldsScale, iStoColours, iPosInf, iNegInf = field
 
@@ -233,28 +232,31 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
     mGrid.mainloop()
 
 
-def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims):
+def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims, invertY):
+
+    invertCoeff = -1 if invertY else 1
 
     # Create the grid canvas to display the grid mesh
     if showGrid:
-        rootGrid = Tk()
-        cGrid: Canvas = Canvas(rootGrid, height=dims[0], width=dims[1], bg='gray30')
-        cGrid.pack()
+
+        cGrid = CanvasInFrame(height=dims[0], width=dims[1], bg='gray30')
         i, j = 0, 0
         while i < jsonObject.rebuiltModel.matrix.shape[0]:
             while j < jsonObject.rebuiltModel.matrix.shape[1]:
-                jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing, overRideColour=False, c=cGrid, nodeWidth=1)
+                jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing,
+                                                              overRideColour=False, c=cGrid.canvas, nodeWidth=1)
                 j += 1
             j = 0
             i += 1
-        rootGrid.mainloop()
+
+        cGrid.canvas.scale("all", 0, 0, 1, invertCoeff)
+        cGrid.canvas.configure(scrollregion=cGrid.canvas.bbox("all"))
+        cGrid.root.mainloop()
 
     # Color nodes based on node values
     if showFields or showFilter:
 
-        rootFields = Tk()
-        cFields: Canvas = Canvas(rootFields, height=dims[0], width=dims[1], bg='gray30')
-        cFields.pack()
+        cFields = CanvasInFrame(height=dims[0], width=dims[1], bg='gray30')
 
         c1 = '#FFF888'  # Yellow Positive Limit
         c2 = '#700000'  # Dark Red Negative Limit
@@ -295,7 +297,7 @@ def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatri
             fieldsScale = np.arange(minScale, maxScale + normScale, normScale)
             colorScaleIndex = np.where(fieldsScale == fieldsScale[0])
 
-            cFields.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
+            cFields.canvas.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
             print(f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
 
             # All drawing is done at the bottom of the node
@@ -352,13 +354,17 @@ def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatri
                                                          [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
                                                          highlightZeroValsInField=showZeros)
 
-                    jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing, overRideColour=overRideColour, c=cFields, nodeWidth=1)
+                    jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing,
+                                                                  overRideColour=overRideColour, c=cFields.canvas,
+                                                                  nodeWidth=1)
                     j += 1
                     k += 1
                 j = 0
                 i += 1
 
-        rootFields.mainloop()
+        cFields.canvas.scale("all", 0, 0, 1, invertCoeff)
+        cFields.canvas.configure(scrollregion=cFields.canvas.bbox("all"))
+        cFields.root.mainloop()
 
     if showMatrix:
         visualizeMatrix(dims, jsonObject.rebuiltModel, bShowA=True)

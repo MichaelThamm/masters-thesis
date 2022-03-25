@@ -1,5 +1,3 @@
-import numpy as np
-
 from LIM.Show import *
 import json
 import os
@@ -295,7 +293,8 @@ def main():
                                    {1: 'vac', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac'},
                                    mecRegions=
                                    {2: 'core_1'},
-                                   errorTolerance=1e-15)
+                                   errorTolerance=1e-15,
+                                   invertY=False)
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
@@ -303,7 +302,7 @@ def main():
     with timing():
         errorInX = model.finalizeCompute()
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    model.updateGrid(errorInX, showAirgapPlot=False)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -312,9 +311,9 @@ def main():
     # TODO The or True is here for convenience but should be removed
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(encodeModel, fieldType='yIndex',
+        showModel(encodeModel, fieldType='y',
                   showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
-                  numColours=20, dims=[1080, 1920])
+                  numColours=20, dims=[1080, 1920], invertY=encodeModel.rebuiltModel.invertY)
         pass
     else:
         print('Resolve errors to show model')

@@ -30,6 +30,8 @@ class Grid(LimMotor):
 
         super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'])
 
+        self.invertY = kwargs['invertY']
+
         xMeshIndexes = kwargs['meshIndexes'][0]
         yMeshIndexes = kwargs['meshIndexes'][1]
 
@@ -321,7 +323,8 @@ class Grid(LimMotor):
                 else:
                     delX = self.xMeshSizes[c]
 
-                self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY], modelDepth=self.D)
+                self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY],
+                                                          modelDepth=self.D)
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
@@ -657,7 +660,7 @@ class Grid(LimMotor):
             print(f'flag - yoke: {diffYokeDims}')
             spatialDomainFlag = True
         # Check Vacuum Upper
-        diffVacUpperDims = self.vac - (self.matrix[-1][xIdx].y + self.matrix[-1][xIdx].ly - self.matrix[self.yIndexesVacUpper[0]][xIdx].y)
+        diffVacUpperDims = self.vac - (self.matrix[self.yIndexesVacUpper[-1]][xIdx].y + self.matrix[self.yIndexesVacUpper[-1]][xIdx].ly - self.matrix[self.yIndexesVacUpper[0]][xIdx].y)
         if round(diffVacUpperDims, 12) != 0:
             print(f'flag - vacuum upper: {diffVacUpperDims}')
             spatialDomainFlag = True
@@ -677,52 +680,53 @@ class Node(object):
                     self.__dict__[attr_key] = rebuildPlex(kwargs[attr_key])
                 else:
                     self.__dict__[attr_key] = kwargs[attr_key]
-        else:
-            self.xIndex = kwargs['iIndex'][0]
-            self.yIndex = kwargs['iIndex'][1]
+            return
 
-            # Initialize dense meshing near slot and teeth edges in x direction
-            self.x = kwargs['iXinfo'][0]
-            self.lx = kwargs['iXinfo'][1]
+        self.xIndex = kwargs['iIndex'][0]
+        self.yIndex = kwargs['iIndex'][1]
 
-            # Initialize dense meshing near slot and teeth edges in y direction
-            self.y = kwargs['iYinfo'][0]
-            self.ly = kwargs['iYinfo'][1]
+        # Initialize dense meshing near slot and teeth edges in x direction
+        self.x = kwargs['iXinfo'][0]
+        self.lx = kwargs['iXinfo'][1]
 
-            # Cross sectional area
-            self.Szy = self.ly*kwargs['modelDepth']
-            self.Sxz = self.lx*kwargs['modelDepth']
+        # Initialize dense meshing near slot and teeth edges in y direction
+        self.y = kwargs['iYinfo'][0]
+        self.ly = kwargs['iYinfo'][1]
 
-            self.xCenter = self.x + self.lx/2
-            self.yCenter = self.y + self.ly/2
+        # Cross sectional area
+        self.Szy = self.ly*kwargs['modelDepth']
+        self.Sxz = self.lx*kwargs['modelDepth']
 
-            # Node properties
-            self.ur = 0.0
-            self.sigma = 0.0
-            self.material = ''
-            self.colour = ''
+        self.xCenter = self.x + self.lx / 2
+        self.yCenter = self.y + self.ly / 2
 
-            # Potential
-            self.Yk = np.cdouble(0.0)
+        # Node properties
+        self.ur = 0.0
+        self.sigma = 0.0
+        self.material = ''
+        self.colour = ''
 
-            # Thrust
-            self.Fx, self.Fy, self.F = np.zeros(3, dtype=np.cdouble)
+        # Potential
+        self.Yk = np.cdouble(0.0)
 
-            # B field
-            self.Bx, self.By, self.B, self.BxLower, self.ByLower, self.B_Lower = np.zeros(6, dtype=np.cdouble)
+        # Thrust
+        self.Fx, self.Fy, self.F = np.zeros(3, dtype=np.cdouble)
 
-            # Flux
-            self.phiXp, self.phiXn, self.phiYp, self.phiYn, self.phiX, self.phiY, self.phi = np.zeros(7, dtype=np.cdouble)
-            self.phiError = np.cdouble(0.0)
+        # B field
+        self.Bx, self.By, self.B, self.BxLower, self.ByLower, self.B_Lower = np.zeros(6, dtype=np.cdouble)
 
-            # Current
-            self.Iph = np.cdouble(0.0)  # phase
+        # Flux
+        self.phiXp, self.phiXn, self.phiYp, self.phiYn, self.phiX, self.phiY, self.phi = np.zeros(7, dtype=np.cdouble)
+        self.phiError = np.cdouble(0.0)
 
-            # MMF
-            self.MMF = np.cdouble(0.0)  # AmpereTurns
+        # Current
+        self.Iph = np.cdouble(0.0)  # phase
 
-            # Reluctance
-            self.Rx, self.Ry = np.zeros(2, dtype=np.float64)
+        # MMF
+        self.MMF = np.cdouble(0.0)  # AmpereTurns
+
+        # Reluctance
+        self.Rx, self.Ry = np.zeros(2, dtype=np.float64)
 
     @classmethod
     def buildFromScratch(cls, **kwargs):
@@ -783,11 +787,12 @@ class Region(object):
                     self.__dict__[key] = valArray
                 else:
                     self.__dict__[key] = kwargs[key]
-        else:
-            self.index = kwargs['index']
-            self.type = kwargs['type']
-            self.an = kwargs['an']
-            self.bn = kwargs['bn']
+            return
+
+        self.index = kwargs['index']
+        self.type = kwargs['type']
+        self.an = kwargs['an']
+        self.bn = kwargs['bn']
 
     @classmethod
     def buildFromScratch(cls, **kwargs):
