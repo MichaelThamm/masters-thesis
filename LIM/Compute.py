@@ -3,7 +3,6 @@ from LIM.SlotPoleCalculation import np
 from scipy.linalg import lu_factor, lu_solve
 import matplotlib.pyplot as plt
 from functools import lru_cache
-import itertools
 
 
 # This performs the lower-upper decomposition of A to solve for x in Ax = B
@@ -669,6 +668,8 @@ class Model(Grid):
 
         [reg1Count, reg3Count, reg4Count, reg5Count, reg6Count, lenUnknowns] = self.hmRegionsIndex
         [reg2Count] = self.mecRegionsIndex
+
+        fullRegionDict = self.getFullRegionDict()
 
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
 

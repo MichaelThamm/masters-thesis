@@ -39,6 +39,10 @@ class Grid(LimMotor):
         self.Cspacing = kwargs['canvasSpacing'] / self.H
         self.meshDensity = kwargs['meshDensity']
         self.n = kwargs['n']
+        self.hmRegions = kwargs['hmRegions']
+        self.mecRegions = kwargs['mecRegions']
+        self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
+        self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
 
         # X-direction
         self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2)
@@ -48,19 +52,18 @@ class Grid(LimMotor):
         self.ppLeftEndTooth = self.setPixelsPerLength(length=self.endTeeth, minimum=1)
         self.ppRightEndTooth = self.ppLeftEndTooth
         # Y-direction
-        self.ppVacuumLower = self.setPixelsPerLength(length=self.vac, minimum=1)
-        self.ppVacuumUpper = self.ppVacuumLower
-        self.ppYokeheight = self.setPixelsPerLength(length=self.hy, minimum=1)
-        self.ppAirgap = self.setPixelsPerLength(length=self.g, minimum=1)
-        self.ppBladerotor = self.setPixelsPerLength(length=self.dr, minimum=1)
+        self.ppVac = self.setPixelsPerLength(length=self.vac, minimum=1)
+        self.ppYoke = self.setPixelsPerLength(length=self.hy, minimum=1)
+        self.ppAirGap = self.setPixelsPerLength(length=self.g, minimum=1)
+        self.ppBladeRotor = self.setPixelsPerLength(length=self.dr, minimum=1)
         self.ppBackIron = self.setPixelsPerLength(length=self.bi, minimum=1)
-        self.ppSlotheight = self.setPixelsPerLength(length=self.hs, minimum=2)
+        self.ppSlotHeight = self.setPixelsPerLength(length=self.hs, minimum=2)
 
-        if self.ppSlotheight % 2 != 0:
-            self.ppSlotheight += 1
+        if self.ppSlotHeight % 2 != 0:
+            self.ppSlotHeight += 1
 
-        ppHM = self.ppAirgap + self.ppBladerotor + self.ppBackIron + self.ppVacuumLower + self.ppVacuumUpper
-        self.ppHeight = self.ppYokeheight + self.ppSlotheight
+        ppHM = self.ppAirGap + self.ppBladeRotor + self.ppBackIron + self.ppVac * 2
+        self.ppHeight = self.ppYoke + self.ppSlotHeight
         self.ppH = self.ppHeight + ppHM
         self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + self.ppLeftEndTooth + self.ppRightEndTooth + 2 * self.ppAirBuffer
         self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppHeight + ppHM)])
@@ -81,7 +84,10 @@ class Grid(LimMotor):
         self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppLeftEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppRightEndTooth, self.ppAirBuffer]
         self.yListSpatialDatum = [self.vac, self.hy, self.hs/2, self.hs/2, self.g, self.dr, self.bi, self.vac]
-        self.yListPixelsPerRegion = [self.ppVacuumLower, self.ppYokeheight, self.ppSlotheight//2, self.ppSlotheight//2, self.ppAirgap, self.ppBladerotor, self.ppBackIron, self.ppVacuumUpper]
+        self.yListPixelsPerRegion = [self.ppVac, self.ppYoke, self.ppSlotHeight // 2, self.ppSlotHeight // 2, self.ppAirGap, self.ppBladeRotor, self.ppBackIron, self.ppVac]
+        if self.invertY:
+            self.yListSpatialDatum.reverse()
+            self.yListPixelsPerRegion.reverse()
 
         for Cnt in range(len(self.xMeshSizes)):
             self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
@@ -95,33 +101,38 @@ class Grid(LimMotor):
                 print('negative y mesh sizes')
                 return
 
-        self.hmRegions = kwargs['hmRegions']
-        self.mecRegions = kwargs['mecRegions']
-        self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
-        self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
-
         self.mecRegionLength = self.ppHeight * self.ppL
 
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
 
-        yokeOffset = self.ppVacuumLower
-        slotOffset = yokeOffset + self.ppYokeheight
-        airgapOffset = slotOffset + self.ppSlotheight
-        bladeRotorOffset = airgapOffset + self.ppAirgap
-        ironOffset = bladeRotorOffset + self.ppBladerotor
+        # Set up the y-axis indexes
+        offsetList = []
+        offsetLower, offsetUpper = 0, self.__dict__[self.getFullRegionDict()['vac_lower']['pp']]
+        str_ppSlotHeight = self.getFullRegionDict()['core']['pp'].split(', ')[1]
+        for region in self.getFullRegionDict():
+            for pp in self.getFullRegionDict()[region]['pp'].split(', '):
+                if region != 'vac_lower':
+                    offsetLower = offsetUpper
+                    offsetUpper += self.__dict__[pp] // 2 if pp == str_ppSlotHeight else self.__dict__[pp]
+                offsetList.append((offsetLower, offsetUpper))
 
-        # TODO The solution is to distinguish between the yIndexes and the spatial .y of those indexes
-        self.yIndexesVacLower = list(range(0, self.ppVacuumLower))
-        self.yIndexesYoke = list(range(yokeOffset, yokeOffset + self.ppYokeheight))
-        self.yIndexesUpperSlot = list(range(slotOffset, slotOffset + self.ppSlotheight // 2))
-        self.yIndexesLowerSlot = list(range(slotOffset + self.ppSlotheight // 2, slotOffset + self.ppSlotheight))
-        self.yIndexesAirgap = list(range(airgapOffset, airgapOffset + self.ppAirgap))
-        self.yIndexesBladeRotor = list(range(bladeRotorOffset, bladeRotorOffset + self.ppBladerotor))
-        self.yIndexesBackIron = list(range(ironOffset, ironOffset + self.ppBackIron))
-        self.yIndexesVacUpper = list(range(self.ppH - self.ppVacuumUpper, self.ppH))
-        self.yIndexesHM = self.yIndexesVacLower + self.yIndexesAirgap + self.yIndexesBladeRotor + self.yIndexesBackIron + self.yIndexesVacUpper
-        self.yIndexesMEC = self.yIndexesYoke + self.yIndexesUpperSlot + self.yIndexesLowerSlot
+        self.yIndexesHM = []
+        self.yIndexesMEC = []
+
+        # Initialize the y-axis index attributes format: self.yIndexes___
+        innerCnt = 0
+        for region in self.getFullRegionDict():
+            for inner_cnt, idx in enumerate(config.get('Y_IDX', region).split(', ')):
+                self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
+                if region in self.hmRegions.values():
+                    self.yIndexesHM.append(self.__dict__[idx])
+                elif region in self.mecRegions.values():
+                    self.yIndexesMEC.append(self.__dict__[idx])
+                innerCnt += 1
+
+        self.yIndexesHM = list(itertools.chain.from_iterable(self.yIndexesHM))
+        self.yIndexesMEC = list(itertools.chain.from_iterable(self.yIndexesMEC))
 
         # Thrust of the entire integration region
         self.Fx = 0.0
@@ -286,16 +297,20 @@ class Grid(LimMotor):
             Cnt += 1
 
         xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1], self.toothArray[self.ppLeftEndTooth - 1]] + self.coilArray[self.ppSlot-1::self.ppSlot] + self.toothArray[self.ppLeftEndTooth + self.ppTooth - 1:-self.ppRightEndTooth:self.ppTooth] + [self.toothArray[-1], self.bufferArray[-1]]
-        yVac1Boundary = self.ppVacuumLower-1
-        yYokeBoundary = yVac1Boundary + self.ppYokeheight
-        yUpperCoilsBoundary = yYokeBoundary + self.ppSlotheight//2
-        yLowerCoilsBoundary = yYokeBoundary + self.ppSlotheight
-        yAirBoundary = yLowerCoilsBoundary + self.ppAirgap
-        yBladeBoundary = yAirBoundary + self.ppBladerotor
-        yBackIronBoundary = yBladeBoundary + self.ppBackIron
-        yVac2Boundary = yBackIronBoundary + self.ppVacuumUpper
+        yVac1Boundary = self.yIndexesVacLower[-1]
+        yYokeBoundary = self.yIndexesYoke[-1]
+        yUpperCoilsBoundary = self.yIndexesUpperSlot[-1]
+        yLowerCoilsBoundary = self.yIndexesLowerSlot[-1]
+        yAirBoundary = self.yIndexesAirgap[-1]
+        yBladeBoundary = self.yIndexesBladeRotor[-1]
+        yBackIronBoundary = self.yIndexesBackIron[-1]
+        yVac2Boundary = self.yIndexesVacUpper[-1]
 
         yBoundaryList = [yVac1Boundary, yYokeBoundary, yUpperCoilsBoundary, yLowerCoilsBoundary, yAirBoundary, yBladeBoundary, yBackIronBoundary, yVac2Boundary]
+        if self.invertY:
+            centerList = yBoundaryList[1:-1]
+            centerList.reverse()
+            yBoundaryList = [yBoundaryList[0]] + centerList + [yBoundaryList[-1]]
 
         a, b = 0, 0
         c, d = 0, 0
@@ -440,8 +455,8 @@ class Grid(LimMotor):
 
         # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
         fraction = 0.5
-        doubleBias = self.ppSlotheight - fraction
-        doubleCoilScaling = [doubleBias - i if i > 0 else doubleBias for i in range(self.ppSlotheight)]
+        doubleBias = self.ppSlotHeight - fraction
+        doubleCoilScaling = [doubleBias - i if i > 0 else doubleBias for i in range(self.ppSlotHeight)]
 
         scalingLower, scalingUpper = 0.0, 0.0
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
@@ -464,18 +479,18 @@ class Grid(LimMotor):
 
                     # Set the scaling factor for MMF in equation 18
                     # 2 coils in slot
-                    if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotheight // 2][j].material[:-1] == 'copper':
+                    if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotHeight // 2][j].material[:-1] == 'copper':
                         index_ = self.yIndexesLowerSlot.index(i)
                         scalingLower = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # coil in upper slot only
-                    elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i - self.ppSlotheight // 2][j].material[:-1] == 'copper':
+                    elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i - self.ppSlotHeight // 2][j].material[:-1] == 'copper':
                         scalingLower = 0.0
                     # coil in lower slot only
-                    elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotheight // 2][j].material[:-1] != 'copper':
+                    elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotHeight // 2][j].material[:-1] != 'copper':
                         index_ = self.yIndexesLowerSlot.index(i)
                         scalingLower = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # empty slot
-                    elif self.matrix[i][j].material == 'vacuum' and self.matrix[i - self.ppSlotheight // 2][j].material == 'vacuum':
+                    elif self.matrix[i][j].material == 'vacuum' and self.matrix[i - self.ppSlotHeight // 2][j].material == 'vacuum':
                         scalingLower = 0.0
                     else:
                         scalingLower = 0.0
@@ -492,18 +507,18 @@ class Grid(LimMotor):
 
                     # Set the scaling factor for MMF in equation 18
                     # 2 coils in slot
-                    if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotheight // 2][j].material[:-1] == 'copper':
+                    if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotHeight // 2][j].material[:-1] == 'copper':
                         index_ = self.yIndexesUpperSlot.index(i)
                         scalingUpper = doubleCoilScaling[index_]
                     # coil in lower slot only
-                    elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i + self.ppSlotheight // 2][j].material[:-1] == 'copper':
+                    elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i + self.ppSlotHeight // 2][j].material[:-1] == 'copper':
                         scalingUpper = 0
                     # coil in upper slot only
-                    elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotheight // 2][j].material[:-1] != 'copper':
+                    elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotHeight // 2][j].material[:-1] != 'copper':
                         index_ = self.yIndexesUpperSlot.index(i)
                         scalingUpper = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
                     # empty slot
-                    elif self.matrix[i][j].material == 'vacuum' and self.matrix[i + self.ppSlotheight // 2][j].material == 'vacuum':
+                    elif self.matrix[i][j].material == 'vacuum' and self.matrix[i + self.ppSlotHeight // 2][j].material == 'vacuum':
                         scalingUpper = 0.0
                     else:
                         scalingUpper = 0.0
@@ -582,6 +597,35 @@ class Grid(LimMotor):
                                                                    description='ERROR - Error in the iGrid regions list',
                                                                    cause=True))
 
+    def getFullRegionDict(self):
+        regDict = {}
+        for key in range(list(self.hmRegions.keys())[0], list(self.hmRegions.keys())[-1] + 1):
+            if key in self.hmRegions:
+                hmType = self.hmRegions[key]
+                regDict[hmType] = {'pp': config.get('PP', hmType),
+                                   'bc': config.get('BC', hmType),
+                                   'idx': config.get('Y_IDX', hmType)}
+
+            elif key in self.mecRegions:
+                mecType = self.mecRegions[key]
+                regDict[mecType] = {'pp': config.get('PP', mecType),
+                                    'bc': config.get('BC', mecType),
+                                    'idx': config.get('Y_IDX', mecType)}
+
+                if self.invertY:
+                    for each in regDict[mecType]:
+                        if each != 'bc':
+                            temp = regDict[mecType][each].split(', ')
+                            temp.reverse()
+                            regDict[mecType][each] = [a for a in temp]
+
+            else:
+                self.writeErrorToDict(key='name',
+                                      error=Error.buildFromScratch(name='InputRegions',
+                                                                   description='ERROR - The input regions overlap between mec and hm',
+                                                                   cause=True))
+        return regDict
+
     # This function is written to catch any errors in the mapping between canvas and space for both x and y coordinates
     def checkSpatialMapping(self, pixelDivision, spatialDomainFlag, iIdxs):
 
@@ -649,10 +693,15 @@ class Grid(LimMotor):
         if round(diffAirGapDims, 12) != 0:
             print(f'flag - air gap: {diffAirGapDims}')
             spatialDomainFlag = True
-        # Check Slot/Tooth Height
-        diffSlotHeightDims = self.hs - (self.matrix[self.yIndexesLowerSlot[-1]+1][xIdx].y - self.matrix[self.yIndexesUpperSlot[0]][xIdx].y)
-        if round(diffSlotHeightDims, 12) != 0:
-            print(f'flag - slot height: {diffSlotHeightDims}')
+        # Check Lower Slot Height
+        diffLowerSlotHeightDims = self.hs/2 - (self.matrix[self.yIndexesLowerSlot[-1]+1][xIdx].y - self.matrix[self.yIndexesLowerSlot[0]][xIdx].y)
+        if round(diffLowerSlotHeightDims, 12) != 0:
+            print(f'flag - slot height: {diffLowerSlotHeightDims}')
+            spatialDomainFlag = True
+        # Check Upper Slot Height
+        diffUpperSlotHeightDims = self.hs/2 - (self.matrix[self.yIndexesUpperSlot[-1]+1][xIdx].y - self.matrix[self.yIndexesUpperSlot[0]][xIdx].y)
+        if round(diffUpperSlotHeightDims, 12) != 0:
+            print(f'flag - slot height: {diffUpperSlotHeightDims}')
             spatialDomainFlag = True
         # Check Yoke
         diffYokeDims = self.hy - (self.matrix[self.yIndexesYoke[-1]+1][xIdx].y - self.matrix[self.yIndexesYoke[0]][xIdx].y)

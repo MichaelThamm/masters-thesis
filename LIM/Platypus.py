@@ -290,9 +290,12 @@ def main():
                                    pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                    meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
                                    hmRegions=
-                                   {1: 'vac', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac'},
+                                   {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
                                    mecRegions=
-                                   {2: 'core_1'},
+                                   {5: 'core'},
+                                   # {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
+                                   # mecRegions=
+                                   # {2: 'core'},
                                    errorTolerance=1e-15,
                                    invertY=False)
 
@@ -302,7 +305,7 @@ def main():
     with timing():
         errorInX = model.finalizeCompute()
 
-    model.updateGrid(errorInX, showAirgapPlot=False)
+    model.updateGrid(errorInX, showAirgapPlot=True)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -313,7 +316,7 @@ def main():
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         showModel(encodeModel, fieldType='y',
                   showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
-                  numColours=20, dims=[1080, 1920], invertY=encodeModel.rebuiltModel.invertY)
+                  numColours=20, dims=[1080, 1920], invertY=False)
         pass
     else:
         print('Resolve errors to show model')

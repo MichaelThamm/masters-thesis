@@ -192,7 +192,7 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
             mGrid.create_line(0, val * zoomFactor, dims[1] * zoomFactor, val * zoomFactor, fill='red',
                               dash=(4, 2))  # Horizontal Lines
 
-        constantOffset1 = model.mecCanvasRegIdxs[0] + model.ppL * (model.ppYokeheight - 1) + model.ppAirBuffer + model.ppLeftEndTooth + model.ppSlotpitch - 1
+        constantOffset1 = model.mecCanvasRegIdxs[0] + model.ppL * (model.ppYoke - 1) + model.ppAirBuffer + model.ppLeftEndTooth + model.ppSlotpitch - 1
         # TODO The green lines are dependant on the mesh size (ppSlot and ppTooth)
         #  since the source is eastMMFNum / eastRelDenom - westMMFNum / westRelDenom this is what determines the B source
         #  if I change the mesh density these green lines will not match up: different results for ppSlot and ppTooth
@@ -249,6 +249,10 @@ def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatri
             j = 0
             i += 1
 
+        # IDGAF We are fixing this axis issue to avoid errors in the future
+        # TODO Start with identifying the difference between invertingY and manually inverting
+        #  Then move to model.matrix row index containing what region
+        #  model.matrix row y, ly, yCenter position
         cGrid.canvas.scale("all", 0, 0, 1, invertCoeff)
         cGrid.canvas.configure(scrollregion=cGrid.canvas.bbox("all"))
         cGrid.root.mainloop()

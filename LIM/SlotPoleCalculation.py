@@ -6,6 +6,8 @@ import numpy as np
 import contextlib
 from timeit import default_timer as timer
 from collections.abc import MutableMapping
+import itertools
+import configparser
 
 # from numba import cuda, njit, int32, float64
 # from numba.experimental import jitclass
@@ -259,6 +261,8 @@ def rebuildPlex(val):
 pi = math.pi
 j_plex = complex(0, 1)
 uo = (10 ** - 7)*4*pi
+config = configparser.ConfigParser()
+config.read('Properties.ini')
 
 # All Currents are in Amps and All cross sectional areas are in mm^2
 # It is important to note that the cross sectional area is just for the bare copper and does not account for the insulation thickness
