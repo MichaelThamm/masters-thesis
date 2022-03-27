@@ -30,6 +30,16 @@ class Grid(LimMotor):
 
         super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'])
 
+        # These are initialized as None because they are written to in a loop later
+        self.yIndexesVacLower = None
+        self.yIndexesBackIron = None
+        self.yIndexesBladeRotor = None
+        self.yIndexesAirgap = None
+        self.yIndexesLowerSlot = None
+        self.yIndexesUpperSlot = None
+        self.yIndexesYoke = None
+        self.yIndexesVacUpper = None
+
         self.invertY = kwargs['invertY']
 
         xMeshIndexes = kwargs['meshIndexes'][0]
@@ -74,57 +84,57 @@ class Grid(LimMotor):
         self.xFirstEdgeNodes, self.xSecondEdgeNodes = [], []
         self.yFirstEdgeNodes, self.ySecondEdgeNodes = [], []
 
-        # These lists represent whether a region boundary will have dense meshing or not.
-        #  Where each region is in groups of two [#, #], one for each boundary meshing (1=use mesh density, 0=don't)
         self.xMeshSizes = np.zeros(len(xMeshIndexes), dtype=np.float64)
         self.yMeshSizes = np.zeros(len(yMeshIndexes), dtype=np.float64)
 
         # Mesh sizing
         self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
-        self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
-        self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppLeftEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppRightEndTooth, self.ppAirBuffer]
-        self.yListSpatialDatum = [self.vac, self.hy, self.hs/2, self.hs/2, self.g, self.dr, self.bi, self.vac]
-        self.yListPixelsPerRegion = [self.ppVac, self.ppYoke, self.ppSlotHeight // 2, self.ppSlotHeight // 2, self.ppAirGap, self.ppBladeRotor, self.ppBackIron, self.ppVac]
-        if self.invertY:
-            self.yListSpatialDatum.reverse()
-            self.yListPixelsPerRegion.reverse()
-
-        for Cnt in range(len(self.xMeshSizes)):
-            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
-            if self.xMeshSizes[Cnt] < 0:
-                print('negative x mesh sizes', Cnt)
-                return
-
-        for Cnt in range(len(self.yMeshSizes)):
-            self.yMeshSizes[Cnt] = meshBoundary(self.yListSpatialDatum[Cnt], self.yListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(yMeshIndexes[Cnt]), self.meshDensity)
-            if self.yMeshSizes[Cnt] < 0:
-                print('negative y mesh sizes')
-                return
 
         self.mecRegionLength = self.ppHeight * self.ppL
 
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
 
-        # Set up the y-axis indexes
+        self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
+        self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppLeftEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppRightEndTooth, self.ppAirBuffer]
+        for Cnt in range(len(self.xMeshSizes)):
+            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
+            if self.xMeshSizes[Cnt] < 0:
+                print('negative x mesh sizes', Cnt)
+                return
+
+        self.yListPixelsPerRegion = []
+        cnt = 0
         offsetList = []
         offsetLower, offsetUpper = 0, self.__dict__[self.getFullRegionDict()['vac_lower']['pp']]
         str_ppSlotHeight = self.getFullRegionDict()['core']['pp'].split(', ')[1]
         for region in self.getFullRegionDict():
+            # Set up the y-axis indexes
             for pp in self.getFullRegionDict()[region]['pp'].split(', '):
                 if region != 'vac_lower':
                     offsetLower = offsetUpper
                     offsetUpper += self.__dict__[pp] // 2 if pp == str_ppSlotHeight else self.__dict__[pp]
                 offsetList.append((offsetLower, offsetUpper))
+            for inner_cnt, spatial in enumerate(self.getFullRegionDict()[region]['spatial'].split(', ')):
+                pixelKey = self.getFullRegionDict()[region]['pp'].split(', ')[inner_cnt]
+                pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == str_ppSlotHeight else self.__dict__[pixelKey]
+                spatialVal = self.__dict__[spatial] / 2 if pixelKey == str_ppSlotHeight else self.__dict__[spatial]
+                self.yListPixelsPerRegion.append(pixelVal)
+                self.yMeshSizes[cnt] = meshBoundary(spatialVal, pixelVal, self.Spacing, self.fractionSize,
+                                                    sum(yMeshIndexes[cnt]), self.meshDensity)
+                cnt += 1
 
         self.yIndexesHM = []
         self.yIndexesMEC = []
+        self.xBoundaryList = []
+        self.yBoundaryList = []
 
         # Initialize the y-axis index attributes format: self.yIndexes___
         innerCnt = 0
         for region in self.getFullRegionDict():
-            for inner_cnt, idx in enumerate(config.get('Y_IDX', region).split(', ')):
+            for idx in config.get('Y_IDX', region).split(', '):
                 self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
+                self.yBoundaryList.append(self.__dict__[idx][-1])
                 if region in self.hmRegions.values():
                     self.yIndexesHM.append(self.__dict__[idx])
                 elif region in self.mecRegions.values():
@@ -296,21 +306,9 @@ class Grid(LimMotor):
             idxRight += idxOffset
             Cnt += 1
 
-        xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1], self.toothArray[self.ppLeftEndTooth - 1]] + self.coilArray[self.ppSlot-1::self.ppSlot] + self.toothArray[self.ppLeftEndTooth + self.ppTooth - 1:-self.ppRightEndTooth:self.ppTooth] + [self.toothArray[-1], self.bufferArray[-1]]
-        yVac1Boundary = self.yIndexesVacLower[-1]
-        yYokeBoundary = self.yIndexesYoke[-1]
-        yUpperCoilsBoundary = self.yIndexesUpperSlot[-1]
-        yLowerCoilsBoundary = self.yIndexesLowerSlot[-1]
-        yAirBoundary = self.yIndexesAirgap[-1]
-        yBladeBoundary = self.yIndexesBladeRotor[-1]
-        yBackIronBoundary = self.yIndexesBackIron[-1]
-        yVac2Boundary = self.yIndexesVacUpper[-1]
-
-        yBoundaryList = [yVac1Boundary, yYokeBoundary, yUpperCoilsBoundary, yLowerCoilsBoundary, yAirBoundary, yBladeBoundary, yBackIronBoundary, yVac2Boundary]
-        if self.invertY:
-            centerList = yBoundaryList[1:-1]
-            centerList.reverse()
-            yBoundaryList = [yBoundaryList[0]] + centerList + [yBoundaryList[-1]]
+        self.xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1],
+                              self.toothArray[self.ppLeftEndTooth - 1]] + self.coilArray[self.ppSlot - 1::self.ppSlot] + self.toothArray[self.ppLeftEndTooth + self.ppTooth - 1:-self.ppRightEndTooth:self.ppTooth] + [self.toothArray[-1],
+                              self.bufferArray[-1]]
 
         a, b = 0, 0
         c, d = 0, 0
@@ -349,7 +347,7 @@ class Grid(LimMotor):
                 else:
                     xCnt += delX
 
-                if b in xBoundaryList:
+                if b in self.xBoundaryList:
                     c += 1
 
                 b += 1
@@ -364,7 +362,7 @@ class Grid(LimMotor):
             else:
                 yCnt += delY
 
-            if a in yBoundaryList:
+            if a in self.yBoundaryList:
                 d += 1
 
             b = 0
@@ -604,20 +602,28 @@ class Grid(LimMotor):
                 hmType = self.hmRegions[key]
                 regDict[hmType] = {'pp': config.get('PP', hmType),
                                    'bc': config.get('BC', hmType),
-                                   'idx': config.get('Y_IDX', hmType)}
+                                   'idx': config.get('Y_IDX', hmType),
+                                   'spatial': config.get('SPATIAL', hmType)}
 
             elif key in self.mecRegions:
                 mecType = self.mecRegions[key]
                 regDict[mecType] = {'pp': config.get('PP', mecType),
                                     'bc': config.get('BC', mecType),
-                                    'idx': config.get('Y_IDX', mecType)}
+                                    'idx': config.get('Y_IDX', mecType),
+                                    'spatial': config.get('SPATIAL', mecType)}
 
                 if self.invertY:
                     for each in regDict[mecType]:
                         if each != 'bc':
+                            stringList = ''
                             temp = regDict[mecType][each].split(', ')
                             temp.reverse()
-                            regDict[mecType][each] = [a for a in temp]
+                            for cnt, string in enumerate(temp):
+                                if cnt == 0:
+                                    stringList += string
+                                else:
+                                    stringList += f', {string}'
+                            regDict[mecType][each] = stringList
 
             else:
                 self.writeErrorToDict(key='name',

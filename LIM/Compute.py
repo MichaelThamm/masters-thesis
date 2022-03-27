@@ -105,7 +105,7 @@ class Model(Grid):
     # TODO We can comment these out for computation efficiency since the bn term is getting removed entirely and
     #  the an term is getting 0 always which matrix A is initialized as np.zeros()
     # ___Boundary Condition Methods___ #
-    def __dirichlet(self, regCountOffset, yBoundary):
+    def dirichlet(self, regCountOffset, yBoundary):
         # Eqn 22 in Aleksandrov2018 states that at y = -inf: bn = 0 and the coefficient for an = 0
         # bn can be taken out of the matrix eqn because it is solved.
         if yBoundary == '-inf':
@@ -125,7 +125,7 @@ class Model(Grid):
         self.nLoop += 1
         self.matBCount += 1
 
-    def __hmHm(self, nHM, listBCInfo, RegCountOffset1, RegCountOffset2):
+    def hmHm(self, nHM, listBCInfo, RegCountOffset1, RegCountOffset2):
 
         hb1, ur1, urSigma1, _, ur2, urSigma2 = listBCInfo
 
@@ -153,7 +153,7 @@ class Model(Grid):
         self.nLoop += 2
         self.matBCount += 2
 
-    def __mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper):
+    def mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper):
         hb, ur, urSigma = listBCInfo
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
@@ -227,8 +227,8 @@ class Model(Grid):
         self.nLoop += 1
         self.matBCount += 1
 
-    def __mec(self, i, j, node, time_plex, listBCInfo,
-              hmRegCountOffset1, hmRegCountOffset2, mecRegCountOffset):
+    def mec(self, i, j, node, time_plex, listBCInfo,
+            hmRegCountOffset1, hmRegCountOffset2, mecRegCountOffset):
 
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
 
@@ -669,7 +669,34 @@ class Model(Grid):
         [reg1Count, reg3Count, reg4Count, reg5Count, reg6Count, lenUnknowns] = self.hmRegionsIndex
         [reg2Count] = self.mecRegionsIndex
 
-        fullRegionDict = self.getFullRegionDict()
+        cnt, mecCnt = 0, 0
+        iY1, iY2 = self.yBoundaryList[0], self.yBoundaryList[1]
+        for region in self.getFullRegionDict():
+            for bc in self.getFullRegionDict()[region]['bc'].split(', '):
+                # Loop through harmonics and calculate each boundary condition
+                if bc == 'dirichlet':
+                    params = {'regCountOffset': self.hmRegionsIndex[cnt],
+                              'yBoundary': '-inf' if region == 'vac_lower' else 'inf'}
+
+                elif bc == 'hmHm':
+                    params = {'nHM': nHM, 'listBCInfo': self.__boundaryInfo(iY1+1, None, 'hmHM'),
+                              'RegCountOffset1': self.hmRegionsIndex[cnt],
+                              'RegCountOffset2': self.hmRegionsIndex[cnt+1]}
+                    cnt += 1
+
+                elif bc == 'mecHm':
+                    # TODO Maybe iY1 should come from self.yIndexesMEC[0]
+                    params = {'nHM': nHM, 'iY': iY1,
+                              'listBCInfo': self.__boundaryInfo(iY1+1, None, 'hmHM'),
+                              'hmRegCountOffset': self.hmRegionsIndex[cnt], 'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
+                              'removed_an': False, 'removed_bn': False, 'lowerUpper': False}
+
+                for nHM in self.n:
+                    getattr(self, bc)(**params)
+
+                if cnt != 0:
+                    iY1 = iY2
+                    iY2 = self.yBoundaryList[cnt+1]
 
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
 
@@ -682,7 +709,7 @@ class Model(Grid):
 
         # -----------Boundary 1 --> Vac1 Bottom [Dirichlet]-----------
         for _ in self.n:
-            self.__dirichlet(regCountOffset=reg1Count, yBoundary='-inf')
+            self.dirichlet(regCountOffset=reg1Count, yBoundary='-inf')
 
         # -----------Boundary 2 --> MEC Bottom [MEC-HM]-----------
         iY1 = self.yIndexesMEC[0]
@@ -691,9 +718,9 @@ class Model(Grid):
         self.__setCurrColCount(0)
         # TODO We can try to cache these kind of functions for speed
         for nHM in self.n:
-            self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg1Count, mecRegCountOffset=reg2Count,
-                         removed_an=False, removed_bn=True, lowerUpper='lower')
+            self.mecHm(nHM, iY1, bcInfo,
+                       hmRegCountOffset=reg1Count, mecRegCountOffset=reg2Count,
+                       removed_an=False, removed_bn=True, lowerUpper='lower')
 
         # -----------KCL EQUATIONS [MEC]-----------
         iY1 = self.yIndexesMEC[0]
@@ -705,10 +732,10 @@ class Model(Grid):
         while i < iY2 + 1:
             while j < self.ppL:
                 # TODO We can try to cache these kind of functions for speed
-                self.__mec(i, j, node, time_plex, bcInfo,
-                           hmRegCountOffset1=reg1Count,
-                           hmRegCountOffset2=reg3Count,
-                           mecRegCountOffset=reg2Count)
+                self.mec(i, j, node, time_plex, bcInfo,
+                         hmRegCountOffset1=reg1Count,
+                         hmRegCountOffset2=reg3Count,
+                         mecRegCountOffset=reg2Count)
 
                 node += 1
                 j += 1
@@ -725,9 +752,9 @@ class Model(Grid):
         self.__setCurrColCount(0)
         for nHM in self.n:
             # TODO We can try to cache these kind of functions for speed
-            self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg3Count, mecRegCountOffset=reg2Count,
-                         removed_an=False, removed_bn=False, lowerUpper='upper')
+            self.mecHm(nHM, iY1, bcInfo,
+                       hmRegCountOffset=reg3Count, mecRegCountOffset=reg2Count,
+                       removed_an=False, removed_bn=False, lowerUpper='upper')
 
         # -----------Boundary 4 --> BladeRotor Bottom [HM-HM]-----------
         iY1 = self.yIndexesBladeRotor[0]
@@ -736,7 +763,7 @@ class Model(Grid):
         self.__setCurrColCount(0)
         for nHM in self.n:
             # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg3Count, reg4Count)
+            self.hmHm(nHM, bcInfo, reg3Count, reg4Count)
 
         # -----------Boundary 5 --> BackIron Bottom [HM-HM]-----------
         iY1 = self.yIndexesBackIron[0]
@@ -745,7 +772,7 @@ class Model(Grid):
         self.__setCurrColCount(0)
         for nHM in self.n:
             # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg4Count, reg5Count)
+            self.hmHm(nHM, bcInfo, reg4Count, reg5Count)
 
         # -----------Boundary 6 --> Vac2 Bottom [HM-HM]-----------
         iY1 = self.yIndexesVacUpper[0]
@@ -754,12 +781,12 @@ class Model(Grid):
         self.__setCurrColCount(0)
         for nHM in self.n:
             # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg5Count, reg6Count)
+            self.hmHm(nHM, bcInfo, reg5Count, reg6Count)
 
         # -----------Boundary 7 --> Vac2 Top-----------
         self.__setCurrColCount(0)
         for _ in self.n:
-            self.__dirichlet(regCountOffset=reg6Count, yBoundary='inf')
+            self.dirichlet(regCountOffset=reg6Count, yBoundary='inf')
 
         # Remove N equations and N coefficients at the Dirichlet boundaries that are solved in HAM_2015
         rowRemoveIdx = np.array(list(range(len(self.n))) + list(range(lenUnknowns - len(self.n), lenUnknowns)))

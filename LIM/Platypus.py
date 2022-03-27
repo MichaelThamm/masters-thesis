@@ -293,10 +293,8 @@ def main():
                                    {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
                                    mecRegions=
                                    {5: 'core'},
-                                   # {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
-                                   # mecRegions=
-                                   # {2: 'core'},
                                    errorTolerance=1e-15,
+                                   # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
                                    invertY=False)
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
