@@ -461,7 +461,7 @@ class Model(Grid):
 
             return [hb1, urSigma1, hb2, urSigma2]
 
-        elif boundaryType == 'hmHM' and not iY2:
+        elif boundaryType == 'hmHm' and not iY2:
             hb1 = self.matrix[iY1, 0].y
             ur1 = self.matrix[iY1 - 1, 0].ur
             sigma1 = self.matrix[iY1 - 1, 0].sigma
@@ -472,7 +472,7 @@ class Model(Grid):
 
             return [hb1, ur1, urSigma1, None, ur2, urSigma2]
 
-        elif boundaryType == 'hmMEC' and not iY2:
+        elif boundaryType == 'hmMec' and not iY2:
             hb = self.matrix[iY1, 0].y
             ur = self.matrix[iY1 - 1, 0].ur
             sigma = self.matrix[iY1 - 1, 0].sigma
@@ -480,7 +480,7 @@ class Model(Grid):
 
             return [hb, ur, urSigma]
 
-        elif boundaryType == 'mecHM' and not iY2:
+        elif boundaryType == 'mecHm' and not iY2:
             hb = self.matrix[iY1 + 1, 0].y
             ur = self.matrix[iY1 + 1, 0].ur
             sigma = self.matrix[iY1 + 1, 0].sigma
@@ -669,8 +669,11 @@ class Model(Grid):
         [reg1Count, reg3Count, reg4Count, reg5Count, reg6Count, lenUnknowns] = self.hmRegionsIndex
         [reg2Count] = self.mecRegionsIndex
 
+        time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
+
+        hmMec = True
         cnt, mecCnt = 0, 0
-        iY1, iY2 = self.yBoundaryList[0], self.yBoundaryList[1]
+        iY1, iY2 = self.yBoundaryList[0] + 1, self.yBoundaryList[1]
         for region in self.getFullRegionDict():
             for bc in self.getFullRegionDict()[region]['bc'].split(', '):
                 # Loop through harmonics and calculate each boundary condition
@@ -679,26 +682,49 @@ class Model(Grid):
                               'yBoundary': '-inf' if region == 'vac_lower' else 'inf'}
 
                 elif bc == 'hmHm':
-                    params = {'nHM': nHM, 'listBCInfo': self.__boundaryInfo(iY1+1, None, 'hmHM'),
+                    params = {'nHM': nHM, 'listBCInfo': self.__boundaryInfo(iY1, None, bc),
                               'RegCountOffset1': self.hmRegionsIndex[cnt],
                               'RegCountOffset2': self.hmRegionsIndex[cnt+1]}
                     cnt += 1
 
                 elif bc == 'mecHm':
-                    # TODO Maybe iY1 should come from self.yIndexesMEC[0]
                     params = {'nHM': nHM, 'iY': iY1,
-                              'listBCInfo': self.__boundaryInfo(iY1+1, None, 'hmHM'),
-                              'hmRegCountOffset': self.hmRegionsIndex[cnt], 'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
-                              'removed_an': False, 'removed_bn': False, 'lowerUpper': False}
+                              'listBCInfo': self.__boundaryInfo(iY1, None, 'hmMec' if hmMec else bc),
+                              'hmRegCountOffset': self.hmRegionsIndex[cnt],
+                              'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
+                              'removed_an': False, 'removed_bn': False, 'lowerUpper': 'lower' if hmMec else 'upper'}
+                    hmMec = not hmMec
+
+                elif bc == 'mec':
+                    node = 0
+                    i, j = iY1, 0
+                    while i < iY2 + 1:
+                        while j < self.ppL:
+                            # TODO We can try to cache these kind of functions for speed
+                            self.mec(i, j, node, time_plex, bcInfo,
+                                     hmRegCountOffset1=reg1Count,
+                                     hmRegCountOffset2=reg3Count,
+                                     mecRegCountOffset=reg2Count)
+                            params = {'i': i, 'j': j,
+                                      'time_plex': time_plex,
+                                      'listBCInfo': self.__boundaryInfo(iY1, iY2, bc),
+                                      'hmRegCountOffset1': self.hmRegionsIndex[cnt],
+                                      'hmRegCountOffset2': self.hmRegionsIndex[cnt],
+                                      'mecRegCountOffset': self.mecRegionsIndex[mecCnt]}
+
+                            getattr(self, bc)(**params)
+
+                            node += 1
+                            j += 1
+                        j = 0
+                        i += 1
 
                 for nHM in self.n:
                     getattr(self, bc)(**params)
 
                 if cnt != 0:
                     iY1 = iY2
-                    iY2 = self.yBoundaryList[cnt+1]
-
-        time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
+                    iY2 = self.yBoundaryList[cnt+1] + 1
 
         print('Asize: ', self.matrixA.shape, self.matrixA.size)
         print('Bsize: ', self.matrixB.shape)
