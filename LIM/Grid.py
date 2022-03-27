@@ -614,16 +614,15 @@ class Grid(LimMotor):
 
                 if self.invertY:
                     for each in regDict[mecType]:
-                        if each != 'bc':
-                            stringList = ''
-                            temp = regDict[mecType][each].split(', ')
-                            temp.reverse()
-                            for cnt, string in enumerate(temp):
-                                if cnt == 0:
-                                    stringList += string
-                                else:
-                                    stringList += f', {string}'
-                            regDict[mecType][each] = stringList
+                        stringList = ''
+                        temp = regDict[mecType][each].split(', ')
+                        temp.reverse()
+                        for cnt, string in enumerate(temp):
+                            if cnt == 0:
+                                stringList += string
+                            else:
+                                stringList += f', {string}'
+                        regDict[mecType][each] = stringList
 
             else:
                 self.writeErrorToDict(key='name',
@@ -631,6 +630,12 @@ class Grid(LimMotor):
                                                                    description='ERROR - The input regions overlap between mec and hm',
                                                                    cause=True))
         return regDict
+
+    def getLastAndNextRegionName(self, name):
+        previous = list(self.getFullRegionDict())[list(self.getFullRegionDict()).index(name)-1]
+        next_ = list(self.getFullRegionDict())[list(self.getFullRegionDict()).index(name)+1]
+
+        return previous, next_
 
     # This function is written to catch any errors in the mapping between canvas and space for both x and y coordinates
     def checkSpatialMapping(self, pixelDivision, spatialDomainFlag, iIdxs):

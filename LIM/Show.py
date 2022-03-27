@@ -249,10 +249,6 @@ def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatri
             j = 0
             i += 1
 
-        # IDGAF We are fixing this axis issue to avoid errors in the future
-        # TODO Start with identifying the difference between invertingY and manually inverting
-        #  Then move to model.matrix row index containing what region
-        #  model.matrix row y, ly, yCenter position
         cGrid.canvas.scale("all", 0, 0, 1, invertCoeff)
         cGrid.canvas.configure(scrollregion=cGrid.canvas.bbox("all"))
         cGrid.root.mainloop()
