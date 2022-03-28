@@ -37,8 +37,7 @@ class Model(Grid):
 
         self.hmUnknownsList = {i: Region.buildFromScratch(index=i, type=self.hmRegions[i], an=np.zeros(len(self.n)), bn=np.zeros(len(self.n))) for i in self.hmRegions}
 
-        # HM and MEC unknown indexes in matrix A, used for visualization
-        # TODO I could make these lists more robust
+        # HM and MEC unknown indexes in matrix A and B, used for visualization
         indexRowVal, indexColVal = 0, 0
         self.canvasRowRegIdxs = []
         self.canvasColRegIdxs = []
@@ -62,7 +61,6 @@ class Model(Grid):
                     self.canvasRowRegIdxs.append(indexRowVal)
 
             self.canvasColRegIdxs.append(indexColVal)
-
         self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppHeight)]
 
         self.mecIdxs = list(itertools.chain.from_iterable([list(range(i, i + self.mecRegionLength)) for i in self.mecRegionsIndex]))
@@ -763,103 +761,20 @@ class Model(Grid):
                         getattr(self, bc)(**params)
 
                     # This conditional sets all the indices for the loop
-                    if bc != 'mec':
-                        # currColCount is reset in mec method, all other cases are handled here
-                        self.__setCurrColCount(0)
-                        if bc != 'mecHm' or (bc == 'mecHm' and hmMec):
-                            # Increment cnt for all hmHm boundaries
-                            if bc == 'hmHm':
-                                cnt += 1
-                            # Increment mecCnt only if leaving the mec region
-                            if bc == 'mecHm' and hmMec:
-                                mecCnt += 1
-                            iY1 = nextY1
-                            nextY1 = yBoundaryIncludeMec[cnt+1] + 1
+                    self.__setCurrColCount(0)
+                    if bc != 'mecHm' or (bc == 'mecHm' and hmMec):
+                        # Increment cnt for all hmHm boundaries
+                        if bc == 'hmHm':
+                            cnt += 1
+                        # Increment mecCnt only if leaving the mec region
+                        if bc == 'mecHm' and hmMec:
+                            mecCnt += 1
+                        iY1 = nextY1
+                        nextY1 = yBoundaryIncludeMec[cnt+1] + 1
 
         print('Asize: ', self.matrixA.shape, self.matrixA.size)
         print('Bsize: ', self.matrixB.shape)
         print('(ppH, ppL, mecRegionLength)', f'({self.ppH}, {self.ppL}, {self.mecRegionLength})')
-
-        # # -----------Boundary 1 --> Vac1 Bottom [Dirichlet]-----------
-        # for _ in self.n:
-        #     self.dirichlet(regCountOffset=reg1Count, yBoundary='-inf')
-        #
-        # # -----------Boundary 2 --> MEC Bottom [MEC-HM]-----------
-        # iY1 = self.yIndexesMEC[0]
-        # iY2 = None
-        # bcInfo = self.__boundaryInfo(iY1, iY2, 'hmMEC')
-        # self.__setCurrColCount(0)
-        # # TODO We can try to cache these kind of functions for speed
-        # for nHM in self.n:
-        #     self.mecHm(nHM, iY1, bcInfo,
-        #                hmRegCountOffset=reg1Count, mecRegCountOffset=reg2Count,
-        #                removed_an=False, removed_bn=True, lowerUpper='lower')
-        #
-        # # -----------KCL EQUATIONS [MEC]-----------
-        # iY1 = self.yIndexesMEC[0]
-        # iY2 = self.yIndexesMEC[-1]
-        # bcInfo = self.__boundaryInfo(iY1, iY2, 'mec')
-        #
-        # node = 0
-        # i, j = iY1, 0
-        # while i < iY2 + 1:
-        #     while j < self.ppL:
-        #         # TODO We can try to cache these kind of functions for speed
-        #         self.mec(i, j, node, time_plex, bcInfo,
-        #                  hmRegCountOffset1=reg1Count,
-        #                  hmRegCountOffset2=reg3Count,
-        #                  mecRegCountOffset=reg2Count)
-        #
-        #         node += 1
-        #         j += 1
-        #     j = 0
-        #     i += 1
-        #
-        # self.nLoop += node
-        # self.matBCount += node
-        #
-        # # -----------Boundary 3 --> MEC Top [MEC-HM]-----------
-        # iY1 = self.yIndexesMEC[-1]
-        # iY2 = None
-        # bcInfo = self.__boundaryInfo(iY1, iY2, 'mecHM')
-        # self.__setCurrColCount(0)
-        # for nHM in self.n:
-        #     # TODO We can try to cache these kind of functions for speed
-        #     self.mecHm(nHM, iY1, bcInfo,
-        #                hmRegCountOffset=reg3Count, mecRegCountOffset=reg2Count,
-        #                removed_an=False, removed_bn=False, lowerUpper='upper')
-        #
-        # # -----------Boundary 4 --> BladeRotor Bottom [HM-HM]-----------
-        # iY1 = self.yIndexesBladeRotor[0]
-        # iY2 = None
-        # bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        # self.__setCurrColCount(0)
-        # for nHM in self.n:
-        #     # TODO We can try to cache these kind of functions for speed
-        #     self.hmHm(nHM, bcInfo, reg3Count, reg4Count)
-        #
-        # # -----------Boundary 5 --> BackIron Bottom [HM-HM]-----------
-        # iY1 = self.yIndexesBackIron[0]
-        # iY2 = None
-        # bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        # self.__setCurrColCount(0)
-        # for nHM in self.n:
-        #     # TODO We can try to cache these kind of functions for speed
-        #     self.hmHm(nHM, bcInfo, reg4Count, reg5Count)
-        #
-        # # -----------Boundary 6 --> Vac2 Bottom [HM-HM]-----------
-        # iY1 = self.yIndexesVacUpper[0]
-        # iY2 = None
-        # bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        # self.__setCurrColCount(0)
-        # for nHM in self.n:
-        #     # TODO We can try to cache these kind of functions for speed
-        #     self.hmHm(nHM, bcInfo, reg5Count, reg6Count)
-        #
-        # # -----------Boundary 7 --> Vac2 Top-----------
-        # self.__setCurrColCount(0)
-        # for _ in self.n:
-        #     self.dirichlet(regCountOffset=reg6Count, yBoundary='inf')
 
         # Remove N equations and N coefficients at the Dirichlet boundaries that are solved in HAM_2015
         rowRemoveIdx = np.array(list(range(len(self.n))) + list(range(lenUnknowns - len(self.n), lenUnknowns)))
