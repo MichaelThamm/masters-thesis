@@ -87,7 +87,7 @@ def combineFilterList(pixelsPer, unfilteredRows, unfilteredRowCols):
     return oFilteredRows, oFilteredRowCols
 
 
-def genCanvasMatrix(matrix, pixelSize, canvasRowRegions, bShowA=False, bShowB=False):
+def genCanvasMatrix(matrix, canvasRowRegions, bShowA=False, bShowB=False):
 
     colourSet = ['#DAF7A6', '#FFC300', '#FF5733', '#C70039', '#900C3F', '#581845']
     colourMem = 'orange'
@@ -97,7 +97,7 @@ def genCanvasMatrix(matrix, pixelSize, canvasRowRegions, bShowA=False, bShowB=Fa
     for i in range(len(matrix)):
 
         oY_old = oY_new
-        oY_new = oY_old + pixelSize
+        oY_new = oY_old + 1
         oX_new = 0
 
         if i in canvasRowRegions:
@@ -108,7 +108,7 @@ def genCanvasMatrix(matrix, pixelSize, canvasRowRegions, bShowA=False, bShowB=Fa
             # If iMatrix is 2D
             for j in range(len(matrix[i])):
                 oX_old = oX_new
-                oX_new = oX_old + pixelSize
+                oX_new = oX_old + 1
 
                 if matrix[i, j] == 0:
                     oFillColour = 'empty'
@@ -122,7 +122,7 @@ def genCanvasMatrix(matrix, pixelSize, canvasRowRegions, bShowA=False, bShowB=Fa
 
             # If iMatrix is 1D
             oX_old = 0
-            oX_new = pixelSize * 10
+            oX_new = 10
 
             if matrix[i] == 0:
                 oFillColour = 'empty'
@@ -133,7 +133,7 @@ def genCanvasMatrix(matrix, pixelSize, canvasRowRegions, bShowA=False, bShowB=Fa
             yield oX_old, oY_old, oX_new, oY_new, oFillColour
 
 
-def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
+def visualizeMatrix(dims, model, ogModel, bShowA=False, bShowB=False):
 
     if bShowA and bShowB:
         print('Please init visualizeMatrix function for matrix A and B separately')
@@ -143,79 +143,41 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
         print('Neither A or B matrix was chosen to be visualized')
         return
 
-    zoomFactor = 5
-
-    matrixGrid = Tk()
-    matrixGrid.title('Matrix Visualization')
-    frame = Frame(matrixGrid, height=dims[0] // 2, width=dims[1] // 2)
-    frame.pack(expand=True, fill=BOTH)
-    mGrid = Canvas(frame, height=dims[0] // 2, width=dims[1] // 2, bg='gray30', highlightthickness=0,
-                   scrollregion=(0, 0, int(dims[1] * 2 * zoomFactor), int(dims[0] * 2 * zoomFactor)))
-
-    hbar = Scrollbar(frame, orient=HORIZONTAL)
-    hbar.pack(side=BOTTOM, fill=X)
-    hbar.config(command=mGrid.xview)
-    vbar = Scrollbar(frame, orient=VERTICAL)
-    vbar.pack(side=RIGHT, fill=Y)
-    vbar.config(command=mGrid.yview)
-
-    mGrid.config(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
-
+    lineLength = len(ogModel.matrixA)
+    cMat = CanvasInFrame(height=dims[0]//2, width=dims[1]//2, bg='gray30')
+    cMat.root.title('Matrix Visualization')
     if bShowA:
         # Grid row region lines
         for val in model.canvasRowRegIdxs:
-            mGrid.create_line(0, val * zoomFactor, dims[1] * zoomFactor, val * zoomFactor, fill='blue',
-                              dash=(4, 2))  # Horizontal Lines
+            cMat.canvas.create_line(0, val, lineLength, val, fill='blue',
+                                    dash=(4, 2))  # Horizontal Lines
 
         # Grid col region lines
         for val in model.canvasColRegIdxs:
-            mGrid.create_line(val * zoomFactor, 0, val * zoomFactor, dims[0] * zoomFactor, fill='blue',
-                              dash=(4, 2))  # Vertical Lines
+            cMat.canvas.create_line(val, 0, val, lineLength, fill='blue',
+                                    dash=(4, 2))  # Vertical Lines
 
         # Grid MEC-HM boundary region lines
         for val in model.mecCanvasRegIdxs:
-            mGrid.create_line(0, val * zoomFactor, dims[1] * zoomFactor, val * zoomFactor, fill='red',
-                              dash=(4, 2))  # Horizontal Lines
-            mGrid.create_line(val * zoomFactor, 0, val * zoomFactor, dims[1] * zoomFactor, fill='red',
-                              dash=(4, 2))  # Vertical Lines
+            cMat.canvas.create_line(0, val, lineLength, val, fill='red',
+                                    dash=(4, 2))  # Horizontal Lines
+            cMat.canvas.create_line(val, 0, val, lineLength, fill='red',
+                                    dash=(4, 2))  # Vertical Lines
 
-        matrixCanvasGenerator = genCanvasMatrix(model.matrixA, zoomFactor, model.canvasRowRegIdxs, bShowA=bShowA, bShowB=bShowB)
+        matrixCanvasGenerator = genCanvasMatrix(ogModel.matrixA, model.canvasRowRegIdxs, bShowA=bShowA, bShowB=bShowB)
 
     elif bShowB:
         # Grid row region lines
         for val in model.canvasRowRegIdxs:
-            mGrid.create_line(0, val * zoomFactor, dims[1] * zoomFactor, val * zoomFactor, fill='blue',
-                              dash=(4, 2))  # Horizontal Lines
+            cMat.canvas.create_line(0, val, dims[1]//2, val, fill='blue',
+                                    dash=(4, 2))  # Horizontal Lines
 
         # Grid MEC-HM boundary region lines
         for val in model.mecCanvasRegIdxs:
-            mGrid.create_line(0, val * zoomFactor, dims[1] * zoomFactor, val * zoomFactor, fill='red',
-                              dash=(4, 2))  # Horizontal Lines
+            cMat.canvas.create_line(0, val, dims[1]//2, val, fill='red',
+                                    dash=(4, 2))  # Horizontal Lines
 
-        constantOffset1 = model.mecCanvasRegIdxs[0] + model.ppL * (model.ppYoke - 1) + model.ppAirBuffer + model.ppLeftEndTooth + model.ppSlotpitch - 1
-        # TODO The green lines are dependant on the mesh size (ppSlot and ppTooth)
-        #  since the source is eastMMFNum / eastRelDenom - westMMFNum / westRelDenom this is what determines the B source
-        #  if I change the mesh density these green lines will not match up: different results for ppSlot and ppTooth
-        #  less than 3
-        constantOffset2 = constantOffset1 + 2  # This number should always be 2 if model.ppSlot > 2
-        constantOffset3 = constantOffset2 + (model.ppSlot - 2)
-        constantOffset4 = constantOffset3 + 4
-        yPos = zoomFactor * constantOffset1
-        mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
-                          dash=(4, 2))  # Horizontal Lines
-        yPos = zoomFactor * constantOffset2
-        mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
-                          dash=(4, 2))  # Horizontal Lines
-
-        yPos = zoomFactor * constantOffset3
-        mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
-                          dash=(4, 2))  # Horizontal Lines
-
-        yPos = zoomFactor * constantOffset4
-        mGrid.create_line(0, yPos, dims[1] * zoomFactor, yPos, fill='green',
-                          dash=(4, 2))  # Horizontal Lines
-
-        matrixCanvasGenerator = genCanvasMatrix(model.matrixB, zoomFactor, model.canvasRowRegIdxs, bShowA=bShowA, bShowB=bShowB)
+        matrixCanvasGenerator = genCanvasMatrix(ogModel.matrixB, model.canvasRowRegIdxs, bShowA=bShowA, bShowB=bShowB)
 
     else:
         matrixCanvasGenerator = None
@@ -226,13 +188,13 @@ def visualizeMatrix(dims, model, bShowA=False, bShowB=False):
         if fillColour == 'empty':
             pass
         else:
-            mGrid.create_rectangle(x_old, y_old, x_new, y_new, width=0, fill=fillColour)
+            cMat.canvas.create_rectangle(x_old, y_old, x_new, y_new, width=0, fill=fillColour)
 
-    mGrid.pack(side=LEFT, expand=True, fill=BOTH)
-    mGrid.mainloop()
+    cMat.pack(side=LEFT, expand=True, fill=BOTH)
+    cMat.mainloop()
 
 
-def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims, invertY):
+def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims, invertY):
 
     invertCoeff = -1 if invertY else 1
 
@@ -367,6 +329,6 @@ def showModel(jsonObject, fieldType, showGrid, showFields, showFilter, showMatri
         cFields.root.mainloop()
 
     if showMatrix:
-        visualizeMatrix(dims, jsonObject.rebuiltModel, bShowA=True)
-        visualizeMatrix(dims, jsonObject.rebuiltModel, bShowB=True)
+        visualizeMatrix(dims, jsonObject.rebuiltModel, ogModel, bShowA=True)
+        visualizeMatrix(dims, jsonObject.rebuiltModel, ogModel, bShowB=True)
 

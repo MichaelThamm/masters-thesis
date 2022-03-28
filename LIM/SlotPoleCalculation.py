@@ -65,6 +65,7 @@ class LimMotor(object):
         self.endTeeth = (self.L - ((self.slots - 1) * self.slotpitch + self.ws))/2  # meters
         # self.Tper = 12 * (self.slotpitch*3)  # meters
         self.Tper = 0.525  # meters
+        self.windingShift = 2
 
         self.Airbuffer = (self.Tper - self.L)/2  # meters
         self.hy = 6.5/1000  # meters
@@ -261,8 +262,6 @@ def rebuildPlex(val):
 pi = math.pi
 j_plex = complex(0, 1)
 uo = (10 ** - 7)*4*pi
-config = configparser.ConfigParser()
-config.read('Properties.ini')
 
 # All Currents are in Amps and All cross sectional areas are in mm^2
 # It is important to note that the cross sectional area is just for the bare copper and does not account for the insulation thickness

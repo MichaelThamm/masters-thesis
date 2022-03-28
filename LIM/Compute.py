@@ -39,13 +39,31 @@ class Model(Grid):
 
         # HM and MEC unknown indexes in matrix A, used for visualization
         # TODO I could make these lists more robust
-        # self.canvasRowRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-        #                                self.mecRegionLength + 2 * len(self.n), self.mecRegionLength + 4 * len(self.n),
-        #                                self.mecRegionLength + 6 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-        # self.canvasColRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-        #                                self.mecRegionLength + 3 * len(self.n), self.mecRegionLength + 5 * len(self.n),
-        #                                self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-        # self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
+        indexRowVal, indexColVal = 0, 0
+        self.canvasRowRegIdxs = []
+        self.canvasColRegIdxs = []
+        for region in self.getFullRegionDict():
+            if region != 'core' and region.split('_')[0] != 'vac':
+                indexColVal += 2 * len(self.n)
+                indexRowVal += 2 * len(self.n)
+                self.canvasRowRegIdxs.append(indexRowVal)
+
+            elif region.split('_')[0] == 'vac':
+                indexColVal += len(self.n)
+
+            elif region == 'core':
+                indexColVal += self.mecRegionLength
+                for bc in self.getFullRegionDict()[region]['bc'].split(', '):
+                    if bc == 'mecHm':
+                        indexRowVal += len(self.n)
+                    elif bc == 'mec':
+                        indexRowVal += self.mecRegionLength
+
+                    self.canvasRowRegIdxs.append(indexRowVal)
+
+            self.canvasColRegIdxs.append(indexColVal)
+
+        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppHeight)]
 
         self.mecIdxs = list(itertools.chain.from_iterable([list(range(i, i + self.mecRegionLength)) for i in self.mecRegionsIndex]))
         self.hmIdxs = [i for i in range(len(self.matrixX)) if i not in self.mecIdxs]
@@ -634,15 +652,13 @@ class Model(Grid):
             print('neither even nor odd was chosen')
             return
 
-        # TODO This inverts the y axis for the plot
-        # bxInvertYaxis = np.flip(yBxList)
-        # byInvertYaxis = np.flip(yByList)
-        # dataArray[1] = bxInvertYaxis
-        # dataArray[2] = byInvertYaxis
-
         dataArray[1] = yBxList
         dataArray[2] = yByList
         dataArray[3] = yB_List
+
+        # TODO This inverts the y axis for the plot
+        dataArray[1] = np.flip(yBxList)
+        dataArray[2] = np.flip(yByList)
 
         xSorted = np.array([i.real for i in dataArray[0]], dtype=np.float64)
 
@@ -654,6 +670,9 @@ class Model(Grid):
         plt.xlabel('Position [m]')
         plt.ylabel('Bx [T]')
         plt.title('Bx field in airgap')
+        # ax = plt.gca()
+        # ax.set_ylim(ax.get_ylim()[::-1])
+        # ax.invert_yaxis()
         plt.show()
 
         tempReal = np.array([j.real for j in dataArray[2]], dtype=np.float64)
@@ -662,6 +681,9 @@ class Model(Grid):
         plt.xlabel('Position [m]')
         plt.ylabel('By [T]')
         plt.title('By field in airgap')
+        # ax = plt.gca()
+        # ax.set_ylim(ax.get_ylim()[::-1])
+        # ax.invert_yaxis()
         plt.show()
 
     def __buildMatAB(self):
@@ -842,7 +864,9 @@ class Model(Grid):
         # Remove N equations and N coefficients at the Dirichlet boundaries that are solved in HAM_2015
         rowRemoveIdx = np.array(list(range(len(self.n))) + list(range(lenUnknowns - len(self.n), lenUnknowns)))
         # print('removeRowsIdx', rowRemoveIdx)
-        colRemoveIdx = np.array(list(range(self.hmRegionsIndex[0] + 1, self.hmRegionsIndex[1] + 1, 2)) + list(range(self.hmRegionsIndex[-2], lenUnknowns, 2)))
+        anList = list(range(lenUnknowns - 2*len(self.n), lenUnknowns, 2))
+        bnList = list(range(self.hmRegionsIndex[0] + 1, self.hmRegionsIndex[0] + 2*len(self.n) + 1, 2))
+        colRemoveIdx = np.array(bnList + anList)
         # print('removeColsIdx', colRemoveIdx)
 
         self.__checkForErrors()
@@ -1157,9 +1181,11 @@ def complexFourierTransform(model_in, harmonics_in):
     y1 = vfun(x)
     # vfun = np.vectorize(fourierSeries)
     # y2 = vfun(x)
-    #
     # plt.plot(x, y1, 'b-')
     # plt.plot(x, y2, 'r-')
+    # TODO 'Be aware that you have to set the axis limits before you invert the axis, otherwise it will un-invert it again.'
+    # TODO Test the inversion
+    # plt.gca().invert_yaxis()
     # plt.xlabel('Position [m]')
     # plt.ylabel('Bx [T]')
     # plt.title('Bx field at airgap Boundary')
@@ -1206,6 +1232,8 @@ def plotFourierError():
     for idx, ((pixelDivisions, ppL, ppH), (xSequence, ySequence)) in enumerate(modelList):
         plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
 
+    'Be aware that you have to set the axis limits before you invert the axis, otherwise it will un-invert it again.'
+    plt.gca().invert_yaxis()
     plt.legend()
     plt.show()
 

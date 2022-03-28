@@ -285,17 +285,26 @@ def main():
     pixelSpacing = slotpitch/pixelDivisions
     canvasSpacing = 80
 
+    regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
+                  'mecRegions': {5: 'core'},
+                  'invertY': False}
+    regionCfg2 = {'hmRegions': {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
+                  'mecRegions': {2: 'core'},
+                  'invertY': True}
+
+    choiceRegionCfg = regionCfg1
+
     # Object for the model design, grid, and matrices
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
                                    pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                    meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
                                    hmRegions=
-                                   {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
+                                   choiceRegionCfg['hmRegions'],
                                    mecRegions=
-                                   {5: 'core'},
+                                   choiceRegionCfg['mecRegions'],
                                    errorTolerance=1e-15,
                                    # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                   invertY=False)
+                                   invertY=choiceRegionCfg['invertY'])
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
@@ -303,7 +312,7 @@ def main():
     with timing():
         errorInX = model.finalizeCompute()
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    model.updateGrid(errorInX, showAirgapPlot=False)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -312,8 +321,9 @@ def main():
     # TODO The or True is here for convenience but should be removed
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(encodeModel, fieldType='y',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
+        showModel(encodeModel, model, fieldType='y',
+                  showGrid=False, showFields=False, showFilter=False, showMatrix=True, showZeros=True,
                   numColours=20, dims=[1080, 1920], invertY=False)
         pass
     else:

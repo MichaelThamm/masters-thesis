@@ -132,7 +132,7 @@ class Grid(LimMotor):
         # Initialize the y-axis index attributes format: self.yIndexes___
         innerCnt = 0
         for region in self.getFullRegionDict():
-            for idx in config.get('Y_IDX', region).split(', '):
+            for idx in self.getFullRegionDict()[region]['idx'].split(', '):
                 self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
                 self.yBoundaryList.append(self.__dict__[idx][-1])
                 if region in self.hmRegions.values():
@@ -185,11 +185,10 @@ class Grid(LimMotor):
         intSlots = math.ceil(self.q)*self.poles*3
 
         # Split slots into respective phases
-        windingShift = 2
         temp_upper_slotArray = self.coilArray
         upper_slotArray = temp_upper_slotArray + [None] * self.ppSlot * (intSlots - self.slots)
         lower_slotArray = deque(upper_slotArray)
-        lower_slotArray.rotate(-windingShift*offset)
+        lower_slotArray.rotate(-self.windingShift*offset)
         lower_slotArray = list(lower_slotArray)
 
         upper_slotArrayA, upper_slotArrayB, upper_slotArrayC = [], [], []
@@ -596,6 +595,8 @@ class Grid(LimMotor):
                                                                    cause=True))
 
     def getFullRegionDict(self):
+        config = configparser.ConfigParser()
+        config.read('Properties.ini')
         regDict = {}
         for key in range(list(self.hmRegions.keys())[0], list(self.hmRegions.keys())[-1] + 1):
             if key in self.hmRegions:
@@ -611,7 +612,7 @@ class Grid(LimMotor):
                                     'bc': config.get('BC', mecType),
                                     'idx': config.get('Y_IDX', mecType),
                                     'spatial': config.get('SPATIAL', mecType)}
-
+                # We need to reverse the Properties.ini file
                 if self.invertY:
                     for each in regDict[mecType]:
                         stringList = ''
