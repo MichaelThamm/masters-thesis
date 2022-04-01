@@ -220,7 +220,7 @@ def profile_main():
 
 def main():
     # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = 5
+    pixelDivisions = 10
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -322,8 +322,8 @@ def main():
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='y',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        showModel(encodeModel, model, fieldType='Bx',
+                  showGrid=False, showFields=False, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=20, dims=[1080, 1920], invertY=False)
         pass
     else:

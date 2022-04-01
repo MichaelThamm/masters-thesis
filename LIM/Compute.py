@@ -686,6 +686,7 @@ class Model(Grid):
 
     def __buildMatAB(self):
 
+        # TODO I have a feeling that the issue happens here since I checked the code after this method completes
         lenUnknowns = self.hmRegionsIndex[-1]
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
 
@@ -990,8 +991,8 @@ class Model(Grid):
             evenOdd = 'odd'
             centerAirgap_y = self.matrix[centerAirgapIdx_y][0].yCenter
 
-        ur = self.matrix[self.yIndexesAirgap[0], 0].ur
-        sigma = self.matrix[self.yIndexesAirgap[0], 0].sigma
+        ur = self.matrix[centerAirgapIdx_y, 0].ur
+        sigma = self.matrix[centerAirgapIdx_y, 0].sigma
 
         resFx, resFy = np.cdouble(0), np.cdouble(0)
         thrustGenerator = self.__genForces(ur * sigma, centerAirgap_y)
