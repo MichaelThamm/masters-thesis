@@ -26,19 +26,22 @@ class Grid(LimMotor):
     inUpper_slotsC: ndarray
     outUpper_slotsC: ndarray
 
+    yIndexesBackIron, yIndexesBladeRotor, yIndexesAirgap = None, None, None
+    yIndexesLowerSlot, yIndexesUpperSlot, yIndexesYoke = None, None, None
+
+    removeLowerCoilIdxs, removeUpperCoilIdxs = [], []
+    xFirstEdgeNodes, xSecondEdgeNodes = [], []
+    yFirstEdgeNodes, ySecondEdgeNodes = [], []
+
+    yListPixelsPerRegion = []
+    yIndexesHM, yIndexesMEC = [], []
+    xBoundaryList, yBoundaryList = [], []
+
+    yMeshSizes = []
+
     def __init__(self, kwargs):
 
         super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'])
-
-        # These are initialized as None because they are written to in a loop later
-        self.yIndexesVacLower = None
-        self.yIndexesBackIron = None
-        self.yIndexesBladeRotor = None
-        self.yIndexesAirgap = None
-        self.yIndexesLowerSlot = None
-        self.yIndexesUpperSlot = None
-        self.yIndexesYoke = None
-        self.yIndexesVacUpper = None
 
         self.invertY = kwargs['invertY']
 
@@ -72,20 +75,17 @@ class Grid(LimMotor):
         if self.ppSlotHeight % 2 != 0:
             self.ppSlotHeight += 1
 
-        ppHM = self.ppAirGap + self.ppBladeRotor + self.ppBackIron + self.ppVac * 2
+        ppHM = self.ppAirGap + self.ppBladeRotor + self.ppBackIron
         self.ppHeight = self.ppYoke + self.ppSlotHeight
         self.ppH = self.ppHeight + ppHM
         self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + self.ppLeftEndTooth + self.ppRightEndTooth + 2 * self.ppAirBuffer
+        # TODO Here - Removed yIndexesVac since they will only be added to ShowModel
         self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppHeight + ppHM)])
 
         self.toothArray, self.coilArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
         self.removeLowerCoils, self.removeUpperCoils = np.zeros((2, 1), dtype=np.int16)
-        self.removeLowerCoilIdxs, self.removeUpperCoilIdxs = [], []
-        self.xFirstEdgeNodes, self.xSecondEdgeNodes = [], []
-        self.yFirstEdgeNodes, self.ySecondEdgeNodes = [], []
 
         self.xMeshSizes = np.zeros(len(xMeshIndexes), dtype=np.float64)
-        self.yMeshSizes = np.zeros(len(yMeshIndexes), dtype=np.float64)
 
         # Mesh sizing
         self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
@@ -103,46 +103,38 @@ class Grid(LimMotor):
                 print('negative x mesh sizes', Cnt)
                 return
 
-        self.yListPixelsPerRegion = []
-        cnt = 0
+        # TODO Here - I will remove anything to do with vac regions and pad them in ShowModel
         offsetList = []
-        offsetLower, offsetUpper = 0, self.__dict__[self.getFullRegionDict()['vac_lower']['pp']]
+        cnt, offsetLower, offsetUpper = 0, 0, 0
         str_ppSlotHeight = self.getFullRegionDict()['core']['pp'].split(', ')[1]
         for region in self.getFullRegionDict():
-            # Set up the y-axis indexes
-            for pp in self.getFullRegionDict()[region]['pp'].split(', '):
-                if region != 'vac_lower':
+            if region.split('_')[0] != 'vac':
+                # Set up the y-axis indexes
+                for pp in self.getFullRegionDict()[region]['pp'].split(', '):
                     offsetLower = offsetUpper
                     offsetUpper += self.__dict__[pp] // 2 if pp == str_ppSlotHeight else self.__dict__[pp]
-                offsetList.append((offsetLower, offsetUpper))
-            for inner_cnt, spatial in enumerate(self.getFullRegionDict()[region]['spatial'].split(', ')):
-                pixelKey = self.getFullRegionDict()[region]['pp'].split(', ')[inner_cnt]
-                pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == str_ppSlotHeight else self.__dict__[pixelKey]
-                spatialVal = self.__dict__[spatial] / 2 if pixelKey == str_ppSlotHeight else self.__dict__[spatial]
-                self.yListPixelsPerRegion.append(pixelVal)
-                self.yMeshSizes[cnt] = meshBoundary(spatialVal, pixelVal, self.Spacing, self.fractionSize,
-                                                    sum(yMeshIndexes[cnt]), self.meshDensity)
-                cnt += 1
-
-        self.yIndexesHM = []
-        self.yIndexesMEC = []
-        self.xBoundaryList = []
-        self.yBoundaryList = []
+                    offsetList.append((offsetLower, offsetUpper))
+                for inner_cnt, spatial in enumerate(self.getFullRegionDict()[region]['spatial'].split(', ')):
+                    pixelKey = self.getFullRegionDict()[region]['pp'].split(', ')[inner_cnt]
+                    pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == str_ppSlotHeight else self.__dict__[pixelKey]
+                    spatialVal = self.__dict__[spatial] / 2 if pixelKey == str_ppSlotHeight else self.__dict__[spatial]
+                    self.yListPixelsPerRegion.append(pixelVal)
+                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal, self.Spacing, self.fractionSize,
+                                                        sum(yMeshIndexes[cnt]), self.meshDensity))
+                    cnt += 1
 
         # Initialize the y-axis index attributes format: self.yIndexes___
         innerCnt = 0
         for region in self.getFullRegionDict():
-            for idx in self.getFullRegionDict()[region]['idx'].split(', '):
-                self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
-                self.yBoundaryList.append(self.__dict__[idx][-1])
-                if region in self.hmRegions.values():
-                    self.yIndexesHM.append(self.__dict__[idx])
-                elif region in self.mecRegions.values():
-                    self.yIndexesMEC.append(self.__dict__[idx])
-                innerCnt += 1
-
-        self.yIndexesHM = list(itertools.chain.from_iterable(self.yIndexesHM))
-        self.yIndexesMEC = list(itertools.chain.from_iterable(self.yIndexesMEC))
+            if region.split('_')[0] != 'vac':
+                for idx in self.getFullRegionDict()[region]['idx'].split(', '):
+                    self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
+                    self.yBoundaryList.append(self.__dict__[idx][-1])
+                    if region in self.hmRegions.values():
+                        self.yIndexesHM.extend(self.__dict__[idx])
+                    elif region in self.mecRegions.values():
+                        self.yIndexesMEC.extend(self.__dict__[idx])
+                    innerCnt += 1
 
         # Thrust of the entire integration region
         self.Fx = 0.0
@@ -153,27 +145,15 @@ class Grid(LimMotor):
         yMeshIndexes = meshIndexes[1]
 
         #  Initialize grid with Nodes
-        a, b = 0, 0
-        slotCount = 0
         listOffset = self.ppAirBuffer + self.ppLeftEndTooth
-        oldTooth, newTooth, oldSlot, newSlot = 0, listOffset, 0, 0
-        fullToothArray, slotArray = [], []
-        while a < self.ppH:
-            while b < self.ppL:
-                # Create indexes for slots and teeth
-                if slotCount < self.slots and listOffset < b < self.ppL-listOffset:
-                    oldSlot = newTooth
-                    newSlot = oldSlot + self.ppSlot
-                    oldTooth = newSlot
-                    newTooth = oldTooth + self.ppTooth
-                    if slotCount < self.slots - 1:
-                        fullToothArray += list(range(oldTooth, newTooth))
-                    slotCount += 1
-                else:
-                    pass
-                b += 1
-            b = 0
-            a += 1
+        oldTooth, newTooth, oldSlot, newSlot, slotCount = 0, listOffset, 0, 0, 0
+        fullToothArray = []
+        for slotCount in range(self.slots - 1):
+            oldSlot = newTooth
+            newSlot = oldSlot + self.ppSlot
+            oldTooth = newSlot
+            newTooth = oldTooth + self.ppTooth
+            fullToothArray += list(range(oldTooth, newTooth))
 
         leftEndTooth = list(range(self.ppAirBuffer, listOffset))
         rightEndTooth = list(range(fullToothArray[-1] + self.ppSlot + 1, fullToothArray[-1] + self.ppSlot + self.ppRightEndTooth + 1))
@@ -287,6 +267,7 @@ class Grid(LimMotor):
         Cnt = 0
         idxOffset = self.yListPixelsPerRegion[Cnt]
         idxLeft, idxRight = 0, idxOffset
+        # TODO Here - ppH and yMeshIndexes is not robust
         idxList = range(self.ppH)
         for boundary in yMeshIndexes:
             if boundary[0]:  # Left Boundary in the region
@@ -311,9 +292,9 @@ class Grid(LimMotor):
 
         a, b = 0, 0
         c, d = 0, 0
-        Cnt = 0
-        yCnt = 0
+        Cnt, yCnt = 0, 0
         # Assign spatial data to the nodes
+        # TODO Here - changes to matrix
         while a < self.ppH:
 
             xCnt = 0
@@ -323,7 +304,7 @@ class Grid(LimMotor):
             elif a in self.ySecondEdgeNodes:
                 delY = pixelSpacing / self.meshDensity[1]
             else:
-                delY = self.yMeshSizes[d]
+                delY = self.yMeshSizes[c]
 
             while b < self.ppL:
 
@@ -333,7 +314,7 @@ class Grid(LimMotor):
                 elif b in self.xSecondEdgeNodes:
                     delX = pixelSpacing / self.meshDensity[1]
                 else:
-                    delX = self.xMeshSizes[c]
+                    delX = self.xMeshSizes[d]
 
                 self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY],
                                                           modelDepth=self.D)
@@ -347,11 +328,11 @@ class Grid(LimMotor):
                     xCnt += delX
 
                 if b in self.xBoundaryList:
-                    c += 1
+                    d += 1
 
                 b += 1
                 Cnt += 1
-            c = 0
+            d = 0
 
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
@@ -362,13 +343,14 @@ class Grid(LimMotor):
                 yCnt += delY
 
             if a in self.yBoundaryList:
-                d += 1
+                c += 1
 
             b = 0
             a += 1
 
         # Assign property data to the nodes
         a, b = 0, 0
+        # TODO Here - ppH
         while a < self.ppH:
             while b < self.ppL:
                 if a in self.yIndexesYoke and b not in self.bufferArray:
@@ -376,10 +358,6 @@ class Grid(LimMotor):
                     self.matrix[a][b].ur = self.ur_iron
                     self.matrix[a][b].sigma = self.sigma_iron
                 elif a in self.yIndexesAirgap:
-                    self.matrix[a][b].material = 'vacuum'
-                    self.matrix[a][b].ur = self.ur_air
-                    self.matrix[a][b].sigma = self.sigma_air
-                elif a in self.yIndexesVacLower or a in self.yIndexesVacUpper:
                     self.matrix[a][b].material = 'vacuum'
                     self.matrix[a][b].ur = self.ur_air
                     self.matrix[a][b].sigma = self.sigma_air
@@ -461,6 +439,7 @@ class Grid(LimMotor):
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
         turnAreaRatio = self.ppSlot
         i, j = 0, 0
+        # TODO Here - ppH, matrix
         while i < self.ppH:
             while j < self.ppL:
 
@@ -565,9 +544,9 @@ class Grid(LimMotor):
         for count in range(1, len(self.mecRegions) + len(self.hmRegions) + 2):
             if count in self.hmRegions:
                 # Dirichlet boundaries have half the unknown coefficients
-                if self.hmRegions[count] == 'vac':
+                if self.hmRegions[count].split('_')[0] == 'vac':
                     self.hmRegionsIndex[hmCount] = regionIndex
-                    regionIndex += 2 * len(self.n)
+                    regionIndex += len(self.n)
 
                 else:
                     self.hmRegionsIndex[hmCount] = regionIndex
@@ -678,17 +657,8 @@ class Grid(LimMotor):
 
         # Y direction Checks
 
+        # TODO Here - Changes to matrix
         xIdx = 0
-        # Check Vacuum Lower
-        diffVacLowerDims = self.vac - (self.matrix[self.yIndexesVacLower[-1]+1][xIdx].y - self.matrix[self.yIndexesVacLower[0]][xIdx].y)
-        if round(diffVacLowerDims, 12) != 0:
-            print(f'flag - vacuum lower: {diffVacLowerDims}')
-            spatialDomainFlag = True
-        # Check Back Iron
-        diffBackIronDims = self.bi - (self.matrix[self.yIndexesBackIron[-1]+1][xIdx].y - self.matrix[self.yIndexesBackIron[0]][xIdx].y)
-        if round(diffBackIronDims, 12) != 0:
-            print(f'flag - blade rotor: {diffBackIronDims}')
-            spatialDomainFlag = True
         # Check Blade Rotor
         diffBladeRotorDims = self.dr - (self.matrix[self.yIndexesBladeRotor[-1]+1][xIdx].y - self.matrix[self.yIndexesBladeRotor[0]][xIdx].y)
         if round(diffBladeRotorDims, 12) != 0:
@@ -709,15 +679,27 @@ class Grid(LimMotor):
         if round(diffUpperSlotHeightDims, 12) != 0:
             print(f'flag - slot height: {diffUpperSlotHeightDims}')
             spatialDomainFlag = True
-        # Check Yoke
-        diffYokeDims = self.hy - (self.matrix[self.yIndexesYoke[-1]+1][xIdx].y - self.matrix[self.yIndexesYoke[0]][xIdx].y)
+        # Check Yoke and Back Iron since they can be the last region next to upperVac
+        isYokeAtUpperVac = list(self.getFullRegionDict())[1:-1].index('core') == len(list(self.getFullRegionDict())[1:-1]) - 1
+        # Check if yoke is next to upperVac, otherwise index out of bounds will occur
+        if isYokeAtUpperVac and not self.invertY:
+            yokeY = self.matrix[self.yIndexesYoke[-1]][xIdx].y + self.matrix[self.yIndexesYoke[-1]][xIdx].ly - self.matrix[self.yIndexesYoke[0]][xIdx].y
+        else:
+            yokeY = self.matrix[self.yIndexesYoke[-1]+1][xIdx].y - self.matrix[self.yIndexesYoke[0]][xIdx].y
+        diffYokeDims = self.hy - yokeY
         if round(diffYokeDims, 12) != 0:
             print(f'flag - yoke: {diffYokeDims}')
             spatialDomainFlag = True
-        # Check Vacuum Upper
-        diffVacUpperDims = self.vac - (self.matrix[self.yIndexesVacUpper[-1]][xIdx].y + self.matrix[self.yIndexesVacUpper[-1]][xIdx].ly - self.matrix[self.yIndexesVacUpper[0]][xIdx].y)
-        if round(diffVacUpperDims, 12) != 0:
-            print(f'flag - vacuum upper: {diffVacUpperDims}')
+
+        isBIAtUpperVac = list(self.getFullRegionDict())[1:-1].index('bi') == len(list(self.getFullRegionDict())[1:-1]) - 1
+        # Check if yoke is next to upperVac, otherwise index out of bounds will occur
+        if isBIAtUpperVac:
+            biY = self.matrix[self.yIndexesBackIron[-1]][xIdx].y + self.matrix[self.yIndexesBackIron[-1]][xIdx].ly - self.matrix[self.yIndexesBackIron[0]][xIdx].y
+        else:
+            biY = self.matrix[self.yIndexesBackIron[-1]+1][xIdx].y - self.matrix[self.yIndexesBackIron[0]][xIdx].y
+        diffBackIronDims = self.bi - biY
+        if round(diffBackIronDims, 12) != 0:
+            print(f'flag - blade rotor: {diffBackIronDims}')
             spatialDomainFlag = True
 
         self.writeErrorToDict(key='name',
@@ -844,7 +826,6 @@ class Region(object):
                     self.__dict__[key] = kwargs[key]
             return
 
-        self.index = kwargs['index']
         self.type = kwargs['type']
         self.an = kwargs['an']
         self.bn = kwargs['bn']

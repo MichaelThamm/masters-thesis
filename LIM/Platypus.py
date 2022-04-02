@@ -162,6 +162,7 @@ class EncoderDecoder(object):
             for nodeInfo in row:
                 constructedMatrix[Cnt] = Node.buildFromJson(nodeInfo)
                 Cnt += 1
+        # TODO Here - Maybe needs changes since matrix changed
         rawArrShape = self.rawModel.matrix.shape
         constructedMatrix = constructedMatrix.reshape(rawArrShape[0], rawArrShape[1])
         self.encodedAttributes['matrix'] = constructedMatrix
@@ -279,6 +280,7 @@ def main():
     # [LeftAirBuffer], [LeftEndTooth], [Slots], [FullTeeth], [LastSlot], [RightEndTooth], [RightAirBuffer]
 
     xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
+    # TODO yMeshIndexes needs to incorporate invertY and the removal of Dirichlet indexes
     # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
     yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
 
@@ -292,7 +294,7 @@ def main():
                   'mecRegions': {2: 'core'},
                   'invertY': True}
 
-    choiceRegionCfg = regionCfg1
+    choiceRegionCfg = regionCfg2
 
     # Object for the model design, grid, and matrices
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,

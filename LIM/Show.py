@@ -26,7 +26,7 @@ def myColourNumber(fieldScale, val):
 def determineColour(jsonObject, iI, iJ, field, highlightZeroValsInField):
 
     fieldType, iFieldsScale, iStoColours, iPosInf, iNegInf = field
-
+    # TODO Here - since matrix changed
     if str(type(jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType])).split("'")[1] in jsonObject.unacceptedTypeList:
         myNumber = myColourNumber(iFieldsScale, jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType].real)
         valEqZero = True if (jsonObject.rebuiltModel.matrix[iI, iJ].__dict__[fieldType].real == 0 and highlightZeroValsInField) else False
@@ -50,7 +50,7 @@ def minMaxField(jsonObject, attName, filtered, showFilter):
 
     model = jsonObject.rebuiltModel
     iFilteredRows, iFilteredRowCols = filtered
-
+    # TODO Here - matrix changed
     if showFilter:
         tFiltered = [[model.matrix[x.yIndex, x.xIndex] for x in y if x.yIndex in iFilteredRows or (x.yIndex, x.xIndex) in iFilteredRowCols] for y in model.matrix]
 
@@ -203,6 +203,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
 
         cGrid = CanvasInFrame(height=dims[0], width=dims[1], bg='gray30')
         i, j = 0, 0
+        # TODO Here - matrix changed
         while i < jsonObject.rebuiltModel.matrix.shape[0]:
             while j < jsonObject.rebuiltModel.matrix.shape[1]:
                 jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing,
@@ -242,6 +243,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
         # Rule 2
         keepRowColsUnfiltered[1] = [jsonObject.rebuiltModel.yIndexesLowerSlot + jsonObject.rebuiltModel.yIndexesUpperSlot, jsonObject.rebuiltModel.toothArray]
 
+        # TODO Here - ppH
         filteredRows, filteredRowCols = combineFilterList([jsonObject.rebuiltModel.ppH, jsonObject.rebuiltModel.ppL], keepRows, keepRowColsUnfiltered)
 
         minScale, maxScale = minMaxField(jsonObject, fieldType, [filteredRows, filteredRowCols], showFilter)
