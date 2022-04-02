@@ -220,7 +220,7 @@ def profile_main():
 
 def main():
     # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = 10
+    pixelDivisions = 5
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
