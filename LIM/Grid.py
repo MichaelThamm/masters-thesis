@@ -453,7 +453,9 @@ class Grid(LimMotor):
         # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
         fraction = 0.5
         doubleBias = self.ppSlotHeight - fraction
-        doubleCoilScaling = [doubleBias - i if i > 0 else doubleBias for i in range(self.ppSlotHeight)]
+        doubleCoilScaling = np.arange(fraction, doubleBias + fraction, 1)
+        if self.invertY:
+            doubleCoilScaling = np.flip(doubleCoilScaling)
 
         scalingLower, scalingUpper = 0.0, 0.0
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
@@ -464,6 +466,7 @@ class Grid(LimMotor):
 
                 self.matrix[i][j].Rx, self.matrix[i][j].Ry = self.matrix[i][j].getReluctance()
 
+                isCurrentCu = self.matrix[i][j].material[:-1] == 'copper'
                 if i in self.yIndexesLowerSlot and j in self.coilArray:
                     if j in self.lower_slotsA:
                         angle_plex = cmath.exp(0)
@@ -475,20 +478,11 @@ class Grid(LimMotor):
                         angle_plex = 0.0
 
                     # Set the scaling factor for MMF in equation 18
-                    # 2 coils in slot
-                    if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotHeight // 2][j].material[:-1] == 'copper':
+                    if isCurrentCu:
                         index_ = self.yIndexesLowerSlot.index(i)
-                        scalingLower = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
-                    # coil in upper slot only
-                    elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i - self.ppSlotHeight // 2][j].material[:-1] == 'copper':
-                        scalingLower = 0.0
-                    # coil in lower slot only
-                    elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i - self.ppSlotHeight // 2][j].material[:-1] != 'copper':
-                        index_ = self.yIndexesLowerSlot.index(i)
-                        scalingLower = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
-                    # empty slot
-                    elif self.matrix[i][j].material == 'vacuum' and self.matrix[i - self.ppSlotHeight // 2][j].material == 'vacuum':
-                        scalingLower = 0.0
+                        if self.invertY:
+                            index_ += len(doubleCoilScaling) // 2
+                        scalingLower = doubleCoilScaling[index_]
                     else:
                         scalingLower = 0.0
 
@@ -504,19 +498,19 @@ class Grid(LimMotor):
 
                     # Set the scaling factor for MMF in equation 18
                     # 2 coils in slot
-                    if self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotHeight // 2][j].material[:-1] == 'copper':
+                    yLowerCoilIdx = i + self.ppSlotHeight // 2 if self.invertY else i - self.ppSlotHeight // 2
+                    isLowerCu = self.matrix[yLowerCoilIdx][j].material[:-1] == 'copper'
+                    if isCurrentCu and isLowerCu:
                         index_ = self.yIndexesUpperSlot.index(i)
+                        if not self.invertY:
+                            index_ += len(doubleCoilScaling) // 2
                         scalingUpper = doubleCoilScaling[index_]
-                    # coil in lower slot only
-                    elif self.matrix[i][j].material[:-1] != 'copper' and self.matrix[i + self.ppSlotHeight // 2][j].material[:-1] == 'copper':
-                        scalingUpper = 0
                     # coil in upper slot only
-                    elif self.matrix[i][j].material[:-1] == 'copper' and self.matrix[i + self.ppSlotHeight // 2][j].material[:-1] != 'copper':
+                    elif isCurrentCu and not isLowerCu:
                         index_ = self.yIndexesUpperSlot.index(i)
-                        scalingUpper = doubleCoilScaling[len(doubleCoilScaling) // 2 + index_]
-                    # empty slot
-                    elif self.matrix[i][j].material == 'vacuum' and self.matrix[i + self.ppSlotHeight // 2][j].material == 'vacuum':
-                        scalingUpper = 0.0
+                        if self.invertY:
+                            index_ -= len(doubleCoilScaling) // 2
+                        scalingUpper = doubleCoilScaling[index_]
                     else:
                         scalingUpper = 0.0
 
@@ -570,7 +564,7 @@ class Grid(LimMotor):
         regionIndex, hmCount, mecCount = 0, 0, 0
         for count in range(1, len(self.mecRegions) + len(self.hmRegions) + 2):
             if count in self.hmRegions:
-                # Dirichlet boundaries which have half the unknown coefficients
+                # Dirichlet boundaries have half the unknown coefficients
                 if self.hmRegions[count] == 'vac':
                     self.hmRegionsIndex[hmCount] = regionIndex
                     regionIndex += 2 * len(self.n)

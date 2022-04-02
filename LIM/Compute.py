@@ -544,16 +544,15 @@ class Model(Grid):
 
     def __updateLists(self, idx):
         # This method updates the hm and mec index lists after some indexes were removed in __reduceMatrix method
+        self.__shiftRegionsIdxList(idx)
+        self.mecIdxs = []
+        for each in self.mecRegionsIndex:
+            self.mecIdxs.extend(list(range(each, each + self.mecRegionLength)))
+        self.hmIdxs = [i for i in range(len(self.matrixX)) if i not in self.mecIdxs]
 
-        dirichletIdxs = list(range(len(self.n), 2 * len(self.n))) +\
-                        list(range(self.hmRegionsIndex[-1] - len(self.n), self.hmRegionsIndex[-1]))
-        # TODO This can be improved with map method rather than list comprehension
-        self.hmIdxs = [index for index in self.hmIdxs if index not in dirichletIdxs]
-        self.__shiftHmIdxList(idx)
-        self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
-
-    def __shiftHmIdxList(self, idx):
-        self.hmIdxs = self.hmIdxs[:len(self.n)] + [i - idx for i in self.hmIdxs[len(self.n):]]
+    def __shiftRegionsIdxList(self, hmIdx):
+        self.hmRegionsIndex = [0] + list(map(lambda x: int(x - len(self.n)), self.hmRegionsIndex))[1:-1] + [int(self.hmRegionsIndex[-1] - 2*len(self.n))]
+        self.mecRegionsIndex = list(map(lambda x: int(x - len(self.n)), self.mecRegionsIndex))
 
     def __linalg_lu(self):
 
