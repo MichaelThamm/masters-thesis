@@ -95,8 +95,14 @@ class EncoderDecoder(object):
             returnVal = listedMatrix
         elif attribute == 'hmUnknownsList':
             returnVal = {}
+            tempDict = {}
             for regionKey, regionVal in originalValue.items():
-                returnVal[regionKey] = {dictKey: dictVal if dictKey not in ['an', 'bn'] else self.__convertComplexInList(dictVal.tolist()) for dictKey, dictVal in regionVal.__dict__.items()}
+                for dictKey, dictVal in regionVal.__dict__.items():
+                    if dictKey not in ['an', 'bn']:
+                        tempDict[dictKey] = dictVal
+                    else:
+                        tempDict[dictKey] = self.__convertComplexInList(dictVal.tolist()) if type(dictVal) == np.ndarray else dictVal
+                returnVal[regionKey] = tempDict
         else:
             print('The object does not match a conditional')
             return
@@ -290,11 +296,13 @@ def main():
     regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
                   'mecRegions': {5: 'core'},
                   'invertY': False}
+    # TODO Note that Cfg2 is wrong since the coil pattern in the x direction is only intended for Cfg1
+    #  however, I could write some code to loop through all rows of matrix and invert them and test the results
     regionCfg2 = {'hmRegions': {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
                   'mecRegions': {2: 'core'},
                   'invertY': True}
 
-    choiceRegionCfg = regionCfg2
+    choiceRegionCfg = regionCfg1
 
     # Object for the model design, grid, and matrices
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
@@ -314,7 +322,7 @@ def main():
     with timing():
         errorInX = model.finalizeCompute()
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    model.updateGrid(errorInX, showAirgapPlot=False)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -324,7 +332,7 @@ def main():
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='Bx',
+        showModel(encodeModel, model, fieldType='y',
                   showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=20, dims=[1080, 1920], invertY=False)
         pass

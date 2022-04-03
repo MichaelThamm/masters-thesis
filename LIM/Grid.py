@@ -26,19 +26,6 @@ class Grid(LimMotor):
     inUpper_slotsC: ndarray
     outUpper_slotsC: ndarray
 
-    yIndexesBackIron, yIndexesBladeRotor, yIndexesAirgap = None, None, None
-    yIndexesLowerSlot, yIndexesUpperSlot, yIndexesYoke = None, None, None
-
-    removeLowerCoilIdxs, removeUpperCoilIdxs = [], []
-    xFirstEdgeNodes, xSecondEdgeNodes = [], []
-    yFirstEdgeNodes, ySecondEdgeNodes = [], []
-
-    yListPixelsPerRegion = []
-    yIndexesHM, yIndexesMEC = [], []
-    xBoundaryList, yBoundaryList = [], []
-
-    yMeshSizes = []
-
     def __init__(self, kwargs):
 
         super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'])
@@ -57,13 +44,25 @@ class Grid(LimMotor):
         self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
         self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
 
+        self.yIndexesBackIron, self.yIndexesBladeRotor, self.yIndexesAirgap = None, None, None
+        self.yIndexesLowerSlot, self.yIndexesUpperSlot, self.yIndexesYoke = None, None, None
+
+        self.removeLowerCoilIdxs, self.removeUpperCoilIdxs = [], []
+        self.xFirstEdgeNodes, self.xSecondEdgeNodes = [], []
+        self.yFirstEdgeNodes, self.ySecondEdgeNodes = [], []
+
+        self.yListPixelsPerRegion = []
+        self.yIndexesHM, self.yIndexesMEC = [], []
+        self.xBoundaryList, self.yBoundaryList = [], []
+
+        self.yMeshSizes = []
+
         # X-direction
         self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2)
         self.ppAirBuffer = self.setPixelsPerLength(length=self.Airbuffer, minimum=1)
         self.ppTooth = self.setPixelsPerLength(length=self.wt, minimum=1)
         self.ppSlot = self.ppSlotpitch - self.ppTooth
-        self.ppLeftEndTooth = self.setPixelsPerLength(length=self.endTeeth, minimum=1)
-        self.ppRightEndTooth = self.ppLeftEndTooth
+        self.ppEndTooth = self.setPixelsPerLength(length=self.endTeeth, minimum=1)
         # Y-direction
         self.ppVac = self.setPixelsPerLength(length=self.vac, minimum=1)
         self.ppYoke = self.setPixelsPerLength(length=self.hy, minimum=1)
@@ -78,8 +77,7 @@ class Grid(LimMotor):
         ppHM = self.ppAirGap + self.ppBladeRotor + self.ppBackIron
         self.ppHeight = self.ppYoke + self.ppSlotHeight
         self.ppH = self.ppHeight + ppHM
-        self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + self.ppLeftEndTooth + self.ppRightEndTooth + 2 * self.ppAirBuffer
-        # TODO Here - Removed yIndexesVac since they will only be added to ShowModel
+        self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + 2 * self.ppEndTooth + 2 * self.ppAirBuffer
         self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppHeight + ppHM)])
 
         self.toothArray, self.coilArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
@@ -96,14 +94,13 @@ class Grid(LimMotor):
         self.setRegionIndices()
 
         self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
-        self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppLeftEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppRightEndTooth, self.ppAirBuffer]
+        self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppEndTooth, self.ppAirBuffer]
         for Cnt in range(len(self.xMeshSizes)):
             self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
             if self.xMeshSizes[Cnt] < 0:
                 print('negative x mesh sizes', Cnt)
                 return
 
-        # TODO Here - I will remove anything to do with vac regions and pad them in ShowModel
         offsetList = []
         cnt, offsetLower, offsetUpper = 0, 0, 0
         str_ppSlotHeight = self.getFullRegionDict()['core']['pp'].split(', ')[1]
@@ -145,7 +142,7 @@ class Grid(LimMotor):
         yMeshIndexes = meshIndexes[1]
 
         #  Initialize grid with Nodes
-        listOffset = self.ppAirBuffer + self.ppLeftEndTooth
+        listOffset = self.ppAirBuffer + self.ppEndTooth
         oldTooth, newTooth, oldSlot, newSlot, slotCount = 0, listOffset, 0, 0, 0
         fullToothArray = []
         for slotCount in range(self.slots - 1):
@@ -156,7 +153,7 @@ class Grid(LimMotor):
             fullToothArray += list(range(oldTooth, newTooth))
 
         leftEndTooth = list(range(self.ppAirBuffer, listOffset))
-        rightEndTooth = list(range(fullToothArray[-1] + self.ppSlot + 1, fullToothArray[-1] + self.ppSlot + self.ppRightEndTooth + 1))
+        rightEndTooth = list(range(fullToothArray[-1] + self.ppSlot + 1, fullToothArray[-1] + self.ppSlot + self.ppEndTooth + 1))
         self.toothArray = leftEndTooth + fullToothArray + rightEndTooth
         self.coilArray = [x for x in range(self.ppAirBuffer, self.ppL - self.ppAirBuffer) if x not in self.toothArray]
         self.bufferArray = [x for x in list(range(self.ppL)) if x not in self.coilArray and x not in self.toothArray]
@@ -287,14 +284,14 @@ class Grid(LimMotor):
             Cnt += 1
 
         self.xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1],
-                              self.toothArray[self.ppLeftEndTooth - 1]] + self.coilArray[self.ppSlot - 1::self.ppSlot] + self.toothArray[self.ppLeftEndTooth + self.ppTooth - 1:-self.ppRightEndTooth:self.ppTooth] + [self.toothArray[-1],
+                              self.toothArray[self.ppEndTooth - 1]] + self.coilArray[self.ppSlot - 1::self.ppSlot]\
+                              + self.toothArray[self.ppEndTooth + self.ppTooth - 1:-self.ppEndTooth:self.ppTooth] + [self.toothArray[-1],
                               self.bufferArray[-1]]
 
         a, b = 0, 0
         c, d = 0, 0
         Cnt, yCnt = 0, 0
         # Assign spatial data to the nodes
-        # TODO Here - changes to matrix
         while a < self.ppH:
 
             xCnt = 0
@@ -350,7 +347,6 @@ class Grid(LimMotor):
 
         # Assign property data to the nodes
         a, b = 0, 0
-        # TODO Here - ppH
         while a < self.ppH:
             while b < self.ppL:
                 if a in self.yIndexesYoke and b not in self.bufferArray:
@@ -419,10 +415,10 @@ class Grid(LimMotor):
         # Define Indexes
         idxLeftAirBuffer = 0
         idxLeftEndTooth = idxLeftAirBuffer + self.ppAirBuffer
-        idxSlot = idxLeftEndTooth + self.ppLeftEndTooth
+        idxSlot = idxLeftEndTooth + self.ppEndTooth
         idxTooth = idxSlot + self.ppSlot
-        idxRightEndTooth = self.ppL - self.ppAirBuffer - self.ppRightEndTooth
-        idxRightAirBuffer = idxRightEndTooth + self.ppRightEndTooth
+        idxRightEndTooth = self.ppL - self.ppAirBuffer - self.ppEndTooth
+        idxRightAirBuffer = idxRightEndTooth + self.ppEndTooth
 
         self.checkSpatialMapping(pixelDivisions, spatialDomainFlag,
                                  [idxLeftAirBuffer, idxLeftEndTooth, idxSlot, idxTooth, idxRightEndTooth,
@@ -657,7 +653,6 @@ class Grid(LimMotor):
 
         # Y direction Checks
 
-        # TODO Here - Changes to matrix
         xIdx = 0
         # Check Blade Rotor
         diffBladeRotorDims = self.dr - (self.matrix[self.yIndexesBladeRotor[-1]+1][xIdx].y - self.matrix[self.yIndexesBladeRotor[0]][xIdx].y)
@@ -805,10 +800,13 @@ class Node(object):
 
         c.create_rectangle(x_old, y_old, x_new, y_new, width=nodeWidth, fill=fillColour)
 
-    def getReluctance(self):
+    def getReluctance(self, vacHeight=0, isVac=False):
 
         ResX = self.lx / (2 * uo * self.ur * self.Szy)
-        ResY = self.ly / (2 * uo * self.ur * self.Sxz)
+        if isVac:
+            ResY = vacHeight / (2 * uo * self.ur * self.Sxz)
+        else:
+            ResY = self.ly / (2 * uo * self.ur * self.Sxz)
 
         return ResX, ResY
 
@@ -819,9 +817,12 @@ class Region(object):
         if buildFromJson:
             for key in kwargs:
                 if key in ['an', 'bn']:
-                    valList = [rebuildPlex(index) for index in kwargs[key]]
-                    valArray = np.array(valList)
-                    self.__dict__[key] = valArray
+                    if type(kwargs[key]) == np.ndarray:
+                        valList = [rebuildPlex(index) for index in kwargs[key]]
+                        valArray = np.array(valList)
+                        self.__dict__[key] = valArray
+                    else:
+                        self.__dict__[key] = kwargs[key]
                 else:
                     self.__dict__[key] = kwargs[key]
             return

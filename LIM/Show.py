@@ -280,16 +280,16 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
                 if tuple_in[0] in jsonObject.rebuiltModel.yIndexesMEC:
 
                     # Left end tooth
-                    if tuple_in[1] in [jsonObject.rebuiltModel.toothArray[0] - 1] + [jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppLeftEndTooth-1]]:
+                    if tuple_in[1] in [jsonObject.rebuiltModel.toothArray[0] - 1] + [jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppEndTooth - 1]]:
                         return True
                     # Right end tooth
-                    elif tuple_in[1] in [jsonObject.rebuiltModel.toothArray[-jsonObject.rebuiltModel.ppRightEndTooth-1]] + [jsonObject.rebuiltModel.toothArray[-1]]:
+                    elif tuple_in[1] in [jsonObject.rebuiltModel.toothArray[-jsonObject.rebuiltModel.ppEndTooth-1]] + [jsonObject.rebuiltModel.toothArray[-1]]:
                         return True
                     # Remaining teeth left edge
-                    elif tuple_in[0] not in jsonObject.rebuiltModel.yIndexesYoke and tuple_in[1] in jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppLeftEndTooth:-jsonObject.rebuiltModel.ppRightEndTooth:jsonObject.rebuiltModel.ppSlotpitch]:
+                    elif tuple_in[0] not in jsonObject.rebuiltModel.yIndexesYoke and tuple_in[1] in jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppEndTooth:-jsonObject.rebuiltModel.ppEndTooth:jsonObject.rebuiltModel.ppSlotpitch]:
                         return True
                     # Remaining teeth right edge
-                    elif tuple_in[0] not in jsonObject.rebuiltModel.yIndexesYoke and tuple_in[1] in jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppLeftEndTooth+jsonObject.rebuiltModel.ppTooth:-jsonObject.rebuiltModel.ppRightEndTooth:jsonObject.rebuiltModel.ppSlotpitch]:
+                    elif tuple_in[0] not in jsonObject.rebuiltModel.yIndexesYoke and tuple_in[1] in jsonObject.rebuiltModel.toothArray[jsonObject.rebuiltModel.ppEndTooth + jsonObject.rebuiltModel.ppTooth:-jsonObject.rebuiltModel.ppEndTooth:jsonObject.rebuiltModel.ppSlotpitch]:
                         return True
                     else:
                         return False
