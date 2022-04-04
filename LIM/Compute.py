@@ -32,6 +32,7 @@ class Model(Grid):
         self.canvasRowRegIdxs, self.canvasColRegIdxs = [], []
         self.mecIdxs = []
         self.hmMatrixX, self.mecMatrixX = [], []
+        self.vacLowerRow, self.vacUpperRow = [], []
 
         lenUnknowns = self.hmRegionsIndex[-1]
 
@@ -217,9 +218,7 @@ class Model(Grid):
         # HM related equations
         hmResA, hmResB = self.__preEqn8(ur, lambdaN, wn, hb)
 
-        # If the neighbouring region is a Dirichlet region, an or bn should be set to np.inf which helps catch errors
-        # TODO Here - Is it right that we are using currColCount instead of Upper
-        #  rule: if remove an then bn should not have +1 but if remove bn then an remains the same
+        # If the neighbouring region is a Dirichlet region, an or bn may be removed
         # a not b
         if not removed_an and removed_bn:
             self.matrixA[self.nLoop, hmRegCountOffset + self.currColCount] = hmResA  # an
@@ -247,7 +246,6 @@ class Model(Grid):
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
 
         lNode, rNode = self.neighbourNodes(j)
-        # TODO Here - This is still an issue, what if we have multiple ppVac
         if i == 0:
             _, vacResY = self.matrix[i, j].getReluctance(vacHeight=self.vac/self.ppVac, isVac=True)
             northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
@@ -491,7 +489,6 @@ class Model(Grid):
         return lNode, rNode
 
     # TODO We can cache functions like this for time improvement
-    # TODO Here - A lot of changes here to account for the removal of Dirichlet indexes
     def __boundaryInfo(self, iY1, iY2, boundaryType):
         if boundaryType == 'mec':
             hb1 = self.matrix[iY1, 0].y
@@ -628,7 +625,6 @@ class Model(Grid):
         # TODO Although I now have the correct y values, I have to check the right hand rule on the positive x and y directions
         #  if they axis do not follow right hand rule then the graph will be flipped.
         # X axis array
-        # TODO Here - Validate this since self.matrix changed
         xCenterPosList = np.array([node.xCenter for node in self.matrix[iY, :]])
         dataArray = np.zeros((4, len(xCenterPosList)), dtype=np.cdouble)
         dataArray[0] = xCenterPosList
@@ -684,7 +680,6 @@ class Model(Grid):
 
     def __buildMatAB(self):
 
-        # TODO I have a feeling that the issue happens here since I checked the code after this method completes
         lenUnknowns = self.hmRegionsIndex[-1]
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
 
@@ -736,6 +731,11 @@ class Model(Grid):
                     else:
                         # Loop through harmonics and calculate each boundary condition
                         if bc == 'hmHm':
+                            # The problem is here since iY1 is 8 because we didnt skip the first hmHm bound. Could check nextReg, prevReg
+                            # I need to make sure my solution is robust for Cfg1 as well. Once I have tested Cfg1 and Cfg2
+                            # I need to merge removeDirichlet and invertTK. Then I can create rows for self.vacLowerRow and UpperRow
+                            # I will need to jump into a couple of methods throughout Grid and Compute to build it,
+                            # otherwise the row nodes will not have accurate values for all attributes like Rx, Ry
                             params = {'listBCInfo': self.__boundaryInfo(iY1, None, bc),
                                       'RegCountOffset1': self.hmRegionsIndex[hmCnt],
                                       'RegCountOffset2': self.hmRegionsIndex[hmCnt+1],
@@ -828,13 +828,14 @@ class Model(Grid):
 
         # Solve for B in the mesh
         i, j = 0, 0
-        regCnt = 1
+        regCnt = list(self.hmUnknownsList)[1:-1][0]
         while i < self.ppH:
             while j < self.ppL:
 
                 lNode, rNode = self.neighbourNodes(j)
 
                 if i in self.yIndexesMEC:
+
                     # Bottom layer of the MEC
                     if i == self.yIndexesMEC[0]:
                         ur1 = self.ur_air if i == 0 else self.matrix[i - 1, 0].ur
@@ -845,7 +846,9 @@ class Model(Grid):
 
                             wn = 2 * nHM * pi / self.Tper
                             lambdaN1 = self.__lambda_n(wn, urSigma1)
-                            if regCnt == list(self.hmUnknownsList)[1:-1][0] or regCnt not in list(self.hmUnknownsList)[1:-1]:
+                            # TODO Here - We still need to test this for Cfg2
+                            isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
+                            if isNextToLowerVac:
                                 an = self.hmUnknownsList[regCnt - 1].an[nCnt]
                                 bn = 0
                             else:
@@ -872,7 +875,9 @@ class Model(Grid):
                         for nHM in self.n:
                             wn = 2 * nHM * pi / self.Tper
                             lambdaN2 = self.__lambda_n(wn, urSigma2)
-                            if regCnt == list(self.hmUnknownsList)[1:-1][-1] or regCnt not in list(self.hmUnknownsList)[1:-1]:
+                            # TODO Here - We still need to test this for Cfg2
+                            isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
+                            if isNextToUpperVac:
                                 an = 0
                                 bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
                             else:
@@ -916,8 +921,6 @@ class Model(Grid):
                                                             self.matrix[i, j].Sxz)
 
                 elif i in self.yIndexesHM:
-                    # TODO Here - consider adding a parameter called self.vacLowerRow = ... and for Upper
-                    #  this way it is not part of matrix but can still be accessed as a solved row
                     ur = self.matrix[i, 0].ur
                     sigma = self.matrix[i, 0].sigma
                     urSigma = ur * sigma
@@ -925,17 +928,8 @@ class Model(Grid):
                     for nHM in self.n:
                         wn = 2 * nHM * pi / self.Tper
                         lambdaN = self.__lambda_n(wn, urSigma)
-                        if regCnt == list(self.hmUnknownsList)[0]:
-                            an = self.hmUnknownsList[regCnt].an[nCnt]
-                            bn = 0
-                            regCnt += 1
-                        elif regCnt == list(self.hmUnknownsList)[-1]:
-                            an = 0
-                            bn = self.hmUnknownsList[regCnt].bn[nCnt]
-                            regCnt += 1
-                        else:
-                            an = self.hmUnknownsList[regCnt].an[nCnt]
-                            bn = self.hmUnknownsList[regCnt].bn[nCnt]
+                        an = self.hmUnknownsList[regCnt].an[nCnt]
+                        bn = self.hmUnknownsList[regCnt].bn[nCnt]
                         BxSumCenter += self.__postEqn8(lambdaN, wn,
                                                        self.matrix[i, j].xCenter, self.matrix[i, j].yCenter, an, bn)
                         BxSumLower += self.__postEqn8(lambdaN, wn,
@@ -1023,12 +1017,12 @@ def complexFourierTransform(model_in, harmonics_in):
 
     model = model_in
 
+    # TODO Clean this code up - not working since Cfg1 and Cfg2 changes
     idx_FT = 0
     harmonics = harmonics_in
 
     yIdx_lower = model.yIndexesMEC[0]
     yIdx_upper = model.yIndexesMEC[-1]
-    # TODO Here - Changes to matrix
     row_upper_FT = model.matrix[yIdx_upper]
     leftNodeEdges = [node.x for node in row_upper_FT]
     slices = 10
@@ -1143,7 +1137,6 @@ def plotFourierError():
                                              mecRegions=np.array([1], dtype=np.int16))
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
         loopedModel.finalizeGrid(pixelDivisions)
-        # TODO Here - ppH
         modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
 
     for idx, ((pixelDivisions, ppL, ppH), (xSequence, ySequence)) in enumerate(modelList):

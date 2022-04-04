@@ -264,7 +264,7 @@ class Grid(LimMotor):
         Cnt = 0
         idxOffset = self.yListPixelsPerRegion[Cnt]
         idxLeft, idxRight = 0, idxOffset
-        # TODO Here - ppH and yMeshIndexes is not robust
+        # TODO Here - yMeshIndexes is not robust since removal of an and bn prior
         idxList = range(self.ppH)
         for boundary in yMeshIndexes:
             if boundary[0]:  # Left Boundary in the region
@@ -435,7 +435,6 @@ class Grid(LimMotor):
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
         turnAreaRatio = self.ppSlot
         i, j = 0, 0
-        # TODO Here - ppH, matrix
         while i < self.ppH:
             while j < self.ppL:
 
