@@ -144,7 +144,9 @@ class Model(Grid):
             self.matrixA[self.nLoop, RegCountOffset1 + 1 + self.currColCount] = Bb_lower  # bn Lower
         if not remove_an:
             self.matrixA[self.nLoop, RegCountOffset2 + self.currColCountUpper] = Ba_upper  # an Upper
-        self.matrixA[self.nLoop, RegCountOffset2 + 1 + self.currColCountUpper] = Bb_upper  # bn Upper
+            self.matrixA[self.nLoop, RegCountOffset2 + 1 + self.currColCountUpper] = Bb_upper  # bn Upper
+        else:
+            self.matrixA[self.nLoop, RegCountOffset2 + self.currColCountUpper] = Bb_upper  # bn Upper
 
         # Hx Condition
         Ha_lower, Ha_upper, Hb_lower, Hb_upper = self.__preEqn25_2018(lambdaN1, lambdaN2, ur1, ur2, hb1)
@@ -154,7 +156,9 @@ class Model(Grid):
             self.matrixA[self.nLoop + 1, RegCountOffset1 + 1 + self.currColCount] = Hb_lower  # bn Lower
         if not remove_an:
             self.matrixA[self.nLoop + 1, RegCountOffset2 + self.currColCountUpper] = Ha_upper  # an Upper
-        self.matrixA[self.nLoop + 1, RegCountOffset2 + 1 + self.currColCountUpper] = Hb_upper  # bn Upper
+            self.matrixA[self.nLoop + 1, RegCountOffset2 + 1 + self.currColCountUpper] = Hb_upper  # bn Upper
+        else:
+            self.matrixA[self.nLoop + 1, RegCountOffset2 + self.currColCountUpper] = Hb_upper  # bn Upper
 
         self.incrementCurrColCnt(remove_an, remove_bn)
         self.nLoop += 2
@@ -491,40 +495,43 @@ class Model(Grid):
     # TODO We can cache functions like this for time improvement
     def __boundaryInfo(self, iY1, iY2, boundaryType):
         if boundaryType == 'mec':
+
             hb1 = self.matrix[iY1, 0].y
-            ur1 = self.matrix[iY1 - 1, 0].ur if iY1 != 0 else self.ur_air
-            sigma1 = self.matrix[iY1 - 1, 0].sigma if iY1 != 0 else self.sigma_air
+            ur1, sigma1 = self.__getLowerUrSigma(iY1)
             urSigma1 = ur1 * sigma1
+
             hb2 = self.matrix[iY2+1, 0].y if iY2 != self.ppH - 1 else self.modelHeight
-            ur2 = self.matrix[iY2+1, 0].ur if iY2 != self.ppH - 1 else self.ur_air
-            sigma2 = self.matrix[iY2+1, 0].sigma if iY2 != self.ppH - 1 else self.sigma_air
+            ur2, sigma2 = self.__getUpperUrSigma(iY2)
             urSigma2 = ur2 * sigma2
 
             return [hb1, urSigma1, hb2, urSigma2]
 
         elif boundaryType == 'hmHm' and not iY2:
-            hb1 = self.matrix[iY1, 0].y
-            ur1 = self.matrix[iY1 - 1, 0].ur if iY1 != 0 else self.ur_air
-            sigma1 = self.matrix[iY1 - 1, 0].sigma if iY1 != 0 else self.sigma_air
+            # Case Upper Dirichlet
+            if iY1 == self.ppH:
+                hb1 = self.modelHeight
+                ur2 = self.ur_air
+                sigma2 = self.sigma_air
+            else:
+                hb1 = self.matrix[iY1, 0].y
+                ur2 = self.matrix[iY1, 0].ur
+                sigma2 = self.matrix[iY1, 0].sigma
+            ur1, sigma1 = self.__getLowerUrSigma(iY1)
             urSigma1 = ur1 * sigma1
-            ur2 = self.matrix[iY1, 0].ur
-            sigma2 = self.matrix[iY1, 0].sigma
             urSigma2 = ur2 * sigma2
 
             return [hb1, ur1, urSigma1, None, ur2, urSigma2]
 
         elif boundaryType == 'hmMec' and not iY2:
             hb = self.matrix[iY1, 0].y
-            ur = self.matrix[iY1 - 1, 0].ur if iY1 != 0 else self.ur_air
-            sigma = self.matrix[iY1 - 1, 0].sigma if iY1 != 0 else self.sigma_air
+            ur, sigma = self.__getLowerUrSigma(iY1)
             urSigma = ur * sigma
 
             return [hb, ur, urSigma]
 
         elif boundaryType == 'mecHm' and not iY2:
             hb = self.matrix[iY1 + 1, 0].y if iY1 != self.ppH - 1 else self.modelHeight
-            ur = self.matrix[iY1 + 1, 0].ur if iY1 != self.ppH - 1 else self.ur_air
-            sigma = self.matrix[iY1 + 1, 0].sigma if iY1 != self.ppH - 1 else self.sigma_air
+            ur, sigma = self.__getUpperUrSigma(iY1)
             urSigma = ur * sigma
 
             return [hb, ur, urSigma]
@@ -678,14 +685,36 @@ class Model(Grid):
         # ax.invert_yaxis()
         plt.show()
 
+    def __getYboundaryIncludeMEC(self):
+        yBoundaryIncludeMec = [index for index in self.yBoundaryList if index not in self.yIndexesMEC]
+        yBoundaryIncludeMec.extend([self.yIndexesMEC[0], self.yIndexesMEC[-1]])
+        yBoundaryIncludeMec.sort()
+        return yBoundaryIncludeMec
+
+    def __getLowerUrSigma(self, i):
+        if i == 0:
+            ur = self.ur_air
+            sigma = self.sigma_air
+        else:
+            ur = self.matrix[i - 1, 0].ur
+            sigma = self.matrix[i - 1, 0].sigma
+        return ur, sigma
+
+    def __getUpperUrSigma(self, i):
+        if i == self.ppH - 1:
+            ur = self.ur_air
+            sigma = self.sigma_air
+        else:
+            ur = self.matrix[i + 1, 0].ur
+            sigma = self.matrix[i + 1, 0].sigma
+        return ur, sigma
+
     def __buildMatAB(self):
 
         lenUnknowns = self.hmRegionsIndex[-1]
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
 
-        yBoundaryIncludeMec = [index for index in self.yBoundaryList if index not in self.yIndexesMEC]
-        yBoundaryIncludeMec.extend([self.yIndexesMEC[0], self.yIndexesMEC[-1]])
-        yBoundaryIncludeMec.sort()
+        yBoundaryIncludeMec = self.__getYboundaryIncludeMEC()
 
         # TODO There is potential here to use concurrent.futures.ProcessPoolExecutor since the indexing of the matrix A does not depend on previous boundary conditions
         # TODO This will require me to change the way I pass the nLoop and matBCount from boundary condition to boundary condition. Instead these need to be constants
@@ -695,6 +724,8 @@ class Model(Grid):
         for region in self.getFullRegionDict():
             if region.split('_')[0] != 'vac':
                 prevReg, nextReg = self.getLastAndNextRegionName(region)
+                if nextReg.split('_')[0] != 'vac':
+                    _, nextnextReg = self.getLastAndNextRegionName(nextReg)
                 for bc in self.getFullRegionDict()[region]['bc'].split(', '):
 
                     # Mec region calculation
@@ -731,11 +762,6 @@ class Model(Grid):
                     else:
                         # Loop through harmonics and calculate each boundary condition
                         if bc == 'hmHm':
-                            # The problem is here since iY1 is 8 because we didnt skip the first hmHm bound. Could check nextReg, prevReg
-                            # I need to make sure my solution is robust for Cfg1 as well. Once I have tested Cfg1 and Cfg2
-                            # I need to merge removeDirichlet and invertTK. Then I can create rows for self.vacLowerRow and UpperRow
-                            # I will need to jump into a couple of methods throughout Grid and Compute to build it,
-                            # otherwise the row nodes will not have accurate values for all attributes like Rx, Ry
                             params = {'listBCInfo': self.__boundaryInfo(iY1, None, bc),
                                       'RegCountOffset1': self.hmRegionsIndex[hmCnt],
                                       'RegCountOffset2': self.hmRegionsIndex[hmCnt+1],
@@ -764,14 +790,20 @@ class Model(Grid):
                             # Increment cnt for all hmHm boundaries
                             if bc == 'hmHm':
                                 hmCnt += 1
-                                if nextReg != 'core':
+                                # TODO Here - This may cause an issue with Cfg1
+                                if nextReg != 'core' and nextnextReg.split('_')[0] != 'vac':
                                     cnt += 1
                             # Increment mecCnt only if leaving the mec region
                             if bc == 'mecHm' and hmMec:
                                 cnt += 1
+                                if nextReg.split('_')[0] != 'vac':
+                                    nextY1 = yBoundaryIncludeMec[cnt] + 1
+                                    cnt += 1
                                 mecCnt += 1
-                            iY1 = nextY1
-                            nextY1 = yBoundaryIncludeMec[cnt] + 1
+                            if nextReg.split('_')[0] != 'vac':
+                                iY1 = nextY1
+                                plusOneVal = yBoundaryIncludeMec[cnt] + 1
+                                nextY1 = plusOneVal
 
         print('Asize: ', self.matrixA.shape, self.matrixA.size)
         print('Bsize: ', self.matrixB.shape)
@@ -828,7 +860,11 @@ class Model(Grid):
 
         # Solve for B in the mesh
         i, j = 0, 0
-        regCnt = list(self.hmUnknownsList)[1:-1][0]
+        priorToCore, _ = self.getLastAndNextRegionName('core')
+        if priorToCore.split('_')[0] == 'vac':
+            regCnt = list(self.mecRegions)[0]
+        else:
+            regCnt = list(self.hmUnknownsList)[1:-1][0]
         while i < self.ppH:
             while j < self.ppL:
 
@@ -838,16 +874,15 @@ class Model(Grid):
 
                     # Bottom layer of the MEC
                     if i == self.yIndexesMEC[0]:
-                        ur1 = self.ur_air if i == 0 else self.matrix[i - 1, 0].ur
-                        sigma1 = self.sigma_air if i == 0 else self.matrix[i - 1, 0].sigma
+                        # TODO Here - We still need to test this for Cfg2
+                        isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
+                        ur1, sigma1 = self.__getLowerUrSigma(i)
                         urSigma1 = ur1 * sigma1
                         nCnt, Flux_ySum = 0, 0
                         for nHM in self.n:
 
                             wn = 2 * nHM * pi / self.Tper
                             lambdaN1 = self.__lambda_n(wn, urSigma1)
-                            # TODO Here - We still need to test this for Cfg2
-                            isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
                             if isNextToLowerVac:
                                 an = self.hmUnknownsList[regCnt - 1].an[nCnt]
                                 bn = 0
@@ -868,15 +903,14 @@ class Model(Grid):
 
                     # Top layer of the MEC
                     elif i == self.yIndexesMEC[-1]:
-                        ur2 = self.ur_air if i == self.ppH - 1 else self.matrix[i + 1, 0].ur
-                        sigma2 = self.sigma_air if i == self.ppH - 1 else self.matrix[i + 1, 0].sigma
+                        # TODO Here - We still need to test this for Cfg2
+                        isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
+                        ur2, sigma2 = self.__getUpperUrSigma(i)
                         urSigma2 = ur2 * sigma2
                         nCnt, Flux_ySum = 0, 0
                         for nHM in self.n:
                             wn = 2 * nHM * pi / self.Tper
                             lambdaN2 = self.__lambda_n(wn, urSigma2)
-                            # TODO Here - We still need to test this for Cfg2
-                            isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
                             if isNextToUpperVac:
                                 an = 0
                                 bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]

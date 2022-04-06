@@ -301,7 +301,7 @@ def main():
                   'mecRegions': {2: 'core'},
                   'invertY': True}
 
-    choiceRegionCfg = regionCfg2
+    choiceRegionCfg = regionCfg1
 
     # Object for the model design, grid, and matrices
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
@@ -321,7 +321,7 @@ def main():
     with timing():
         errorInX = model.finalizeCompute()
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    model.updateGrid(errorInX, showAirgapPlot=False)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -331,7 +331,7 @@ def main():
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='Yk',
+        showModel(encodeModel, model, fieldType='Bx',
                   showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   numColours=20, dims=[1080, 1920], invertY=False)
         pass
