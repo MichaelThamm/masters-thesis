@@ -740,9 +740,6 @@ class Node(object):
         # Potential
         self.Yk = np.cdouble(0.0)
 
-        # Thrust
-        self.Fx, self.Fy, self.F = np.zeros(3, dtype=np.cdouble)
-
         # B field
         self.Bx, self.By, self.B, self.BxLower, self.ByLower, self.B_Lower = np.zeros(6, dtype=np.cdouble)
 
@@ -779,7 +776,7 @@ class Node(object):
         else:
             pass
 
-    def drawNode(self, canvasSpacing, overRideColour, c, nodeWidth):
+    def drawNode(self, canvasSpacing, overRideColour, c, nodeWidth, outline='black'):
 
         x_old = self.x*canvasSpacing
         x_new = x_old + self.lx*canvasSpacing
@@ -797,7 +794,7 @@ class Node(object):
                 self.colour = 'orange'
             fillColour = self.colour
 
-        c.create_rectangle(x_old, y_old, x_new, y_new, width=nodeWidth, fill=fillColour)
+        c.create_rectangle(x_old, y_old, x_new, y_new, width=nodeWidth, fill=fillColour, outline=outline)
 
     def getReluctance(self, vacHeight=0, isVac=False):
 

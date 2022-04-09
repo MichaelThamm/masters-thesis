@@ -218,6 +218,8 @@ class Model(Grid):
 
             sumResEqn22Source += (resSource_kn + resSource_k + resSource_kp)
 
+        # TODO Here - It is possible that the HM part of this equation is done wrong since airgap is hm region
+        #  What would make the part with the upper coils unique to the rest though?
         # HM related equations
         hmResA, hmResB = self.__preEqn8(ur, lambdaN, wn, hb)
 
@@ -266,6 +268,12 @@ class Model(Grid):
         eastMMFNum = self.matrix[i, j].MMF + self.matrix[i, rNode].MMF
         westMMFNum = self.matrix[i, j].MMF + self.matrix[i, lNode].MMF
 
+        currIdx = mecRegCountOffset + node
+        northIdx = currIdx + self.ppL
+        eastIdx = currIdx + 1
+        southIdx = currIdx - self.ppL
+        westIdx = currIdx - 1
+
         # Bottom layer of the mesh
         if i == self.yIndexesMEC[0]:
 
@@ -284,10 +292,10 @@ class Model(Grid):
                 self.incrementCurrColCnt(False, removed_bn)
 
             # North Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node + self.ppL] = - time_plex / northRelDenom
+            self.matrixA[self.nLoop + node, northIdx] = - time_plex / northRelDenom
 
             # Current Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom)
+            self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom)
 
         # Top layer of the mesh
         elif i == self.yIndexesMEC[-1]:
@@ -309,40 +317,40 @@ class Model(Grid):
                 self.incrementCurrColCnt(removed_an, False)
 
             # South Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node - self.ppL] = - time_plex / southRelDenom
+            self.matrixA[self.nLoop + node, southIdx] = - time_plex / southRelDenom
 
             # Current Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / southRelDenom)
+            self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / southRelDenom)
 
         else:
             # North Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node + self.ppL] = - time_plex / northRelDenom
+            self.matrixA[self.nLoop + node, northIdx] = - time_plex / northRelDenom
 
             # South Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node - self.ppL] = - time_plex / southRelDenom
+            self.matrixA[self.nLoop + node, southIdx] = - time_plex / southRelDenom
 
             # Current Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
+            self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
 
         # West Edge
         if node % self.ppL == 0:
             # West Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node + self.ppL - 1] = - time_plex / westRelDenom
+            self.matrixA[self.nLoop + node, northIdx - 1] = - time_plex / westRelDenom
             # East Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node + 1] = - time_plex / eastRelDenom
+            self.matrixA[self.nLoop + node, eastIdx] = - time_plex / eastRelDenom
 
         # East Edge
         elif (node + 1) % self.ppL == 0:
             # West Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node - 1] = - time_plex / westRelDenom
+            self.matrixA[self.nLoop + node, westIdx] = - time_plex / westRelDenom
             # East Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node - self.ppL + 1] = - time_plex / eastRelDenom
+            self.matrixA[self.nLoop + node, southIdx + 1] = - time_plex / eastRelDenom
 
         else:
             # West Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node - 1] = - time_plex / westRelDenom
+            self.matrixA[self.nLoop + node, westIdx] = - time_plex / westRelDenom
             # East Node
-            self.matrixA[self.nLoop + node, mecRegCountOffset + node + 1] = - time_plex / eastRelDenom
+            self.matrixA[self.nLoop + node, eastIdx] = - time_plex / eastRelDenom
 
         # Result
         self.matrixB[self.matBCount + node] = eastMMFNum / eastRelDenom - westMMFNum / westRelDenom
@@ -745,7 +753,6 @@ class Model(Grid):
                                           'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
                                           'removed_an': True if nextReg.split('_')[0] == 'vac' else False,
                                           'removed_bn': True if prevReg.split('_')[0] == 'vac' else False}
-
                                 # TODO We can try to cache these kind of functions for speed
                                 getattr(self, bc)(**params)
 
@@ -793,7 +800,6 @@ class Model(Grid):
                             # Increment cnt for all hmHm boundaries
                             if bc == 'hmHm':
                                 hmCnt += 1
-                                # TODO Here - This may cause an issue with Cfg1
                                 if nextReg != 'core' and nextnextReg.split('_')[0] != 'vac':
                                     cnt += 1
                             # Increment mecCnt only if leaving the mec region
@@ -878,7 +884,6 @@ class Model(Grid):
 
                     # Bottom layer of the MEC
                     if i == self.yIndexesMEC[0]:
-                        # TODO Here - We still need to test this for Cfg2
                         isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
                         ur1, sigma1 = self.__getLowerUrSigma(i)
                         urSigma1 = ur1 * sigma1
