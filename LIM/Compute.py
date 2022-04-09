@@ -169,7 +169,6 @@ class Model(Grid):
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        # TODO My math shows this to be 1 2019 paper says 2
         coeff = 2 * j_plex / (wn * self.Tper)
 
         self.writeErrorToDict(key='name',
@@ -585,7 +584,7 @@ class Model(Grid):
     def __lambda_n(self, wn, urSigma):
         return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
 
-    def __genForces(self, urSigma, iY):
+    def __genForces(self, urSigma, iY, flipAnBn=False):
 
         Cnt = 0
         for nHM in self.n:
@@ -627,62 +626,66 @@ class Model(Grid):
 
             yield Fx, Fy
 
-    def __plotPointsAlongX(self, evenOdd, iY):
+    def __plotPointsAlongX(self, evenOdd, iY, invertY=False):
 
-        # TODO Although I now have the correct y values, I have to check the right hand rule on the positive x and y directions
-        #  if they axis do not follow right hand rule then the graph will be flipped.
+        lineWidth = 2
+        markerSize = 5
+
         # X axis array
         xCenterPosList = np.array([node.xCenter for node in self.matrix[iY, :]])
         dataArray = np.zeros((4, len(xCenterPosList)), dtype=np.cdouble)
         dataArray[0] = xCenterPosList
+        xSorted = np.array([i.real for i in dataArray[0]], dtype=np.float64)
 
         #  Y axis array
         if evenOdd == 'even':  # even - calculated at lower node boundary in the y-direction
             yBxList = np.array([self.matrix[iY, j].BxLower for j in range(self.ppL)], dtype=np.cdouble)
             yByList = np.array([self.matrix[iY, j].ByLower for j in range(self.ppL)], dtype=np.cdouble)
-            yB_List = np.array([self.matrix[iY, j].B_Lower for j in range(self.ppL)], dtype=np.cdouble)
-
         elif evenOdd == 'odd':  # odd - calculated at node center in the y-direction
             yBxList = np.array([self.matrix[iY, j].Bx for j in range(self.ppL)], dtype=np.cdouble)
             yByList = np.array([self.matrix[iY, j].By for j in range(self.ppL)], dtype=np.cdouble)
-            yB_List = np.array([self.matrix[iY, j].B for j in range(self.ppL)], dtype=np.cdouble)
-
         else:
             print('neither even nor odd was chosen')
             return
 
-        dataArray[1] = yBxList
-        dataArray[2] = yByList
-        dataArray[3] = yB_List
+        # This flips the plot about the x-axis
+        if invertY:
+            dataArray[1] = np.array(list(map(lambda x: -1 * x, yBxList)))
+            dataArray[2] = np.array(list(map(lambda x: -1 * x, yByList)))
+        else:
+            dataArray[1] = yBxList
+            dataArray[2] = yByList
 
-        # TODO This inverts the y axis for the plot
-        dataArray[1] = np.flip(yBxList)
-        dataArray[2] = np.flip(yByList)
-
-        xSorted = np.array([i.real for i in dataArray[0]], dtype=np.float64)
-
-        lineWidth = 2
-        markerSize = 5
         tempReal = np.array([j.real for j in dataArray[1]], dtype=np.float64)
+
+        # Background shading slots
+        minY1, maxY1 = min(tempReal), max(tempReal)
+        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.coilArray[::self.ppSlot]]))
+        for cnt, each in enumerate(xPosLines):
+            plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
+        plt.legend()
+
         plt.scatter(xSorted, tempReal.flatten())
         plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
         plt.xlabel('Position [m]')
         plt.ylabel('Bx [T]')
         plt.title('Bx field in airgap')
-        # ax = plt.gca()
-        # ax.set_ylim(ax.get_ylim()[::-1])
-        # ax.invert_yaxis()
         plt.show()
 
         tempReal = np.array([j.real for j in dataArray[2]], dtype=np.float64)
+
+        # Background shading slots
+        minY1, maxY1 = min(tempReal), max(tempReal)
+        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.coilArray[::self.ppSlot]]))
+        for cnt, each in enumerate(xPosLines):
+            plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
+        plt.legend()
+
         plt.scatter(xSorted, tempReal.flatten())
         plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
         plt.xlabel('Position [m]')
         plt.ylabel('By [T]')
         plt.title('By field in airgap')
-        # ax = plt.gca()
-        # ax.set_ylim(ax.get_ylim()[::-1])
-        # ax.invert_yaxis()
         plt.show()
 
     def __getYboundaryIncludeMEC(self):
@@ -811,7 +814,7 @@ class Model(Grid):
 
         self.__checkForErrors()
 
-    def finalizeCompute(self):
+    def finalizeCompute(self, flipAnBn=False):
 
         print('region indexes: ', self.hmRegionsIndex, self.mecRegionsIndex, self.mecRegionLength)
 
@@ -824,10 +827,11 @@ class Model(Grid):
         self.mecMatrixX = [self.matrixX[self.mecIdxs[i]] for i in range(len(self.mecIdxs))]
         self.hmMatrixX = np.array(self.hmMatrixX, dtype=np.cdouble)
         self.mecMatrixX = np.array(self.mecMatrixX, dtype=np.cdouble)
+        mecOffsetL, mecOffsetR = 0, self.ppL
 
         return preProcessError_matX
 
-    def updateGrid(self, iErrorInX, showAirgapPlot=False):
+    def updateGrid(self, iErrorInX, showAirgapPlot=False, invertY=False):
 
         # Unknowns in HM regions
         matIdx = 0
@@ -903,7 +907,6 @@ class Model(Grid):
 
                     # Top layer of the MEC
                     elif i == self.yIndexesMEC[-1]:
-                        # TODO Here - We still need to test this for Cfg2
                         isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
                         ur2, sigma2 = self.__getUpperUrSigma(i)
                         urSigma2 = ur2 * sigma2
@@ -998,7 +1001,6 @@ class Model(Grid):
         # This is a nested generator comprehension for phiError
         genPhiError = (j.phiError for i in self.matrix for j in i)
         postProcessError_Phi = max(genPhiError)
-        # TODO This is inefficient and temp for testing
         genPhiError_min = (j.phiError for i in self.matrix for j in i)
         print(
             f'max error post processing is: {postProcessError_Phi} vs min error post processing: {min(genPhiError_min)} vs error in matX: {iErrorInX}')
@@ -1032,7 +1034,7 @@ class Model(Grid):
         print(f'Fx: {round(resFx.real, 2)}N,', f'Fy: {round(resFy.real, 2)}N')
 
         if showAirgapPlot:
-            self.__plotPointsAlongX(evenOdd, centerAirgapIdx_y)
+            self.__plotPointsAlongX(evenOdd, centerAirgapIdx_y, invertY=invertY)
 
 
 # noinspection PyGlobalUndefined
@@ -1047,19 +1049,18 @@ def complexFourierTransform(model_in, harmonics_in):
      c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
     """
 
-    global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, model
+    global row_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, model
 
     model = model_in
 
-    # TODO Clean this code up - not working since Cfg1 and Cfg2 changes
     idx_FT = 0
     harmonics = harmonics_in
 
     yIdx_lower = model.yIndexesMEC[0]
     yIdx_upper = model.yIndexesMEC[-1]
-    row_upper_FT = model.matrix[yIdx_upper]
-    leftNodeEdges = [node.x for node in row_upper_FT]
-    slices = 10
+    row_FT = model.matrix[yIdx_lower]
+    leftNodeEdges = [node.x for node in row_FT]
+    slices = 2
     outerIdx, increment = 0, 0
     expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
     for idx in range(len(expandedLeftNodeEdges)):
@@ -1069,47 +1070,47 @@ def complexFourierTransform(model_in, harmonics_in):
                 outerIdx += 1
         else:
             increment += 1
-        sliceWidth = row_upper_FT[outerIdx].lx / slices
-        expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
+        sliceWidth = row_FT[outerIdx].lx / slices
+        expandedLeftNodeEdges[idx] = row_FT[outerIdx].x + increment * sliceWidth
 
     # noinspection PyGlobalUndefined
     def fluxAtBoundary():
-        global row_upper_FT, idx_FT, model
+        global row_FT, idx_FT, model
 
         lNode, rNode = model.neighbourNodes(idx_FT)
-        phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
-                / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
-        phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
-                / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
+        phiXn = (row_FT[idx_FT].MMF + row_FT[lNode].MMF) \
+                / (row_FT[idx_FT].Rx + row_FT[lNode].Rx)
+        phiXp = (row_FT[idx_FT].MMF + row_FT[rNode].MMF) \
+                / (row_FT[idx_FT].Rx + row_FT[rNode].Rx)
         return phiXn, phiXp
 
     # noinspection PyGlobalUndefined
     @lru_cache(maxsize=5)
-    def pieceWise_upper(x_in):
-        global row_upper_FT, idx_FT, model
+    def pieceWise(x_in):
+        global row_FT, idx_FT, model
 
         if x_in in leftNodeEdges[1:]:
             idx_FT += 1
 
         phiXn, phiXp = fluxAtBoundary()
 
-        return model.postMECAvgB(phiXn, phiXp, row_upper_FT[idx_FT].Szy)
+        return model.postMECAvgB(phiXn, phiXp, row_FT[idx_FT].Szy)
 
     # noinspection PyGlobalUndefined
     @lru_cache(maxsize=5)
     def fourierSeries(x_in):
-        global row_upper_FT, idx_FT, model
+        global row_FT, idx_FT, model
         sumN = 0.0
         for nHM in harmonics:
             wn = 2 * nHM * pi / model.Tper
             coeff = j_plex / (wn * model.Tper)
             sumK = 0.0
-            for iX in range(len(row_upper_FT)):
+            for iX in range(len(row_FT)):
                 idx_FT = iX
                 phiXn, phiXp = fluxAtBoundary()
-                f = (phiXn + phiXp) / (2 * row_upper_FT[iX].Szy)
-                Xl = row_upper_FT[iX].x
-                Xr = Xl + row_upper_FT[iX].lx
+                f = (phiXn + phiXp) / (2 * row_FT[iX].Szy)
+                Xl = row_FT[iX].x
+                Xr = Xl + row_FT[iX].lx
                 resExp = cmath.exp(-j_plex * wn * (Xr - model.vel * model.t))\
                          - cmath.exp(-j_plex * wn * (Xl - model.vel * model.t))
 
@@ -1119,20 +1120,17 @@ def complexFourierTransform(model_in, harmonics_in):
 
         return sumN
 
-    vfun = np.vectorize(pieceWise_upper)
+    vfun = np.vectorize(pieceWise)
     idx_FT = 0
     x = expandedLeftNodeEdges
     y1 = vfun(x)
-    # vfun = np.vectorize(fourierSeries)
-    # y2 = vfun(x)
-    # plt.plot(x, y1, 'b-')
-    # plt.plot(x, y2, 'r-')
-    # TODO 'Be aware that you have to set the axis limits before you invert the axis, otherwise it will un-invert it again.'
-    # TODO Test the inversion
-    # plt.gca().invert_yaxis()
-    # plt.xlabel('Position [m]')
-    # plt.ylabel('Bx [T]')
-    # plt.title('Bx field at airgap Boundary')
+    vfun = np.vectorize(fourierSeries)
+    y2 = vfun(x)
+    plt.plot(x, y1, 'b-')
+    plt.plot(x, y2, 'r-')
+    plt.xlabel('Position [m]')
+    plt.ylabel('Bx [T]')
+    plt.title('Bx field at airgap Boundary')
     # plt.show()
 
     return x, y1
@@ -1141,8 +1139,8 @@ def complexFourierTransform(model_in, harmonics_in):
 def plotFourierError():
 
     iterations = 1
-    step = 2
-    start = 10
+    step = 1
+    start = 5
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
@@ -1164,20 +1162,29 @@ def plotFourierError():
     for idx, pixelDivisions in enumerate(pixDivs):
 
         pixelSpacing = slotpitch / pixelDivisions
-        loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing,
-                                             canvasSpacing=canvasSpacing,
+        regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
+                      'mecRegions': {5: 'core'},
+                      'invertY': False}
+        choiceRegionCfg = regionCfg1
+
+        loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
+                                             pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                              meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                             hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16),
-                                             mecRegions=np.array([1], dtype=np.int16))
+                                             hmRegions=
+                                             choiceRegionCfg['hmRegions'],
+                                             mecRegions=
+                                             choiceRegionCfg['mecRegions'],
+                                             errorTolerance=1e-15,
+                                             # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
+                                             invertY = choiceRegionCfg['invertY'])
+
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
         loopedModel.finalizeGrid(pixelDivisions)
         modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
 
-    for idx, ((pixelDivisions, ppL, ppH), (xSequence, ySequence)) in enumerate(modelList):
+    for (pixelDivisions, ppL, ppH), (xSequence, ySequence) in modelList:
         plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
 
-    'Be aware that you have to set the axis limits before you invert the axis, otherwise it will un-invert it again.'
-    plt.gca().invert_yaxis()
     plt.legend()
     plt.show()
 
