@@ -1,5 +1,3 @@
-import numpy as np
-
 from LIM.Show import *
 import json
 import os
@@ -56,159 +54,150 @@ class EncoderDecoder(object):
     def __init__(self, model):
 
         self.encoded = False
-        # After instantiating seld.model with model. this should be used rather than the old model
-        # TODO There could be an issue with self.complexList and self.model.complexList value difference because
-        self.model = model
+        self.rawModel = model
+        self.rebuiltModel = None
+
+        self.removedAttributesList = ['matrixA', 'matrixB', 'matrixX']
 
         # These members are the dictionary results of the json serialization format required in json.dump
-        self.infoRes = {}
-        self.matrixRes = {}
-        self.errorDictRes = {}
-        self.hmUnknownsListRes = {}
+        self.encodedAttributes = {}
 
         self.typeList = []
-        self.complexList = []
-        # TODO This is not robust, what if I missed a type???
-        self.nonComplexList = ['int', 'numpy.float64', 'float', 'str', 'bool']
+        self.unacceptedTypeList = [complex, np.complex128]
 
-    def filterValType(self, val):
-        # JSON dump cannot handle numpy arrays
-        if type(val) == np.ndarray:
-            val = list(val)
+        # This dict contains the attributes that contain unaccepted objects as values
+        self.unacceptedJsonAttributes = {'matrix': Node, 'errorDict': (TransformedDict, Error), 'hmUnknownsList': Region}
+        self.unacceptedJsonObjects = []
+        self.__setFlattenJsonObjects()
 
-        # Json dump and load cannot handle complex objects and must be an accepted dtype such as list
-        # TODO switch this to be in self.model.complexTypeList
-        elif type(val) in [complex, np.complex128]:
+    def __setFlattenJsonObjects(self):
+        for value in self.unacceptedJsonAttributes.values():
+            try:
+                for nestedVal in value:
+                    self.unacceptedJsonObjects.append(nestedVal)
+            except TypeError:
+                self.unacceptedJsonObjects.append(value)
+
+    def __convertComplexInList(self, inList):
+        # 'plex_Signature' is used to identify if a list is a destructed complex number or not
+        return list(map(lambda x: ['plex_Signature', x.real, x.imag], inList))
+
+    def __objectToDict(self, attribute, originalValue):
+        if attribute == 'errorDict':
+            errorDict = originalValue.__dict__['store']
+            returnVal = {key: error.__dict__ for key, error in errorDict.items()}
+        elif attribute == 'matrix':
+            listedMatrix = originalValue.tolist()
+            # Case 2D list
+            for idxRow, row in enumerate(listedMatrix):
+                for idxCol, col in enumerate(row):
+                    listedMatrix[idxRow][idxCol] = {key: value if type(value) not in self.unacceptedTypeList else ['plex_Signature', value.real, value.imag] for key, value in row[idxCol].__dict__.items()}
+            returnVal = listedMatrix
+        elif attribute == 'hmUnknownsList':
+            returnVal = {}
+            tempDict = {}
+            for regionKey, regionVal in originalValue.items():
+                for dictKey, dictVal in regionVal.__dict__.items():
+                    if dictKey not in ['an', 'bn']:
+                        tempDict[dictKey] = dictVal
+                    else:
+                        tempDict[dictKey] = self.__convertComplexInList(dictVal.tolist()) if type(dictVal) == np.ndarray else dictVal
+                returnVal[regionKey] = tempDict
+        else:
+            print('The object does not match a conditional')
+            return
+
+        return returnVal
+
+    def __filterValType(self, inAttr, inVal):
+
+        # Json dump cannot handle user defined class objects
+        if inAttr in self.unacceptedJsonAttributes:
+            outVal = self.__objectToDict(inAttr, inVal)
+
+        # Json dump cannot handle numpy arrays
+        elif type(inVal) == np.ndarray:
+            outVal = inVal.tolist()
+
+            # Case 1D list containing unacceptedTypes
+            if type(outVal[0]) in self.unacceptedTypeList:
+                outVal = self.__convertComplexInList(outVal)
+
+        # Json dump and load cannot handle complex types
+        elif type(inVal) in self.unacceptedTypeList:
             # 'plex_Signature' is used to identify if a list is a destructed complex number or not
-            val = ['plex_Signature', val.real, val.imag]
+            outVal = ['plex_Signature', inVal.real, inVal.imag]
 
         else:
-            pass
+            outVal = inVal
 
-        return val
+        return outVal
 
     def __buildTypeList(self, val):
         # Generate a list of data types before destructing the matrix
-        if str(type(val)).split("'")[1] not in self.typeList:
-            strType = str(type(val)).split("'")
-            self.typeList += [strType[1]]
+        if type(val) not in self.typeList:
+            self.typeList.append(type(val))
 
-    def __buildComplexList(self):
-        self.complexList = [i for i in self.typeList if i not in self.nonComplexList]
+    def __getType(self, val):
+        return str(type(val)).split("'")[1]
 
-    # Encode a 2D matrix of Node objects
-    def encodeMatrix(self):
-        Cnt = 0
-        for row in self.model.matrix:
-            for col in row:
-                nodeDictList = []
-                for attr, val in col.__dict__.items():
-
-                    self.__buildTypeList(val)
-                    self.__buildComplexList()
-                    val = self.filterValType(val)
-                    nodeDictList.append((attr, val))
-
-                x = dict(nodeDictList)
-                self.matrixRes[Cnt] = x
-
-                Cnt += 1
-
-    # Encode a 1D TransformedDict of Error objects
-    def encodeErrorDict(self):
-        for count, error_name in enumerate(self.model.errorDict):
-            listDict = {}
-            for error_member in self.model.errorDict[error_name].__dict__:
-
-                val = self.model.errorDict[error_name].__dict__[error_member]
+    # Encode all attributes that have valid json data types
+    def __destruct(self):
+        self.encodedAttributes = {}
+        for attr, val in self.rawModel.__dict__.items():
+            # Matrices included in the set of linear equations were excluded due to computation considerations
+            if attr not in self.removedAttributesList:
                 self.__buildTypeList(val)
-                self.__buildComplexList()
-                val = self.filterValType(val)
-                listDict[error_member] = val
+                self.encodedAttributes[attr] = self.__filterValType(attr, val)
 
-            self.errorDictRes[count] = listDict
+    # Rebuild objects that were deconstructed to store in JSON object
+    def __construct(self):
 
-    # Encode a 1D list of Region objects
-    def encodeHmUnknownsList(self):
-        for countReg, region in enumerate(self.model.hmUnknownsList):  # iterate through Regions
-            listDict = {}
-            for key in region.__dict__:  # iterate through .an and .bn per Region
-                valList = region.__dict__[key]
-                valDict = {}
-                for countVal, val in enumerate(valList):  # iterate through arrays of .an or .bn
-                    self.__buildTypeList(val)
-                    self.__buildComplexList()
-                    val = self.filterValType(val)
-                    valDict[countVal] = val
+        errors = self.encodedAttributes['errorDict']
+        matrix = self.encodedAttributes['matrix']
+        hmUnknowns = self.encodedAttributes['hmUnknownsList']
 
-                listDict[key] = valDict
-            self.hmUnknownsListRes[countReg] = listDict
+        # ErrorDict reconstruction
+        self.encodedAttributes['errorDict'] = TransformedDict.buildFromJson(errors)
 
+        # Matrix reconstruction
+        Cnt = 0
+        lenKeys = len(matrix)*len(matrix[0])
+        constructedMatrix = np.array([type('', (Node,), {}) for _ in range(lenKeys)])
+        for row in matrix:
+            for nodeInfo in row:
+                constructedMatrix[Cnt] = Node.buildFromJson(nodeInfo)
+                Cnt += 1
+        rawArrShape = self.rawModel.matrix.shape
+        constructedMatrix = constructedMatrix.reshape(rawArrShape[0], rawArrShape[1])
+        self.encodedAttributes['matrix'] = constructedMatrix
 
-def destruct(model):
+        # HmUnknownsList Reconstruction
+        self.encodedAttributes['hmUnknownsList'] = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in self.encodedAttributes['hmRegions']}
 
-    encodeModel = EncoderDecoder(model)
-    encodeModel.encodeMatrix()
-    encodeModel.encodeErrorDict()
-    encodeModel.encodeHmUnknownsList()
+        self.rebuiltModel = Model.buildFromJson(jsonObject=self.encodedAttributes)
 
-    # Update the model members
-    model.typeList = encodeModel.typeList
-    model.complexTypeList = encodeModel.complexList
+    def jsonStoreSolution(self):
 
-    print(f'typeList: {encodeModel.typeList}, complexList: {encodeModel.complexList}')
+        self.__destruct()
+        # Data written to file
+        if not os.path.isdir(OUTPUT_PATH):
+            os.mkdir(OUTPUT_PATH)
+        with open(DATA_PATH, 'w') as StoredSolutionData:
+            json.dump(self.encodedAttributes, StoredSolutionData)
+        # Data read from file
+        with open(DATA_PATH) as StoredSolutionData:
+            # json.load returns dicts where keys are converted to strings
+            self.encodedAttributes = json.load(StoredSolutionData)
 
-    # TODO I need to make a filter here turn ndarray into list - IS A LOT OF WORK
-    # InfoRes includes all the grid info that is serializable for a JSON object
-    encodeModel.infoRes = {attr: val for attr, val in encodeModel.model.__dict__.items()
-                           if attr != 'matrix' and attr != 'errorDict' and attr != 'hmUnknownsList'
-                           and type(val) != np.ndarray
-                           and str(type(val)).split("'")[1] not in encodeModel.complexList}
-
-    # matrixRes is the destructed matrix array from the grid
-    dictRes = {'info': encodeModel.infoRes, 'matrix': encodeModel.matrixRes, 'errorDict': encodeModel.errorDictRes,
-               'hmUnknownsList': encodeModel.hmUnknownsListRes}
-
-    return dictRes
-
-
-# Rebuild the grid.matrix array
-def construct(iDict, iArrayShape):
-
-    info = iDict['info']
-    matrix = iDict['matrix']
-    # errorDict and hmUnknownsListDict are not used in the GUI so are not rebuilt and left as a dict
-    errorDict = iDict['errorDict']
-    hmUnknownsListDict = iDict['hmUnknownsList']
-
-    lenKeys = len(dict.keys(matrix))
-    mirrorMatrix = np.array([type('', (object,), {}) for _ in np.arange(lenKeys)])
-    for key in dict.keys(matrix):
-        nodeInfo = matrix[key]
-        emptyNode = Node()
-        rebuiltNode = emptyNode.rebuildNode(nodeInfo)
-        mirrorMatrix[int(key)] = rebuiltNode
-    mirrorMatrix = mirrorMatrix.reshape(iArrayShape[0], iArrayShape[1])
-
-    return info, mirrorMatrix, errorDict, hmUnknownsListDict
-
-
-def jsonStoreSolution(model):
-
-    destructedMatA = destruct(model)
-    # Data written to file
-    if not os.path.isdir(OUTPUT_PATH):
-        os.mkdir(OUTPUT_PATH)
-    with open(DATA_PATH, 'w') as StoredSolutionData:
-        json.dump(destructedMatA, StoredSolutionData)
-    # Data read from file
-    with open(DATA_PATH) as StoredSolutionData:
-        dictionary = json.load(StoredSolutionData)
-
-    gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList = construct(iDict=dictionary, iArrayShape=model.matrix.shape)
-    checkIdenticalLists = np.array([[model.matrix[y, x] == rebuiltGridMatrix[y, x] for x in np.arange(model.ppL)] for y in np.arange(model.ppH)])
-
-    return gridInfo, rebuiltGridMatrix, errorDict, hmUnknownsList, checkIdenticalLists
+        self.__construct()
+        if self.rawModel.equals(self.rebuiltModel, self.removedAttributesList):
+            self.encoded = True
+        else:
+            self.rebuiltModel.writeErrorToDict(key='name',
+                                               error=Error.buildFromScratch(name='JsonRebuild',
+                                                                            description="ERROR - Model Did Not Rebuild Correctly",
+                                                                            cause=True))
 
 
 def profile_main():
@@ -242,7 +231,7 @@ def main():
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
     # since there are no magnets or anything constantly creating a magnetic field when input is off
-    n = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
+    n = range(-lowDiscrete, lowDiscrete + 1)
     n = np.delete(n, len(n)//2, 0)
     slots = 16
     poles = 6
@@ -271,16 +260,16 @@ def main():
 
     # fig, axs = plt.subplots(2)
     # fig.suptitle('Mass and Thrust')
-    # axs[0].scatter(np.arange(1, cnt), [x[1, 0] for x in plotResults])
+    # axs[0].scatter(range(1, cnt), [x[1, 0] for x in plotResults])
     # axs[0].set_title('Mass')
-    # axs[1].scatter(np.arange(1, cnt), [x[1, 1] for x in plotResults])
+    # axs[1].scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     # axs[1].set_title('Thrust')
-    # axs[2].scatter(np.arange(1, cnt), [x[0, 0] for x in plotResults])
+    # axs[2].scatter(range(1, cnt), [x[0, 0] for x in plotResults])
     # axs[2].set_title('mass obj')
-    # axs[3].scatter(np.arange(1, cnt), [x[0, 1] for x in plotResults])
+    # axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
     # axs[3].set_title('thrust obj')
-    # plt.scatter(np.arange(1, cnt), [x[1, 1] for x in pltResults])
-    # # plt.scatter(np.arange(1, cnt), [x[1, 1] for x in plotResults])
+    # plt.scatter(range(1, cnt), [x[1, 1] for x in pltResults])
+    # # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     # plt.xlabel('Generations')
     # plt.ylabel('Thrust Objective Value')
     # plt.show()
@@ -290,49 +279,77 @@ def main():
     # for keys in tempMotor.__dict__.items():
     #     print(keys)
 
-    # This value defines how small the mesh is at [border, border+1]. Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
+    # This value defines how small the mesh is at [border, border+1].
+    # Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
     meshDensity = np.array([4, 2])
     # Change the mesh density at boundaries. A 1 indicates denser mesh at a size of len(meshDensity)
     # [LeftAirBuffer], [LeftEndTooth], [Slots], [FullTeeth], [LastSlot], [RightEndTooth], [RightAirBuffer]
 
     xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
+    # TODO yMeshIndexes needs to incorporate invertY and the removal of Dirichlet indexes
     # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
     yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
 
     pixelSpacing = slotpitch/pixelDivisions
     canvasSpacing = 80
 
+    regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
+                  'mecRegions': {5: 'core'},
+                  'invertY': False}
+    # TODO Note that Cfg2 is wrong since the coil pattern in the x direction is only intended for Cfg1
+    #  however, I could write some code to loop through all rows of matrix and invert them and test the results
+    regionCfg2 = {'hmRegions': {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
+                  'mecRegions': {2: 'core'},
+                  'invertY': True}
+
+    # TODO This errors because parts of the code are not linked to hmmecRegions since self.ppH doesnt change
+    regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'bi', 4: 'dr', 6: 'g', 7: 'vac_upper'},
+                  'mecRegions': {5: 'core'},
+                  'invertY': False}
+
+    choiceRegionCfg = regionCfg1
+
     # Object for the model design, grid, and matrices
-    model = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                  meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                  hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16), mecRegions=np.array([1], dtype=np.int16))
+    model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
+                                   pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
+                                   meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
+                                   hmRegions=
+                                   choiceRegionCfg['hmRegions'],
+                                   mecRegions=
+                                   choiceRegionCfg['mecRegions'],
+                                   errorTolerance=1e-15,
+                                   # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
+                                   # TODO This invertY flips the core MEC region
+                                   invertY=choiceRegionCfg['invertY'])
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
     model.finalizeGrid(pixelDivisions)
 
     with timing():
-        errorInX = model.finalizeCompute(iTol=1e-15)
+        errorInX = model.finalizeCompute()
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    # TODO This invertY inverts the pyplot
+    model.updateGrid(errorInX, showAirgapPlot=True, invertY=True)
 
     # After this point, the json implementations should be used to not branch code direction
-    gridInfo, gridMatrix, gridErrorDict, gridHmUnknownsList, boolIdenticalLists = jsonStoreSolution(model)
+    encodeModel = EncoderDecoder(model)
+    encodeModel.jsonStoreSolution()
 
-    if np.all(np.all(boolIdenticalLists, axis=1)):
+    # TODO The or True is here for convenience but should be removed
+    if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        showModel(gridInfo, gridMatrix, model, fieldType='Yk',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
-                  numColours=20, dims=[1080, 1920])
-
+        # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
+        showModel(encodeModel, model, fieldType='phiError',
+                  showGrid=True, showFields=False, showFilter=False, showMatrix=False, showZeros=True,
+                  # TODO This invertY inverts the Tkinter Canvas plot
+                  numColours=20, dims=[1080, 1920], invertY=False)
+        pass
     else:
-        model.writeErrorToDict(key='name',
-                               error=Error(name='gridMatrixJSON',
-                                           description="ERROR - The JSON object matrix does not match the original matrix",
-                                           cause=True))
+        print('Resolve errors to show model')
 
     print('\nBelow are a list of warnings and errors:')
-    if model.errorDict:
-        model.errorDict.printErrorsByAttr('description')
+    if encodeModel.rebuiltModel.errorDict:
+        encodeModel.rebuiltModel.errorDict.printErrorsByAttr('description')
     else:
         print('   - there are no errors')
 

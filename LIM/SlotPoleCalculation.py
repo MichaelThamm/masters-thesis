@@ -6,6 +6,8 @@ import numpy as np
 import contextlib
 from timeit import default_timer as timer
 from collections.abc import MutableMapping
+import itertools
+import configparser
 
 # from numba import cuda, njit, int32, float64
 # from numba.experimental import jitclass
@@ -37,7 +39,7 @@ Filters:
 class LimMotor(object):
     def __init__(self, slots, poles, length):
 
-        self.errorDict = TransformedDict()
+        self.errorDict = TransformedDict.buildFromScratch()
 
         # Kinematic Variables
         mass = 250
@@ -63,6 +65,7 @@ class LimMotor(object):
         self.endTeeth = (self.L - ((self.slots - 1) * self.slotpitch + self.ws))/2  # meters
         # self.Tper = 12 * (self.slotpitch*3)  # meters
         self.Tper = 0.525  # meters
+        self.windingShift = 2
 
         self.Airbuffer = (self.Tper - self.L)/2  # meters
         self.hy = 6.5/1000  # meters
@@ -73,7 +76,8 @@ class LimMotor(object):
         sfactor_D = 0.95
         self.D = 50/1000  # meters
         self.H = self.hy + self.hs  # meters
-        self.vacuumBoundary = self.g*1.5
+        self.vac = self.g * 1.5
+        self.modelHeight = self.H + self.g + self.dr + self.bi
 
         # Conductivity
         self.sigma_iron = 4.5 * 10 ** 6  # Sm^-1
@@ -134,9 +138,36 @@ class TransformedDict(MutableMapping):
     """A dictionary that applies an arbitrary key-altering
        function before accessing the keys"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, kwargs, buildFromJson=False):
+
+        if buildFromJson:
+            self.store = dict()
+            for key, error in kwargs.items():
+                self.__setitem__(key, Error.buildFromJson(error))
+            return
+
         self.store = dict()
-        self.update(dict(*args, **kwargs))  # use the free update to set keys
+        self.update(dict(kwargs))  # use the free update to set keys
+
+    @classmethod
+    def buildFromScratch(cls, **kwargs):
+        return cls(kwargs=kwargs)
+
+    @classmethod
+    def buildFromJson(cls, jsonObject):
+        return cls(kwargs=jsonObject, buildFromJson=True)
+
+    def __eq__(self, otherObject):
+        if not isinstance(otherObject, TransformedDict):
+            # don't attempt to compare against unrelated types
+            return NotImplemented
+        # If the objects are the same then set the IDs to be equal
+        elif self.__dict__.items() == otherObject.__dict__.items():
+            for attr, val in otherObject.__dict__.items():
+                return self.__dict__[attr] == otherObject.__dict__[attr]
+        # The objects are not the same
+        else:
+            pass
 
     def __getitem__(self, key):
         return self.store[key]
@@ -156,19 +187,48 @@ class TransformedDict(MutableMapping):
     def genStoreByValueAttr(self, strName):
         return (self.store[strName] for _ in range(self.store.__len__()))
 
-    def printErrorsByAttr(self, strName):
-        for key in self:
-            print(self[key].__dict__[strName])
+    def printErrorsByAttr(self, attrString):
+        for key in self.store:
+            print(self.__getitem__(key).__dict__[attrString])
+
+    def isEmpty(self):
+        return False if self.store else False
 
 
 class Error(object):
-    def __init__(self, name, description, cause):
-        self.name = name
-        self.description = description
-        self.cause = bool(cause)  # This was done to handle np.bool_ not being json serializable
+    def __init__(self, kwargs, buildFromJson=False):
+
+        if buildFromJson:
+            for key in kwargs:
+                self.__dict__[key] = kwargs[key]
+            return
+
+        self.name = kwargs['name']
+        self.description = kwargs['description']
+        self.cause = bool(kwargs['cause'])  # This was done to handle np.bool_ not being json serializable
         self.state = False
 
         self.setState()
+
+    @classmethod
+    def buildFromScratch(cls, **kwargs):
+        return cls(kwargs=kwargs)
+
+    @classmethod
+    def buildFromJson(cls, jsonObject):
+        return cls(kwargs=jsonObject, buildFromJson=True)
+
+    def __eq__(self, otherObject):
+        if not isinstance(otherObject, Error):
+            # don't attempt to compare against unrelated types
+            return NotImplemented
+        # If the objects are the same then set the IDs to be equal
+        elif self.__dict__.items() == otherObject.__dict__.items():
+            for attr, val in otherObject.__dict__.items():
+                return self.__dict__[attr] == otherObject.__dict__[attr]
+        # The objects are not the same
+        else:
+            pass
 
     def setState(self):
         if self.cause:
@@ -189,6 +249,14 @@ def timing():
     yield
     e = timer()
     print('execution time: {:.2f}s'.format(e - s))
+
+
+def rebuildPlex(val):
+    try:
+        if val[0] == 'plex_Signature':
+            return np.cdouble(val[1] + j_plex * val[2])
+    except TypeError:
+        return val
 
 
 pi = math.pi
@@ -229,3 +297,6 @@ with open('BuildTable.csv', 'w', newline='') as csvFile:
     for value in table:
         writer.writerow(value)
 '''
+
+if __name__ == '__main__':
+    pass

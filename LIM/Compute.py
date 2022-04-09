@@ -9,14 +9,30 @@ from functools import lru_cache
 # A must be a square matrix
 # @njit("float64[:](float64[:, :], float64[:])", cache=True)
 class Model(Grid):
-    def __init__(self, **kwargs):
+
+    currColCount, currColCountUpper, nLoop, matBCount = 0, 0, 0, 0
+
+    def __init__(self, kwargs, buildFromJson=False):
+
+        if buildFromJson:
+            for attr_key in kwargs:
+                self.__dict__[attr_key] = kwargs[attr_key]
+            return
 
         super().__init__(kwargs)
 
         self.writeErrorToDict(key='name',
-                              error=Error(name='meshDensityDiscrepancy',
-                                          description="ERROR - The last slot has a different mesh density than all other slots",
-                                          cause=kwargs['meshIndexes'][0][2] != kwargs['meshIndexes'][0][-3]))
+                              error=Error.buildFromScratch(name='meshDensityDiscrepancy',
+                                                           description="ERROR - The last slot has a different mesh density than all other slots",
+                                                           cause=kwargs['meshIndexes'][0][2] != kwargs['meshIndexes'][0][-3]))
+
+        self.errorTolerance = kwargs['errorTolerance']
+
+        self.hmUnknownsList = {}
+        self.canvasRowRegIdxs, self.canvasColRegIdxs = [], []
+        self.mecIdxs = []
+        self.hmMatrixX, self.mecMatrixX = [], []
+        self.vacLowerRow, self.vacUpperRow = [], []
 
         lenUnknowns = self.hmRegionsIndex[-1]
 
@@ -24,53 +40,96 @@ class Model(Grid):
         self.matrixB = np.zeros(len(self.matrixA), dtype=np.cdouble)
         self.matrixX = np.zeros(len(self.matrixA), dtype=np.cdouble)
 
-        self.currColCount = 0
-        self.nLoop = 0
-        self.matBCount = 0
+        for cnt, i in enumerate(self.hmRegions):
+            if cnt == 0:
+                self.hmUnknownsList[i] = Region.buildFromScratch(type=self.hmRegions[i], an=np.zeros(len(self.n)), bn=None)
+            elif cnt == len(self.hmRegions) - 1:
+                self.hmUnknownsList[i] = Region.buildFromScratch(type=self.hmRegions[i], an=None, bn=np.zeros(len(self.n)))
+            else:
+                self.hmUnknownsList[i] = Region.buildFromScratch(type=self.hmRegions[i], an=np.zeros(len(self.n)), bn=np.zeros(len(self.n)))
 
-        self.hmUnknownsList = [Region(np.zeros(len(self.n)),
-                                      np.zeros(len(self.n))) for _ in np.arange(len(self.hmRegions))]
+        # HM and MEC unknown indexes in matrix A and B, used for visualization
+        indexRowVal, indexColVal = 0, 0
+        for region in self.getFullRegionDict():
+            if region != 'core' and region.split('_')[0] != 'vac':
+                indexColVal += 2 * len(self.n)
+                indexRowVal += 2 * len(self.n)
+                self.canvasRowRegIdxs.append(indexRowVal)
 
-        # HM and MEC unknown indexes in matrix A, these lists are different from hm and mec RegionsIndex
-        # which are actually used to index matrix A
-        self.canvasRowRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-                                       self.mecRegionLength + 2 * len(self.n), self.mecRegionLength + 4 * len(self.n),
-                                       self.mecRegionLength + 6 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-        self.canvasColRegIdxs = [len(self.n), len(self.n) + self.mecRegionLength,
-                                       self.mecRegionLength + 3 * len(self.n), self.mecRegionLength + 5 * len(self.n),
-                                       self.mecRegionLength + 7 * len(self.n), self.mecRegionLength + 8 * len(self.n)]
-        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[0] + self.ppL * i for i in range(1, self.ppHeight)]
+            elif region.split('_')[0] == 'vac':
+                indexColVal += len(self.n)
 
-        self.hmIdxs = list(range(2 * len(self.n))) + list(range(self.hmRegionsIndex[1], lenUnknowns))
-        self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
+            elif region == 'core':
+                indexColVal += self.mecRegionLength
+                for bc in self.getFullRegionDict()[region]['bc'].split(', '):
+                    if bc == 'mecHm':
+                        indexRowVal += len(self.n)
+                    elif bc == 'mec':
+                        indexRowVal += self.mecRegionLength
 
-        self.hmMatrixX = []
-        self.mecMatrixX = []
+                    self.canvasRowRegIdxs.append(indexRowVal)
 
-    # TODO We can comment these out for computation efficiency since the bn term is getting removed entirely and
-    #  the an term is getting 0 always which matrix A is initialized as np.zeros()
-    # ___Boundary Condition Methods___ #
-    def __dirichlet(self, regCountOffset, yBoundary):
-        # Eqn 22 in Aleksandrov2018 states that at y = -inf: bn = 0 and the coefficient for an = 0
-        # bn can be taken out of the matrix eqn because it is solved.
-        if yBoundary == '-inf':
-            self.matrixA[self.nLoop, regCountOffset + self.currColCount] = 0.0  # an
-            self.matrixA[self.nLoop, regCountOffset + 1 + self.currColCount] = np.inf  # bn - Note: bn is being removed
+            self.canvasColRegIdxs.append(indexColVal)
+        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppHeight)]
 
-        # Eqn 22 in Aleksandrov2018 states that at y = inf: an = 0 and the coefficient on bn = 0
-        # an can be taken out of the matrix eqn because it is solved.
-        elif yBoundary == 'inf':
-            self.matrixA[self.nLoop, regCountOffset + self.currColCount] = np.inf  # an - Note: an is being removed
-            self.matrixA[self.nLoop, regCountOffset + 1 + self.currColCount] = 0.0  # bn
+        for i in self.mecRegionsIndex:
+            self.mecIdxs.extend(list(range(i, i + self.mecRegionLength)))
+        self.hmIdxs = [i for i in range(len(self.matrixX)) if i not in self.mecIdxs]
+
+    @classmethod
+    def buildFromScratch(cls, **kwargs):
+        return cls(kwargs=kwargs)
+
+    @classmethod
+    def buildFromJson(cls, jsonObject):
+        return cls(kwargs=jsonObject, buildFromJson=True)
+
+    def equals(self, otherObject, removedAtts):
+        equality = True
+        if not isinstance(otherObject, Model):
+            # don't attempt to compare against unrelated types
+            equality = False
 
         else:
-            print('You did not enter a valid yBoundary for Dirichlet condition')
+            # Compare items between objects
+            selfItems = list(filter(lambda x: True if x[0] not in removedAtts else False, self.__dict__.items()))
+            otherItems = list(otherObject.__dict__.items())
+            for cnt, entry in enumerate(selfItems):
+                # Check keys are equal
+                if entry[0] == otherItems[cnt][0]:
+                    # np.ndarray were converted to lists to dump data to json object, now compare against those lists
+                    if type(entry[1]) == np.ndarray:
+                        # Greater than 1D array
+                        if len(entry[1].shape) > 1:
+                            # Check that 2D array are equal
+                            if np.all(np.all(entry[1] != otherItems[cnt][1], axis=1)):
+                                equality = False
+                        # 1D array
+                        else:
+                            if entry[1].tolist() != otherItems[cnt][1]:
+                                # The contents of the array or list may be a deconstructed complex type
+                                if np.all(list(map(lambda val: val[1] == rebuildPlex(otherItems[cnt][1][val[0]]), enumerate(entry[1])))):
+                                    pass
+                                else:
+                                    equality = False
+                    else:
+                        if entry[1] != otherItems[cnt][1]:
+                            # Check to see if keys of the value are equal to string versions of otherItems keys
+                            try:
+                                if list(map(lambda x: str(x), entry[1].keys())) != list(otherItems[cnt][1].keys()):
+                                    equality = False
+                            except ValueError:
+                                pass
+                else:
+                    equality = False
+
+        return equality
 
         self.currColCount += 2
         self.nLoop += 1
         self.matBCount += 1
 
-    def __hmHm(self, nHM, listBCInfo, RegCountOffset1, RegCountOffset2):
+    def hmHm(self, nHM, listBCInfo, RegCountOffset1, RegCountOffset2, remove_an, remove_bn):
 
         hb1, ur1, urSigma1, _, ur2, urSigma2 = listBCInfo
 
@@ -80,47 +139,48 @@ class Model(Grid):
 
         # By Condition
         Ba_lower, Ba_upper, Bb_lower, Bb_upper = self.__preEqn24_2018(lambdaN1, lambdaN2, hb1)
-
         self.matrixA[self.nLoop, RegCountOffset1 + self.currColCount] = Ba_lower  # an Lower
-        self.matrixA[self.nLoop, RegCountOffset1 + 1 + self.currColCount] = Bb_lower  # bn Lower
-        self.matrixA[self.nLoop, RegCountOffset2 + self.currColCount] = Ba_upper  # an Upper
-        self.matrixA[self.nLoop, RegCountOffset2 + 1 + self.currColCount] = Bb_upper  # bn Upper
+        if not remove_bn:
+            self.matrixA[self.nLoop, RegCountOffset1 + 1 + self.currColCount] = Bb_lower  # bn Lower
+        if not remove_an:
+            self.matrixA[self.nLoop, RegCountOffset2 + self.currColCountUpper] = Ba_upper  # an Upper
+            self.matrixA[self.nLoop, RegCountOffset2 + 1 + self.currColCountUpper] = Bb_upper  # bn Upper
+        else:
+            self.matrixA[self.nLoop, RegCountOffset2 + self.currColCountUpper] = Bb_upper  # bn Upper
 
         # Hx Condition
         Ha_lower, Ha_upper, Hb_lower, Hb_upper = self.__preEqn25_2018(lambdaN1, lambdaN2, ur1, ur2, hb1)
 
         self.matrixA[self.nLoop + 1, RegCountOffset1 + self.currColCount] = Ha_lower  # an Lower
-        self.matrixA[self.nLoop + 1, RegCountOffset1 + 1 + self.currColCount] = Hb_lower  # bn Lower
-        self.matrixA[self.nLoop + 1, RegCountOffset2 + self.currColCount] = Ha_upper  # an Upper
-        self.matrixA[self.nLoop + 1, RegCountOffset2 + 1 + self.currColCount] = Hb_upper  # bn Upper
+        if not remove_bn:
+            self.matrixA[self.nLoop + 1, RegCountOffset1 + 1 + self.currColCount] = Hb_lower  # bn Lower
+        if not remove_an:
+            self.matrixA[self.nLoop + 1, RegCountOffset2 + self.currColCountUpper] = Ha_upper  # an Upper
+            self.matrixA[self.nLoop + 1, RegCountOffset2 + 1 + self.currColCountUpper] = Hb_upper  # bn Upper
+        else:
+            self.matrixA[self.nLoop + 1, RegCountOffset2 + self.currColCountUpper] = Hb_upper  # bn Upper
 
-        self.currColCount += 2
+        self.incrementCurrColCnt(remove_an, remove_bn)
         self.nLoop += 2
         self.matBCount += 2
 
-    def __mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper):
+    def mecHm(self, nHM, iY, listBCInfo, hmRegCountOffset, mecRegCountOffset, removed_an, removed_bn, lowerUpper):
         hb, ur, urSigma = listBCInfo
         wn = 2 * nHM * pi / self.Tper
         lambdaN = self.__lambda_n(wn, urSigma)
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        # TODO My math shows this to be 1 2019 paper says 2
         coeff = 2 * j_plex / (wn * self.Tper)
 
-        if iY not in [self.mecYIndexes[0], self.mecYIndexes[-1] + 1]:
-            print('Please choose a valid boundary index')
-            return
+        self.writeErrorToDict(key='name',
+                              error=Error.buildFromScratch(name='iYnotInMEC',
+                                                           description='ERROR - The index iY is not in the MEC boundaries',
+                                                           cause=iY not in [self.yIndexesMEC[0], self.yIndexesMEC[-1]]))
 
-        if lowerUpper == 'lower':
-            row = self.matrix[iY]
-        elif lowerUpper == 'upper':
-            row = self.matrix[iY-1]
-        else:
-            print('Please choose a valid upper or lower boundary')
-            return
+        row = self.matrix[iY]
 
         sumResEqn22Source = np.cdouble(0)
-        for iX in np.arange(self.ppL):
-            llNode, lNode, rNode, rrNode = self.neighbourNodes(iX)
+        for iX in range(self.ppL):
+            lNode, rNode = self.neighbourNodes(iX)
 
             # By Condition
             # This is handled in the MEC region KCL equations using Eqn 21
@@ -130,7 +190,6 @@ class Model(Grid):
             eastRelDenom = row[iX].Rx + row[rNode].Rx
             westRelDenom = row[iX].Rx + row[lNode].Rx
 
-            # TODO This may not be correct. This affects the thrust result but not the waveform amplitude or shape
             eastMMF = row[iX].MMF + row[rNode].MMF
             westMMF = row[iX].MMF + row[lNode].MMF
 
@@ -162,42 +221,55 @@ class Model(Grid):
         # HM related equations
         hmResA, hmResB = self.__preEqn8(ur, lambdaN, wn, hb)
 
-        # If the neighbouring region is a Dirichlet region, an or bn should be set to np.inf which helps catch errors
-        if removed_an:
-            self.matrixA[self.nLoop, hmRegCountOffset + self.currColCount] = np.inf  # an
-        else:
+        # If the neighbouring region is a Dirichlet region, an or bn may be removed
+        # a not b
+        if not removed_an and removed_bn:
             self.matrixA[self.nLoop, hmRegCountOffset + self.currColCount] = hmResA  # an
-
-        if removed_bn:
-            self.matrixA[self.nLoop, hmRegCountOffset + 1 + self.currColCount] = np.inf  # bn
-        else:
+        # b not a
+        elif removed_an and not removed_bn:
+            self.matrixA[self.nLoop, hmRegCountOffset + self.currColCountUpper] = hmResB  # bn
+        # a and b
+        elif not removed_an and not removed_bn:
+            self.matrixA[self.nLoop, hmRegCountOffset + self.currColCount] = hmResA  # an
             self.matrixA[self.nLoop, hmRegCountOffset + 1 + self.currColCount] = hmResB  # bn
+        # a and b
+        else:
+            print('There was an error here')
+            return None
 
         self.matrixB[self.matBCount] = - coeff * sumResEqn22Source
 
-        self.currColCount += 2
+        self.incrementCurrColCnt(removed_an, removed_bn)
         self.nLoop += 1
         self.matBCount += 1
 
-    def __mec(self, i, j, node, time_plex, listBCInfo,
-              hmRegCountOffset1, hmRegCountOffset2, mecRegCountOffset):
+    def mec(self, i, j, node, time_plex, listBCInfo,
+            hmRegCountOffset1, hmRegCountOffset2, mecRegCountOffset, removed_an, removed_bn):
 
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
 
-        _, lNode, rNode, _ = self.neighbourNodes(j)
-
-        northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
+        lNode, rNode = self.neighbourNodes(j)
+        if i == 0:
+            _, vacResY = self.matrix[i, j].getReluctance(vacHeight=self.vac/self.ppVac, isVac=True)
+            northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
+            southRelDenom = self.matrix[i, j].Ry + vacResY
+        elif i == self.ppH - 1:
+            _, vacResY = self.matrix[i, j].getReluctance(vacHeight=self.vac/self.ppVac, isVac=True)
+            northRelDenom = self.matrix[i, j].Ry + vacResY
+            southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
+        else:
+            northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
+            southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
         eastRelDenom = self.matrix[i, j].Rx + self.matrix[i, rNode].Rx
-        southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
         westRelDenom = self.matrix[i, j].Rx + self.matrix[i, lNode].Rx
 
         eastMMFNum = self.matrix[i, j].MMF + self.matrix[i, rNode].MMF
         westMMFNum = self.matrix[i, j].MMF + self.matrix[i, lNode].MMF
 
         # Bottom layer of the mesh
-        if i == self.ppVacuumLower:
+        if i == self.yIndexesMEC[0]:
 
-            self.__setCurrColCount(0)
+            self.__setCurrColCount(0, 0)
             # South Node
             for nHM in self.n:
                 wn = 2 * nHM * pi / self.Tper
@@ -206,8 +278,10 @@ class Model(Grid):
                                                    self.matrix[i, j].x + self.matrix[i, j].lx, hb1)
 
                 self.matrixA[self.nLoop + node, hmRegCountOffset1 + self.currColCount] = anCoeff  # an
-                self.matrixA[self.nLoop + node, hmRegCountOffset1 + 1 + self.currColCount] = bnCoeff  # bn - Note: bn is being removed
-                self.currColCount += 2
+                if not removed_bn:
+                    self.matrixA[self.nLoop + node, hmRegCountOffset1 + 1 + self.currColCount] = bnCoeff  # bn
+
+                self.incrementCurrColCnt(False, removed_bn)
 
             # North Node
             self.matrixA[self.nLoop + node, mecRegCountOffset + node + self.ppL] = - time_plex / northRelDenom
@@ -216,9 +290,9 @@ class Model(Grid):
             self.matrixA[self.nLoop + node, mecRegCountOffset + node] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom)
 
         # Top layer of the mesh
-        elif i == self.ppVacuumLower + self.ppHeight - 1:
+        elif i == self.yIndexesMEC[-1]:
 
-            self.__setCurrColCount(0)
+            self.__setCurrColCount(0, 0)
             # North Node
             for nHM in self.n:
                 wn = 2 * nHM * pi / self.Tper
@@ -226,9 +300,13 @@ class Model(Grid):
                 anCoeff, bnCoeff = self.__preEqn21(lambdaN2, wn, self.matrix[i, j].x,
                                                    self.matrix[i, j].x + self.matrix[i, j].lx, hb2)
 
-                self.matrixA[self.nLoop + node, hmRegCountOffset2 + self.currColCount] = - anCoeff  # an
-                self.matrixA[self.nLoop + node, hmRegCountOffset2 + 1 + self.currColCount] = - bnCoeff  # bn
-                self.currColCount += 2
+                if removed_an:
+                    self.matrixA[self.nLoop + node, hmRegCountOffset2 + self.currColCountUpper] = - bnCoeff  # bn
+                else:
+                    self.matrixA[self.nLoop + node, hmRegCountOffset2 + self.currColCountUpper] = - anCoeff  # an
+                    self.matrixA[self.nLoop + node, hmRegCountOffset2 + 1 + self.currColCountUpper] = - bnCoeff  # bn
+
+                self.incrementCurrColCnt(removed_an, False)
 
             # South Node
             self.matrixA[self.nLoop + node, mecRegCountOffset + node - self.ppL] = - time_plex / southRelDenom
@@ -369,216 +447,24 @@ class Model(Grid):
     def __checkForErrors(self):
 
         self.writeErrorToDict(key='name',
-                                 error=Error(name='nLoop',
-                                             description='ERROR - nLoop',
-                                             cause=self.nLoop != self.matrixA.shape[0]))
+                              error=Error.buildFromScratch(name='nLoop',
+                                                           description='Error - nLoop',
+                                                           cause=self.nLoop != self.matrixA.shape[0]))
 
         self.writeErrorToDict(key='name',
-                                 error=Error(name='matBCount',
-                                             description='ERROR - matBCount',
-                                             cause=self.matBCount != self.matrixB.size))
+                              error=Error.buildFromScratch(name='matBCount',
+                                                           description='Error - matBCount',
+                                                           cause=self.matBCount != self.matrixB.size))
 
         self.writeErrorToDict(key='name',
-                                 error=Error(name='regCount',
-                                             description='ERROR - regCount',
-                                             cause=self.hmRegionsIndex[-1] != self.matrixA.shape[1]))
+                              error=Error.buildFromScratch(name='regCount',
+                                                           description='Error - regCount',
+                                                           cause=self.hmRegionsIndex[-1] != self.matrixA.shape[1]))
 
-    def neighbourNodes(self, j):
-        # boundary 2 to the left
-        if j == 1:
-            llNode = self.ppL - 1
-            lNode = j - 1
-            rNode = j + 1
-            rrNode = j + 2
-        # boundary 1 to the left
-        elif j == 0:
-            llNode = self.ppL - 2
-            lNode = self.ppL - 1
-            rNode = j + 1
-            rrNode = j + 2
-        # boundary 1 to the right
-        elif j == self.ppL - 1:
-            llNode = j - 2
-            lNode = j - 1
-            rNode = 0
-            rrNode = 1
-        # boundary 2 to the right
-        elif j == self.ppL - 2:
-            llNode = j - 2
-            lNode = j - 1
-            rNode = j + 1
-            rrNode = 0
-
-        else:
-            llNode = j - 2
-            lNode = j - 1
-            rNode = j + 1
-            rrNode = j + 2
-
-        return llNode, lNode, rNode, rrNode
-
-    # TODO We can cache functions like this for time improvement
-    def __boundaryInfo(self, iY1, iY2, boundaryType):
-
-        if boundaryType == 'mec':
-            hb1 = self.matrix[iY1, 0].y
-            ur1 = self.matrix[iY1 - 1, 0].ur
-            sigma1 = self.matrix[iY1 - 1, 0].sigma
-            urSigma1 = ur1 * sigma1
-            hb2 = self.matrix[iY2, 0].y
-            ur2 = self.matrix[iY2, 0].ur
-            sigma2 = self.matrix[iY2, 0].sigma
-            urSigma2 = ur2 * sigma2
-
-            return [hb1, urSigma1, hb2, urSigma2]
-
-        elif boundaryType == 'hmHM' and not iY2:
-            hb1 = self.matrix[iY1, 0].y
-            ur1 = self.matrix[iY1 - 1, 0].ur
-            sigma1 = self.matrix[iY1 - 1, 0].sigma
-            urSigma1 = ur1 * sigma1
-            ur2 = self.matrix[iY1, 0].ur
-            sigma2 = self.matrix[iY1, 0].sigma
-            urSigma2 = ur2 * sigma2
-
-            return [hb1, ur1, urSigma1, None, ur2, urSigma2]
-
-        elif boundaryType == 'hmMEC' and not iY2:
-            hb = self.matrix[iY1, 0].y
-            ur = self.matrix[iY1 - 1, 0].ur
-            sigma = self.matrix[iY1 - 1, 0].sigma
-            urSigma = ur * sigma
-
-            return [hb, ur, urSigma]
-
-        elif boundaryType == 'mecHM' and not iY2:
-            hb = self.matrix[iY1, 0].y
-            ur = self.matrix[iY1, 0].ur
-            sigma = self.matrix[iY1, 0].sigma
-            urSigma = ur * sigma
-
-            return [hb, ur, urSigma]
-
-        else:
-            print('An incorrect boundary type was chosen')
-
-    def __buildMatAB(self):
-
-        [reg0Count, reg2Count, reg3Count, reg4Count, reg5Count, reg6Count] = self.hmRegionsIndex
-        [reg1Count] = self.mecRegionsIndex
-
-        time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        lenUnknowns = reg6Count
-
-        print('Asize: ', self.matrixA.shape, self.matrixA.size)
-        print('Bsize: ', self.matrixB.shape)
-        print('(ppH, ppL, mecRegionLength)', f'({self.ppH}, {self.ppL}, {self.mecRegionLength})')
-
-        # TODO There is potential here to use concurrent.futures.ProcessPoolExecutor since the indexing of the matrix A does not depend on previous boundary conditions
-        # TODO This will require me to change the way I pass the nLoop and matBCount from boundary condition to boundary condition. Instead these need to be constants
-
-        # -----------Boundary 0 --> Vac1 Bottom [Dirichlet]-----------
-        for _ in self.n:
-            self.__dirichlet(regCountOffset=reg0Count, yBoundary='-inf')
-
-        # -----------Boundary 1 --> Vac1 Top [MEC-HM]-----------
-        iY1 = self.ppVacuumLower
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, None, 'hmMEC')
-        self.__setCurrColCount(0)
-        # TODO We can try to cache these kind of functions for speed
-        for nHM in self.n:
-            self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg0Count, mecRegCountOffset=reg1Count,
-                         removed_an=False, removed_bn=True, lowerUpper='lower')
-
-        # -----------KCL EQUATIONS [MEC]-----------
-        iY1 = self.ppVacuumLower
-        iY2 = self.ppVacuumLower + self.ppHeight
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'mec')
-
-        node = 0
-        i, j = iY1, 0
-        while i < iY2:
-            while j < self.ppL:
-                # TODO We can try to cache these kind of functions for speed
-                self.__mec(i, j, node, time_plex, bcInfo, reg0Count, reg2Count, reg1Count)
-
-                node += 1
-                j += 1
-            j = 0
-            i += 1
-
-        self.nLoop += node
-        self.matBCount += node
-
-        # -----------Boundary 2 --> MEC1 Top [MEC-HM]-----------
-        iY1 = self.ppVacuumLower + self.ppHeight
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, None, 'mecHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__mecHm(nHM, iY1, bcInfo,
-                         hmRegCountOffset=reg2Count, mecRegCountOffset=reg1Count,
-                         removed_an=False, removed_bn=False, lowerUpper='upper')
-
-        # -----------Boundary 3 --> Airgap1 Top [HM-HM]-----------
-        iY1 += self.ppAirgap
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg2Count, reg3Count)
-
-        # -----------Boundary 4 --> BladeRotor Top [HM-HM]-----------
-        iY1 += self.ppBladerotor
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg3Count, reg4Count)
-
-        # -----------Boundary 5 --> BackIron Top [HM-HM]-----------
-        iY1 += self.ppBackIron
-        iY2 = None
-        bcInfo = self.__boundaryInfo(iY1, iY2, 'hmHM')
-        self.__setCurrColCount(0)
-        for nHM in self.n:
-            # TODO We can try to cache these kind of functions for speed
-            self.__hmHm(nHM, bcInfo, reg4Count, reg5Count)
-
-        # -----------Boundary 6 --> Vac2 Top-----------
-        self.__setCurrColCount(0)
-        for _ in self.n:
-            self.__dirichlet(regCountOffset=reg5Count, yBoundary='inf')
-
-        # Remove N equations and N coefficients at the Dirichlet boundaries that are solved in HAM_2015
-        rowRemoveIdx = np.array(list(range(len(self.n))) + list(range(lenUnknowns - len(self.n), lenUnknowns)))
-        # print('removeRowsIdx', rowRemoveIdx)
-        colRemoveIdx = np.array(list(range(reg0Count + 1, reg1Count + 1, 2)) + list(range(reg5Count, lenUnknowns, 2)))
-        # print('removeColsIdx', colRemoveIdx)
-
-        self.__checkForErrors()
-
-        return rowRemoveIdx, colRemoveIdx
-
-    def __reduceMatrix(self, iRowDelete, iColDelete):
-
-        preDeleteA = self.matrixA.shape
-
-        # Remove rows and columns described in HAM - Section V. CALCULATING THE COEFFICIENTS
-        print('before mod: ', self.matrixA.shape)
-        self.matrixA = np.delete(self.matrixA, iRowDelete, 0)
-        self.matrixB = np.delete(self.matrixB, iRowDelete, 0)
-        self.matrixA = np.delete(self.matrixA, iColDelete, 1)
-        print('after mod: ', self.matrixA.shape)
-
-        # Identify which rows and columns have np.inf in them
-        rows, cols = np.where(self.matrixA == np.inf)
-        print('rows with infinity: ', rows, 'cols with infinity: ', cols)
+        self.writeErrorToDict(key='name',
+                              error=Error.buildFromScratch(name='regCount',
+                                                           description='Error - The matrices A and B do not match',
+                                                           cause=self.matrixA.shape[0] != self.matrixB.size))
 
         # Check rows
         zeroRowsList = np.all(self.matrixA == 0, axis=1)
@@ -590,38 +476,82 @@ class Model(Grid):
         removeColIdx = np.where(zeroColsList)
         print('Zero Column Indexes: ', removeColIdx[0])
 
-        postDeleteA = self.matrixA.shape
+    def neighbourNodes(self, j):
+        # boundary 1 to the left
+        if j == 0:
+            lNode = self.ppL - 1
+            rNode = j + 1
+        # boundary 1 to the right
+        elif j == self.ppL - 1:
+            lNode = j - 1
+            rNode = 0
+        else:
+            lNode = j - 1
+            rNode = j + 1
 
-        if preDeleteA != postDeleteA:
-            print(f"Matrix A had {preDeleteA[0] - postDeleteA[0]} rows removed and {preDeleteA[1] - postDeleteA[1]} "
-                  f"columns removed with a {round(100 - postDeleteA[0] * postDeleteA[1] / preDeleteA[0] / preDeleteA[1] * 100, 2)} percent decrease in size")
-            print('New A size: ', self.matrixA.shape, self.matrixA.size, 'New B size: ', self.matrixB.size)
+        return lNode, rNode
 
-        if self.matrixA.shape[0] != self.matrixB.size:
-            print("Error - The modified A and B matrices do not match")
+    # TODO We can cache functions like this for time improvement
+    def __boundaryInfo(self, iY1, iY2, boundaryType):
+        if boundaryType == 'mec':
 
-    def __updateLists(self, idx):
-        # This method updates the hm and mec index lists after some indexes were removed in __reduceMatrix method
+            hb1 = self.matrix[iY1, 0].y
+            ur1, sigma1 = self.__getLowerUrSigma(iY1)
+            urSigma1 = ur1 * sigma1
 
-        dirichletIdxs = list(range(len(self.n), 2 * len(self.n))) +\
-                        list(range(self.hmRegionsIndex[-1] - len(self.n), self.hmRegionsIndex[-1]))
-        # TODO This can be improved with map method rather than list comprehension
-        self.hmIdxs = [index for index in self.hmIdxs if index not in dirichletIdxs]
-        self.__shiftHmIdxList(idx)
-        self.mecIdxs = [i for i in range(len(self.matrixX)) if i not in self.hmIdxs]
+            hb2 = self.matrix[iY2+1, 0].y if iY2 != self.ppH - 1 else self.modelHeight
+            ur2, sigma2 = self.__getUpperUrSigma(iY2)
+            urSigma2 = ur2 * sigma2
 
-    def __shiftHmIdxList(self, idx):
-        self.hmIdxs = self.hmIdxs[:len(self.n)] + [i - idx for i in self.hmIdxs[len(self.n):]]
+            return [hb1, urSigma1, hb2, urSigma2]
 
-    def __linalg_lu(self, tolerance):
+        elif boundaryType == 'hmHm' and not iY2:
+            # Case Upper Dirichlet
+            if iY1 == self.ppH:
+                hb1 = self.modelHeight
+                ur2 = self.ur_air
+                sigma2 = self.sigma_air
+            else:
+                hb1 = self.matrix[iY1, 0].y
+                ur2 = self.matrix[iY1, 0].ur
+                sigma2 = self.matrix[iY1, 0].sigma
+            ur1, sigma1 = self.__getLowerUrSigma(iY1)
+            urSigma1 = ur1 * sigma1
+            urSigma2 = ur2 * sigma2
+
+            return [hb1, ur1, urSigma1, None, ur2, urSigma2]
+
+        elif boundaryType == 'hmMec' and not iY2:
+            hb = self.matrix[iY1, 0].y
+            ur, sigma = self.__getLowerUrSigma(iY1)
+            urSigma = ur * sigma
+
+            return [hb, ur, urSigma]
+
+        elif boundaryType == 'mecHm' and not iY2:
+            hb = self.matrix[iY1 + 1, 0].y if iY1 != self.ppH - 1 else self.modelHeight
+            ur, sigma = self.__getUpperUrSigma(iY1)
+            urSigma = ur * sigma
+
+            return [hb, ur, urSigma]
+
+        else:
+            print('An incorrect boundary type was chosen')
+
+    def __linalg_lu(self):
+
+        self.writeErrorToDict(key='name',
+                              error=Error.buildFromScratch(name='linalg deepcopy',
+                                                           description="ERROR - Matrix A and B should be ndarray so matrix deep copy is not performed",
+                                                           cause=type(self.matrixA) != np.ndarray or type(self.matrixB) != np.ndarray))
 
         if self.matrixA.shape[0] == self.matrixA.shape[1]:
             lu, piv = lu_factor(self.matrixA)
             resX = lu_solve((lu, piv), self.matrixB)
             remainder = self.matrixA @ resX - self.matrixB
             print(f'This was the max error seen in the solution for x: {max(remainder)} vs min: {min(remainder)}')
-            testPass = np.allclose(remainder, np.zeros((len(self.matrixA),)), atol=tolerance)
-            print(f'LU Decomp test: {testPass}, if True then x is a solution of Ax = iB with a tolerance of {tolerance}')
+            testPass = np.allclose(remainder, np.zeros((len(self.matrixA),)), atol=self.errorTolerance)
+            print(f'LU Decomp test: {testPass}, if True then x is a solution of Ax = iB with a tolerance of {self.errorTolerance}')
             if testPass:
                 return resX, max(remainder)
             else:
@@ -631,13 +561,36 @@ class Model(Grid):
             print('Error - A is not a square matrix')
             return
 
-    def __genForces(self, urSigma, iY):
+    def __setCurrColCount(self, v1, v2):
+        self.currColCount = v1
+        self.currColCountUpper = v2
+
+    def incrementCurrColCnt(self, removed_an, removed_bn):
+        if removed_an:
+            self.currColCount += 2
+            self.currColCountUpper += 1
+        elif removed_bn:
+            self.currColCount += 1
+            self.currColCountUpper += 2
+        else:
+            self.currColCount += 2
+            self.currColCountUpper += 2
+
+        self.writeErrorToDict(key='name',
+                              error=Error.buildFromScratch(name='RemoveAnBn',
+                                                           description='ERROR - The remove an and bn parameters cannot both be true',
+                                                           cause=removed_an and removed_bn))
+
+    def __lambda_n(self, wn, urSigma):
+        return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
+
+    def __genForces(self, urSigma, iY, flipAnBn=False):
 
         Cnt = 0
         for nHM in self.n:
-            # The airgap is always index 1 of the hm regions in SLIM and DSLIM
-            an = self.hmUnknownsList[1].an[Cnt]
-            bn = self.hmUnknownsList[1].bn[Cnt]
+            gIdx = list(self.hmRegions.keys())[list(self.hmRegions.values()).index('g')]
+            an = self.hmUnknownsList[gIdx].an[Cnt]
+            bn = self.hmUnknownsList[gIdx].bn[Cnt]
             an_, bn_ = np.conj(an), np.conj(bn)
 
             wn = 2 * nHM * pi / self.Tper
@@ -673,43 +626,45 @@ class Model(Grid):
 
             yield Fx, Fy
 
-    def __plotPointsAlongX(self, evenOdd, iY):
+    def __plotPointsAlongX(self, evenOdd, iY, invertY=False):
+
+        lineWidth = 2
+        markerSize = 5
 
         # X axis array
         xCenterPosList = np.array([node.xCenter for node in self.matrix[iY, :]])
         dataArray = np.zeros((4, len(xCenterPosList)), dtype=np.cdouble)
         dataArray[0] = xCenterPosList
+        xSorted = np.array([i.real for i in dataArray[0]], dtype=np.float64)
 
         #  Y axis array
         if evenOdd == 'even':  # even - calculated at lower node boundary in the y-direction
-            yBxList = np.array([self.matrix[iY, j].BxLower for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yByList = np.array([self.matrix[iY, j].ByLower for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yB_List = np.array([self.matrix[iY, j].B_Lower for j in np.arange(self.ppL)], dtype=np.cdouble)
-
+            yBxList = np.array([self.matrix[iY, j].BxLower for j in range(self.ppL)], dtype=np.cdouble)
+            yByList = np.array([self.matrix[iY, j].ByLower for j in range(self.ppL)], dtype=np.cdouble)
         elif evenOdd == 'odd':  # odd - calculated at node center in the y-direction
-            yBxList = np.array([self.matrix[iY, j].Bx for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yByList = np.array([self.matrix[iY, j].By for j in np.arange(self.ppL)], dtype=np.cdouble)
-            yB_List = np.array([self.matrix[iY, j].B for j in np.arange(self.ppL)], dtype=np.cdouble)
-
+            yBxList = np.array([self.matrix[iY, j].Bx for j in range(self.ppL)], dtype=np.cdouble)
+            yByList = np.array([self.matrix[iY, j].By for j in range(self.ppL)], dtype=np.cdouble)
         else:
             print('neither even nor odd was chosen')
             return
 
-        # TODO This inverts the y axis for the plot
-        # bxInvertYaxis = np.flip(yBxList)
-        # byInvertYaxis = np.flip(yByList)
-        # dataArray[1] = bxInvertYaxis
-        # dataArray[2] = byInvertYaxis
+        # This flips the plot about the x-axis
+        if invertY:
+            dataArray[1] = np.array(list(map(lambda x: -1 * x, yBxList)))
+            dataArray[2] = np.array(list(map(lambda x: -1 * x, yByList)))
+        else:
+            dataArray[1] = yBxList
+            dataArray[2] = yByList
 
-        dataArray[1] = yBxList
-        dataArray[2] = yByList
-        dataArray[3] = yB_List
-
-        xSorted = np.array([i.real for i in dataArray[0]], dtype=np.float64)
-
-        lineWidth = 2
-        markerSize = 5
         tempReal = np.array([j.real for j in dataArray[1]], dtype=np.float64)
+
+        # Background shading slots
+        minY1, maxY1 = min(tempReal), max(tempReal)
+        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.coilArray[::self.ppSlot]]))
+        for cnt, each in enumerate(xPosLines):
+            plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
+        plt.legend()
+
         plt.scatter(xSorted, tempReal.flatten())
         plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
         plt.xlabel('Position [m]')
@@ -718,6 +673,14 @@ class Model(Grid):
         plt.show()
 
         tempReal = np.array([j.real for j in dataArray[2]], dtype=np.float64)
+
+        # Background shading slots
+        minY1, maxY1 = min(tempReal), max(tempReal)
+        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.coilArray[::self.ppSlot]]))
+        for cnt, each in enumerate(xPosLines):
+            plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
+        plt.legend()
+
         plt.scatter(xSorted, tempReal.flatten())
         plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
         plt.xlabel('Position [m]')
@@ -725,33 +688,160 @@ class Model(Grid):
         plt.title('By field in airgap')
         plt.show()
 
-        # tempReal = np.array([j.real for j in dataArray[3]], dtype=np.float64)
-        # plt.scatter(xSorted, tempReal.flatten())
-        # plt.plot(xSorted, tempReal.flatten(), marker='o', linewidth=lineWidth, markersize=markerSize)
-        # plt.xlabel('Position [m]')
-        # plt.ylabel('|B| [T]]')
-        # plt.title('B field in airgap')
-        # plt.show()
+    def __getYboundaryIncludeMEC(self):
+        yBoundaryIncludeMec = [index for index in self.yBoundaryList if index not in self.yIndexesMEC]
+        yBoundaryIncludeMec.extend([self.yIndexesMEC[0], self.yIndexesMEC[-1]])
+        yBoundaryIncludeMec.sort()
+        return yBoundaryIncludeMec
 
-    def __setCurrColCount(self, value):
-        self.currColCount = value
+    def __getLowerUrSigma(self, i):
+        if i == 0:
+            ur = self.ur_air
+            sigma = self.sigma_air
+        else:
+            ur = self.matrix[i - 1, 0].ur
+            sigma = self.matrix[i - 1, 0].sigma
+        return ur, sigma
 
-    def __lambda_n(self, wn, urSigma):
-        return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
+    def __getUpperUrSigma(self, i):
+        if i == self.ppH - 1:
+            ur = self.ur_air
+            sigma = self.sigma_air
+        else:
+            ur = self.matrix[i + 1, 0].ur
+            sigma = self.matrix[i + 1, 0].sigma
+        return ur, sigma
 
-    def updateGrid(self, iErrorInX, showAirgapPlot=False):
+    def __buildMatAB(self):
+
+        lenUnknowns = self.hmRegionsIndex[-1]
+        time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
+
+        yBoundaryIncludeMec = self.__getYboundaryIncludeMEC()
+
+        # TODO There is potential here to use concurrent.futures.ProcessPoolExecutor since the indexing of the matrix A does not depend on previous boundary conditions
+        # TODO This will require me to change the way I pass the nLoop and matBCount from boundary condition to boundary condition. Instead these need to be constants
+        hmMec = True
+        cnt, hmCnt, mecCnt = 0, 0, 0
+        iY1, nextY1 = 0, yBoundaryIncludeMec[0] + 1
+        for region in self.getFullRegionDict():
+            if region.split('_')[0] != 'vac':
+                prevReg, nextReg = self.getLastAndNextRegionName(region)
+                if nextReg.split('_')[0] != 'vac':
+                    _, nextnextReg = self.getLastAndNextRegionName(nextReg)
+                for bc in self.getFullRegionDict()[region]['bc'].split(', '):
+
+                    # Mec region calculation
+                    if bc == 'mec':
+                        node = 0
+                        iY1, iY2 = self.yIndexesMEC[0], self.yIndexesMEC[-1]
+                        i, j = iY1, 0
+                        while i < iY2 + 1:
+                            while j < self.ppL:
+                                params = {'i': i, 'j': j, 'node': node, 'time_plex': time_plex,
+                                          'listBCInfo': self.__boundaryInfo(iY1, iY2, bc),
+                                          'hmRegCountOffset1': self.hmRegionsIndex[hmCnt],
+                                          'hmRegCountOffset2': self.hmRegionsIndex[hmCnt+1],
+                                          'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
+                                          'removed_an': True if nextReg.split('_')[0] == 'vac' else False,
+                                          'removed_bn': True if prevReg.split('_')[0] == 'vac' else False}
+
+                                # TODO We can try to cache these kind of functions for speed
+                                getattr(self, bc)(**params)
+
+                                node += 1
+                                j += 1
+                            j = 0
+                            i += 1
+                        # Increment the indexing after finishing with the mec region
+                        self.__setCurrColCount(0, 0)
+                        self.nLoop += node
+                        self.matBCount += node
+                        nextY1 = iY2 + 1
+                        cnt += 1
+                        hmCnt += 1
+
+                    # All boundary conditions loop through N harmonics except mec
+                    else:
+                        # Loop through harmonics and calculate each boundary condition
+                        if bc == 'hmHm':
+                            params = {'listBCInfo': self.__boundaryInfo(iY1, None, bc),
+                                      'RegCountOffset1': self.hmRegionsIndex[hmCnt],
+                                      'RegCountOffset2': self.hmRegionsIndex[hmCnt+1],
+                                      'remove_an': True if nextReg.split('_')[0] == 'vac' else False,
+                                      'remove_bn': True if prevReg.split('_')[0] == 'vac' else False}
+
+                        elif bc == 'mecHm':
+                            iY1 = self.yIndexesMEC[0] if hmMec else self.yIndexesMEC[-1]
+                            params = {'iY': iY1,
+                                      'listBCInfo': self.__boundaryInfo(iY1, None, 'hmMec' if hmMec else bc),
+                                      'hmRegCountOffset': self.hmRegionsIndex[hmCnt],
+                                      'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
+                                      'removed_an': True if not hmMec and nextReg.split('_')[0] == 'vac' else False,
+                                      'removed_bn': True if hmMec and prevReg.split('_')[0] == 'vac' else False,
+                                      'lowerUpper': 'lower' if hmMec else 'upper'}
+                            hmMec = not hmMec
+
+                        for nHM in self.n:
+                            params['nHM'] = nHM
+                            # TODO We can try to cache these kind of functions for speed
+                            getattr(self, bc)(**params)
+
+                        # This conditional sets all the indices for the loop
+                        self.__setCurrColCount(0, 0)
+                        if bc != 'mecHm' or (bc == 'mecHm' and hmMec):
+                            # Increment cnt for all hmHm boundaries
+                            if bc == 'hmHm':
+                                hmCnt += 1
+                                # TODO Here - This may cause an issue with Cfg1
+                                if nextReg != 'core' and nextnextReg.split('_')[0] != 'vac':
+                                    cnt += 1
+                            # Increment mecCnt only if leaving the mec region
+                            if bc == 'mecHm' and hmMec:
+                                cnt += 1
+                                if nextReg.split('_')[0] != 'vac':
+                                    nextY1 = yBoundaryIncludeMec[cnt] + 1
+                                    cnt += 1
+                                mecCnt += 1
+                            if nextReg.split('_')[0] != 'vac':
+                                iY1 = nextY1
+                                plusOneVal = yBoundaryIncludeMec[cnt] + 1
+                                nextY1 = plusOneVal
+
+        print('Asize: ', self.matrixA.shape, self.matrixA.size)
+        print('Bsize: ', self.matrixB.shape)
+        print('(ppH, ppL, mecRegionLength)', f'({self.ppH}, {self.ppL}, {self.mecRegionLength})')
+
+        self.__checkForErrors()
+
+    def finalizeCompute(self, flipAnBn=False):
+
+        print('region indexes: ', self.hmRegionsIndex, self.mecRegionsIndex, self.mecRegionLength)
+
+        self.__buildMatAB()
+
+        # Solve for the unknown matrix X
+        self.matrixX, preProcessError_matX = self.__linalg_lu()
+
+        self.hmMatrixX = [self.matrixX[self.hmIdxs[i]] for i in range(len(self.hmIdxs))]
+        self.mecMatrixX = [self.matrixX[self.mecIdxs[i]] for i in range(len(self.mecIdxs))]
+        self.hmMatrixX = np.array(self.hmMatrixX, dtype=np.cdouble)
+        self.mecMatrixX = np.array(self.mecMatrixX, dtype=np.cdouble)
+        mecOffsetL, mecOffsetR = 0, self.ppL
+
+        return preProcessError_matX
+
+    def updateGrid(self, iErrorInX, showAirgapPlot=False, invertY=False):
 
         # Unknowns in HM regions
         matIdx = 0
-        for i in np.arange(len(self.hmRegions)):
+        for i in self.hmRegions:
             # lower boundary
-            if i == 0:
+            if i == list(self.hmRegions)[0]:
                 self.hmUnknownsList[i].an = self.hmMatrixX[:len(self.n)]
-                # self.hmUnknownsList[i].bn = self.hmMatrixX[]
                 matIdx += len(self.n)
             # upper boundary
-            elif i == len(self.hmRegions) - 1:
-                # self.hmUnknownsList[i].an = self.hmMatrixX[]
+            elif i == list(self.hmRegions)[-1]:
                 self.hmUnknownsList[i].bn = self.hmMatrixX[-len(self.n):]
                 matIdx += len(self.n)
             else:
@@ -760,41 +850,53 @@ class Model(Grid):
                 matIdx += 2 * len(self.n)
 
         # Unknowns in MEC regions
-        Cnt = 0
-        i, j = 0, 0
-        while i < self.ppH:
-            if i in self.mecYIndexes:
-                while j < self.ppL:
-                    self.matrix[i, j].Yk = self.mecMatrixX[Cnt]
-                    Cnt += 1
-                    j += 1
-                j = 0
-            i += 1
+        for mecCnt in range(len(self.mecRegions)):
+            Cnt = 0
+            i, j = self.yIndexesMEC[0], 0
+            while i < self.yIndexesMEC[-1] + 1:
+                if i in self.yIndexesMEC:
+                    while j < self.ppL:
+                        self.matrix[i, j].Yk = self.mecMatrixX[Cnt]
+                        Cnt += 1
+                        j += 1
+                    j = 0
+                i += 1
 
         # Solve for B in the mesh
         i, j = 0, 0
-        regCnt = 0
+        priorToCore, _ = self.getLastAndNextRegionName('core')
+        if priorToCore.split('_')[0] == 'vac':
+            regCnt = list(self.mecRegions)[0]
+        else:
+            regCnt = list(self.hmUnknownsList)[1:-1][0]
         while i < self.ppH:
             while j < self.ppL:
 
-                _, lNode, rNode, _ = self.neighbourNodes(j)
+                lNode, rNode = self.neighbourNodes(j)
 
-                if i in self.mecYIndexes:
+                if i in self.yIndexesMEC:
+
                     # Bottom layer of the MEC
-                    if i == self.mecYIndexes[0]:
-
-                        ur1 = self.matrix[i - 1, 0].ur
-                        sigma1 = self.matrix[i - 1, 0].sigma
+                    if i == self.yIndexesMEC[0]:
+                        # TODO Here - We still need to test this for Cfg2
+                        isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
+                        ur1, sigma1 = self.__getLowerUrSigma(i)
                         urSigma1 = ur1 * sigma1
                         nCnt, Flux_ySum = 0, 0
                         for nHM in self.n:
 
                             wn = 2 * nHM * pi / self.Tper
                             lambdaN1 = self.__lambda_n(wn, urSigma1)
+                            if isNextToLowerVac:
+                                an = self.hmUnknownsList[regCnt - 1].an[nCnt]
+                                bn = 0
+                            else:
+                                an = self.hmUnknownsList[regCnt - 1].an[nCnt]
+                                bn = self.hmUnknownsList[regCnt - 1].bn[nCnt]
                             Flux_ySum += self.__postEqn21(lambdaN1, wn, self.matrix[i, j].x,
                                                           self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                          self.matrix[i, j].y, self.hmUnknownsList[0].an[nCnt],
-                                                          self.hmUnknownsList[0].bn[nCnt])
+                                                          self.matrix[i, j].y,
+                                                          an, bn)
                             nCnt += 1
 
                         # Eqn 16
@@ -804,19 +906,24 @@ class Model(Grid):
                         self.matrix[i, j].phiYn = Flux_ySum
 
                     # Top layer of the MEC
-                    elif i == self.mecYIndexes[-1]:
-
-                        ur2 = self.matrix[i + 1, 0].ur
-                        sigma2 = self.matrix[i + 1, 0].sigma
+                    elif i == self.yIndexesMEC[-1]:
+                        isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
+                        ur2, sigma2 = self.__getUpperUrSigma(i)
                         urSigma2 = ur2 * sigma2
                         nCnt, Flux_ySum = 0, 0
                         for nHM in self.n:
                             wn = 2 * nHM * pi / self.Tper
                             lambdaN2 = self.__lambda_n(wn, urSigma2)
+                            if isNextToUpperVac:
+                                an = 0
+                                bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
+                            else:
+                                an = self.hmUnknownsList[regCnt + 1].an[nCnt]
+                                bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
                             Flux_ySum += self.__postEqn21(lambdaN2, wn, self.matrix[i, j].x,
                                                           self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                          self.matrix[i + 1, j].y, self.hmUnknownsList[1].an[nCnt],
-                                                          self.hmUnknownsList[1].bn[nCnt])
+                                                          self.matrix[i, j].y + self.matrix[i, j].ly,
+                                                          an, bn)
                             nCnt += 1
 
                         # Eqn 16
@@ -842,17 +949,15 @@ class Model(Grid):
                                                                    self.matrix[i, j].MMF, self.matrix[i, lNode].MMF,
                                                                    self.matrix[i, j].Rx, self.matrix[i, lNode].Rx)
 
-                    self.matrix[i, j].phiError = self.matrix[i, j].phiXn + self.matrix[i, j].phiYn - self.matrix[
-                        i, j].phiXp - self.matrix[i, j].phiYp
+                    self.matrix[i, j].phiError = self.matrix[i, j].phiXn + self.matrix[i, j].phiYn - self.matrix[i, j].phiXp - self.matrix[i, j].phiYp
 
                     # Eqn 40_HAM
                     self.matrix[i, j].Bx = self.postMECAvgB(self.matrix[i, j].phiXn, self.matrix[i, j].phiXp,
-                                                              self.matrix[i, j].Szy)
+                                                            self.matrix[i, j].Szy)
                     self.matrix[i, j].By = self.postMECAvgB(self.matrix[i, j].phiYn, self.matrix[i, j].phiYp,
-                                                              self.matrix[i, j].Sxz)
+                                                            self.matrix[i, j].Sxz)
 
-                elif i in self.hmYIndexes:
-
+                elif i in self.yIndexesHM:
                     ur = self.matrix[i, 0].ur
                     sigma = self.matrix[i, 0].sigma
                     urSigma = ur * sigma
@@ -879,19 +984,15 @@ class Model(Grid):
                     self.matrix[i, j].By = BySumCenter
                     self.matrix[i, j].ByLower = BySumLower
 
-                    self.matrix[i, j].B_Lower = cmath.sqrt(
-                        self.matrix[i, j].BxLower ** 2 + self.matrix[i, j].ByLower ** 2)
-
-                    # Counter for each HM region
-                    if i in [self.vacLowerYIndexes[-1], self.airgapYIndexes[-1], self.bladerotorYIndexes[-1],
-                             self.ironYIndexes[-1], self.vacUpperYIndexes[-1]] and j == self.ppL - 1:
-                        regCnt += 1
-
                 else:
                     print('we cant be here')
                     return
 
                 self.matrix[i, j].B = cmath.sqrt(self.matrix[i, j].Bx ** 2 + self.matrix[i, j].By ** 2)
+
+                # Counter for each HM region
+                if i in [val for val in self.yBoundaryList if val not in self.yIndexesMEC[:-1]] and j == self.ppL - 1:
+                    regCnt += 1
 
                 j += 1
             j = 0
@@ -900,29 +1001,27 @@ class Model(Grid):
         # This is a nested generator comprehension for phiError
         genPhiError = (j.phiError for i in self.matrix for j in i)
         postProcessError_Phi = max(genPhiError)
-        # TODO This is inefficient and temp for testing
         genPhiError_min = (j.phiError for i in self.matrix for j in i)
         print(
             f'max error post processing is: {postProcessError_Phi} vs min error post processing: {min(genPhiError_min)} vs error in matX: {iErrorInX}')
 
-        allowableError = 10 ** (-14)
-        if postProcessError_Phi > allowableError or iErrorInX > allowableError:
+        if postProcessError_Phi > self.errorTolerance or iErrorInX > self.errorTolerance:
             self.writeErrorToDict(key='name',
-                                   error=Error(name='violatedKCL',
-                                               description="ERROR - Kirchhoff's current law is violated",
-                                               cause=True))
+                                  error=Error.buildFromScratch(name='violatedKCL',
+                                                               description="ERROR - Kirchhoff's current law is violated",
+                                                               cause=True))
 
         # Thrust Calculation
-        centerAirgapIdx_y = self.ppVacuumLower + self.ppHeight + self.ppAirgap // 2
-        if self.ppAirgap % 2 == 0:  # even
+        centerAirgapIdx_y = self.yIndexesAirgap[0] + self.ppAirGap // 2
+        if self.ppAirGap % 2 == 0:  # even
             evenOdd = 'even'
             centerAirgap_y = self.matrix[centerAirgapIdx_y][0].y
         else:  # odd
             evenOdd = 'odd'
             centerAirgap_y = self.matrix[centerAirgapIdx_y][0].yCenter
 
-        ur = self.matrix[self.airgapYIndexes[0], 0].ur
-        sigma = self.matrix[self.airgapYIndexes[0], 0].sigma
+        ur = self.matrix[centerAirgapIdx_y, 0].ur
+        sigma = self.matrix[centerAirgapIdx_y, 0].sigma
 
         resFx, resFy = np.cdouble(0), np.cdouble(0)
         thrustGenerator = self.__genForces(ur * sigma, centerAirgap_y)
@@ -935,31 +1034,7 @@ class Model(Grid):
         print(f'Fx: {round(resFx.real, 2)}N,', f'Fy: {round(resFy.real, 2)}N')
 
         if showAirgapPlot:
-            self.__plotPointsAlongX(evenOdd, centerAirgapIdx_y)
-
-    def finalizeCompute(self, iTol):
-
-        print('region indexes: ', self.hmRegionsIndex, self.mecRegionsIndex, self.mecRegionLength)
-
-        removeRows, removeCols = self.__buildMatAB()
-
-        # matrix A and B are trimmed to remove any empty rows or columns using reduceMatrix function
-        self.__reduceMatrix(removeRows, removeCols)
-
-        print('This should be ndarray so matrix deepCody is not performed: ', type(self.matrixA))
-
-        # Solve for the unknown matrix X
-        self.matrixX, preProcessError_matX = self.__linalg_lu(iTol)
-
-        # update the index-tracking lists that are affected by the trimming of matrices A and B
-        self.__updateLists(len(self.n))
-
-        self.hmMatrixX = [self.matrixX[self.hmIdxs[i]] for i in np.arange(len(self.hmIdxs))]
-        self.mecMatrixX = [self.matrixX[self.mecIdxs[i]] for i in np.arange(len(self.mecIdxs))]
-        self.hmMatrixX = np.array(self.hmMatrixX, dtype=np.cdouble)
-        self.mecMatrixX = np.array(self.mecMatrixX, dtype=np.cdouble)
-
-        return preProcessError_matX
+            self.__plotPointsAlongX(evenOdd, centerAirgapIdx_y, invertY=invertY)
 
 
 # noinspection PyGlobalUndefined
@@ -974,18 +1049,18 @@ def complexFourierTransform(model_in, harmonics_in):
      c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
     """
 
-    global row_upper_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, model
+    global row_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, model
 
     model = model_in
 
     idx_FT = 0
     harmonics = harmonics_in
 
-    yIdx_lower = model.ppVacuumLower
-    yIdx_upper = yIdx_lower + model.ppHeight - 1
-    row_upper_FT = model.matrix[yIdx_upper]
-    leftNodeEdges = [node.x for node in row_upper_FT]
-    slices = 10
+    yIdx_lower = model.yIndexesMEC[0]
+    yIdx_upper = model.yIndexesMEC[-1]
+    row_FT = model.matrix[yIdx_lower]
+    leftNodeEdges = [node.x for node in row_FT]
+    slices = 2
     outerIdx, increment = 0, 0
     expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
     for idx in range(len(expandedLeftNodeEdges)):
@@ -995,47 +1070,47 @@ def complexFourierTransform(model_in, harmonics_in):
                 outerIdx += 1
         else:
             increment += 1
-        sliceWidth = row_upper_FT[outerIdx].lx / slices
-        expandedLeftNodeEdges[idx] = row_upper_FT[outerIdx].x + increment * sliceWidth
+        sliceWidth = row_FT[outerIdx].lx / slices
+        expandedLeftNodeEdges[idx] = row_FT[outerIdx].x + increment * sliceWidth
 
     # noinspection PyGlobalUndefined
     def fluxAtBoundary():
-        global row_upper_FT, idx_FT, model
+        global row_FT, idx_FT, model
 
-        _, lNode, rNode, _ = model.neighbourNodes(idx_FT)
-        phiXn = (row_upper_FT[idx_FT].MMF + row_upper_FT[lNode].MMF) \
-                / (row_upper_FT[idx_FT].Rx + row_upper_FT[lNode].Rx)
-        phiXp = (row_upper_FT[idx_FT].MMF + row_upper_FT[rNode].MMF) \
-                / (row_upper_FT[idx_FT].Rx + row_upper_FT[rNode].Rx)
+        lNode, rNode = model.neighbourNodes(idx_FT)
+        phiXn = (row_FT[idx_FT].MMF + row_FT[lNode].MMF) \
+                / (row_FT[idx_FT].Rx + row_FT[lNode].Rx)
+        phiXp = (row_FT[idx_FT].MMF + row_FT[rNode].MMF) \
+                / (row_FT[idx_FT].Rx + row_FT[rNode].Rx)
         return phiXn, phiXp
 
     # noinspection PyGlobalUndefined
     @lru_cache(maxsize=5)
-    def pieceWise_upper(x_in):
-        global row_upper_FT, idx_FT, model
+    def pieceWise(x_in):
+        global row_FT, idx_FT, model
 
         if x_in in leftNodeEdges[1:]:
             idx_FT += 1
 
         phiXn, phiXp = fluxAtBoundary()
 
-        return model.postMECAvgB(phiXn, phiXp, row_upper_FT[idx_FT].Szy)
+        return model.postMECAvgB(phiXn, phiXp, row_FT[idx_FT].Szy)
 
     # noinspection PyGlobalUndefined
     @lru_cache(maxsize=5)
     def fourierSeries(x_in):
-        global row_upper_FT, idx_FT, model
+        global row_FT, idx_FT, model
         sumN = 0.0
         for nHM in harmonics:
             wn = 2 * nHM * pi / model.Tper
             coeff = j_plex / (wn * model.Tper)
             sumK = 0.0
-            for iX in range(len(row_upper_FT)):
+            for iX in range(len(row_FT)):
                 idx_FT = iX
                 phiXn, phiXp = fluxAtBoundary()
-                f = (phiXn + phiXp) / (2 * row_upper_FT[iX].Szy)
-                Xl = row_upper_FT[iX].x
-                Xr = Xl + row_upper_FT[iX].lx
+                f = (phiXn + phiXp) / (2 * row_FT[iX].Szy)
+                Xl = row_FT[iX].x
+                Xr = Xl + row_FT[iX].lx
                 resExp = cmath.exp(-j_plex * wn * (Xr - model.vel * model.t))\
                          - cmath.exp(-j_plex * wn * (Xl - model.vel * model.t))
 
@@ -1045,18 +1120,17 @@ def complexFourierTransform(model_in, harmonics_in):
 
         return sumN
 
-    vfun = np.vectorize(pieceWise_upper)
+    vfun = np.vectorize(pieceWise)
     idx_FT = 0
     x = expandedLeftNodeEdges
     y1 = vfun(x)
-    # vfun = np.vectorize(fourierSeries)
-    # y2 = vfun(x)
-    #
-    # plt.plot(x, y1, 'b-')
-    # plt.plot(x, y2, 'r-')
-    # plt.xlabel('Position [m]')
-    # plt.ylabel('Bx [T]')
-    # plt.title('Bx field at airgap Boundary')
+    vfun = np.vectorize(fourierSeries)
+    y2 = vfun(x)
+    plt.plot(x, y1, 'b-')
+    plt.plot(x, y2, 'r-')
+    plt.xlabel('Position [m]')
+    plt.ylabel('Bx [T]')
+    plt.title('Bx field at airgap Boundary')
     # plt.show()
 
     return x, y1
@@ -1065,13 +1139,13 @@ def complexFourierTransform(model_in, harmonics_in):
 def plotFourierError():
 
     iterations = 1
-    step = 2
-    start = 10
+    step = 1
+    start = 5
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
     lowDiscrete = 30
-    n = np.arange(-lowDiscrete, lowDiscrete + 1, dtype=np.int16)
+    n = range(-lowDiscrete, lowDiscrete + 1)
     n = np.delete(n, len(n) // 2, 0)
     slots = 16
     poles = 6
@@ -1088,16 +1162,27 @@ def plotFourierError():
     for idx, pixelDivisions in enumerate(pixDivs):
 
         pixelSpacing = slotpitch / pixelDivisions
-        loopedModel = Model(slots=slots, poles=poles, length=length, n=n, pixelSpacing=pixelSpacing,
-                          canvasSpacing=canvasSpacing,
-                          meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                          hmRegions=np.array([0, 2, 3, 4, 5], dtype=np.int16),
-                          mecRegions=np.array([1], dtype=np.int16))
+        regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
+                      'mecRegions': {5: 'core'},
+                      'invertY': False}
+        choiceRegionCfg = regionCfg1
+
+        loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
+                                             pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
+                                             meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
+                                             hmRegions=
+                                             choiceRegionCfg['hmRegions'],
+                                             mecRegions=
+                                             choiceRegionCfg['mecRegions'],
+                                             errorTolerance=1e-15,
+                                             # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
+                                             invertY = choiceRegionCfg['invertY'])
+
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
         loopedModel.finalizeGrid(pixelDivisions)
         modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
 
-    for idx, ((pixelDivisions, ppL, ppH), (xSequence, ySequence)) in enumerate(modelList):
+    for (pixelDivisions, ppL, ppH), (xSequence, ySequence) in modelList:
         plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
 
     plt.legend()
