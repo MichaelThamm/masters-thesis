@@ -95,8 +95,14 @@ class EncoderDecoder(object):
             returnVal = listedMatrix
         elif attribute == 'hmUnknownsList':
             returnVal = {}
+            tempDict = {}
             for regionKey, regionVal in originalValue.items():
-                returnVal[regionKey] = {dictKey: dictVal if dictKey not in ['an', 'bn'] else self.__convertComplexInList(dictVal.tolist()) for dictKey, dictVal in regionVal.__dict__.items()}
+                for dictKey, dictVal in regionVal.__dict__.items():
+                    if dictKey not in ['an', 'bn']:
+                        tempDict[dictKey] = dictVal
+                    else:
+                        tempDict[dictKey] = self.__convertComplexInList(dictVal.tolist()) if type(dictVal) == np.ndarray else dictVal
+                returnVal[regionKey] = tempDict
         else:
             print('The object does not match a conditional')
             return
@@ -273,12 +279,14 @@ def main():
     # for keys in tempMotor.__dict__.items():
     #     print(keys)
 
-    # This value defines how small the mesh is at [border, border+1]. Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
+    # This value defines how small the mesh is at [border, border+1].
+    # Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
     meshDensity = np.array([4, 2])
     # Change the mesh density at boundaries. A 1 indicates denser mesh at a size of len(meshDensity)
     # [LeftAirBuffer], [LeftEndTooth], [Slots], [FullTeeth], [LastSlot], [RightEndTooth], [RightAirBuffer]
 
     xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
+    # TODO yMeshIndexes needs to incorporate invertY and the removal of Dirichlet indexes
     # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
     yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
 
@@ -288,9 +296,16 @@ def main():
     regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
                   'mecRegions': {5: 'core'},
                   'invertY': False}
+    # TODO Note that Cfg2 is wrong since the coil pattern in the x direction is only intended for Cfg1
+    #  however, I could write some code to loop through all rows of matrix and invert them and test the results
     regionCfg2 = {'hmRegions': {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
                   'mecRegions': {2: 'core'},
                   'invertY': True}
+
+    # TODO This errors because parts of the code are not linked to hmmecRegions since self.ppH doesnt change
+    regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'bi', 4: 'dr', 6: 'g', 7: 'vac_upper'},
+                  'mecRegions': {5: 'core'},
+                  'invertY': False}
 
     choiceRegionCfg = regionCfg1
 
@@ -304,6 +319,7 @@ def main():
                                    choiceRegionCfg['mecRegions'],
                                    errorTolerance=1e-15,
                                    # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
+                                   # TODO This invertY flips the core MEC region
                                    invertY=choiceRegionCfg['invertY'])
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
@@ -312,7 +328,8 @@ def main():
     with timing():
         errorInX = model.finalizeCompute()
 
-    model.updateGrid(errorInX, showAirgapPlot=True)
+    # TODO This invertY inverts the pyplot
+    model.updateGrid(errorInX, showAirgapPlot=True, invertY=True)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -322,8 +339,9 @@ def main():
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='Bx',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        showModel(encodeModel, model, fieldType='phiError',
+                  showGrid=True, showFields=False, showFilter=False, showMatrix=False, showZeros=True,
+                  # TODO This invertY inverts the Tkinter Canvas plot
                   numColours=20, dims=[1080, 1920], invertY=False)
         pass
     else:

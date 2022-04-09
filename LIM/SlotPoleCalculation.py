@@ -77,7 +77,7 @@ class LimMotor(object):
         self.D = 50/1000  # meters
         self.H = self.hy + self.hs  # meters
         self.vac = self.g * 1.5
-        self.modelHeight = self.vac * 2 + self.H + self.g + self.dr + self.bi
+        self.modelHeight = self.H + self.g + self.dr + self.bi
 
         # Conductivity
         self.sigma_iron = 4.5 * 10 ** 6  # Sm^-1
