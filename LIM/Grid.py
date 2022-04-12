@@ -485,6 +485,8 @@ class Grid(LimMotor):
                         if self.invertY:
                             index_ -= len(doubleCoilScaling) // 2
                         scalingUpper = doubleCoilScaling[index_]
+                        # TODO Here -
+                        scalingUpper *= 1
                     else:
                         scalingUpper = 0.0
 

@@ -329,7 +329,7 @@ def main():
         errorInX = model.finalizeCompute()
 
     # TODO This invertY inverts the pyplot
-    model.updateGrid(errorInX, showAirgapPlot=True, invertY=True)
+    model.updateGrid(errorInX, showAirgapPlot=True, invertY=True, showUnknowns=False)
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -340,7 +340,7 @@ def main():
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
         showModel(encodeModel, model, fieldType='MMF',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+                  showGrid=False, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   # TODO This invertY inverts the Tkinter Canvas plot
                   numColours=20, dims=[1080, 1920], invertY=False)
         pass

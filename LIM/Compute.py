@@ -592,7 +592,7 @@ class Model(Grid):
     def __lambda_n(self, wn, urSigma):
         return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
 
-    def __genForces(self, urSigma, iY, flipAnBn=False):
+    def __genForces(self, urSigma, iY):
 
         Cnt = 0
         for nHM in self.n:
@@ -633,6 +633,27 @@ class Model(Grid):
             Cnt += 1
 
             yield Fx, Fy
+
+    def __plotPointsAlongHM(self, iY):
+        lineWidth = 2
+        markerSize = 5
+        plt.scatter(self.n, self.hmUnknownsList[iY].an)
+        plt.plot(self.n, self.hmUnknownsList[iY].an, marker='o', linewidth=lineWidth, markersize=markerSize)
+        plt.scatter(self.n, self.hmUnknownsList[iY].bn)
+        plt.plot(self.n, self.hmUnknownsList[iY].bn, marker='o', linewidth=lineWidth, markersize=markerSize)
+        plt.xlabel('harmonic')
+        plt.ylabel('magnitude')
+        plt.title('Solved Unknown Airgap')
+        plt.show()
+
+        plt.scatter(self.n, self.hmUnknownsList[iY-1].an)
+        plt.plot(self.n, self.hmUnknownsList[iY-1].an, marker='o', linewidth=lineWidth, markersize=markerSize)
+        plt.scatter(self.n, self.hmUnknownsList[iY-1].bn)
+        plt.plot(self.n, self.hmUnknownsList[iY-1].bn, marker='o', linewidth=lineWidth, markersize=markerSize)
+        plt.xlabel('harmonic')
+        plt.ylabel('magnitude')
+        plt.title('Solved Unknown Airgap')
+        plt.show()
 
     def __plotPointsAlongX(self, evenOdd, iY, invertY=False):
 
@@ -820,7 +841,7 @@ class Model(Grid):
 
         self.__checkForErrors()
 
-    def finalizeCompute(self, flipAnBn=False):
+    def finalizeCompute(self):
 
         print('region indexes: ', self.hmRegionsIndex, self.mecRegionsIndex, self.mecRegionLength)
 
@@ -837,7 +858,7 @@ class Model(Grid):
 
         return preProcessError_matX
 
-    def updateGrid(self, iErrorInX, showAirgapPlot=False, invertY=False):
+    def updateGrid(self, iErrorInX, showAirgapPlot=False, invertY=False, showUnknowns=False):
 
         # Unknowns in HM regions
         matIdx = 0
@@ -1040,6 +1061,8 @@ class Model(Grid):
 
         if showAirgapPlot:
             self.__plotPointsAlongX(evenOdd, centerAirgapIdx_y, invertY=invertY)
+        if showUnknowns:
+            self.__plotPointsAlongHM(centerAirgapIdx_y)
 
 
 # noinspection PyGlobalUndefined
@@ -1065,7 +1088,7 @@ def complexFourierTransform(model_in, harmonics_in):
     yIdx_upper = model.yIndexesMEC[-1]
     row_FT = model.matrix[yIdx_lower]
     leftNodeEdges = [node.x for node in row_FT]
-    slices = 2
+    slices = 5
     outerIdx, increment = 0, 0
     expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
     for idx in range(len(expandedLeftNodeEdges)):
@@ -1108,12 +1131,14 @@ def complexFourierTransform(model_in, harmonics_in):
         sumN = 0.0
         for nHM in harmonics:
             wn = 2 * nHM * pi / model.Tper
+            # TODO *=2 if matching BC, correct without 2 though!
+            #  we should try to multipy * 100 factor without 2 to see if it is closer
             coeff = j_plex / (wn * model.Tper)
             sumK = 0.0
             for iX in range(len(row_FT)):
                 idx_FT = iX
                 phiXn, phiXp = fluxAtBoundary()
-                f = (phiXn + phiXp) / (2 * row_FT[iX].Szy)
+                f = model.postMECAvgB(phiXn, phiXp, row_FT[iX].Szy)
                 Xl = row_FT[iX].x
                 Xr = Xl + row_FT[iX].lx
                 resExp = cmath.exp(-j_plex * wn * (Xr - model.vel * model.t))\
@@ -1131,6 +1156,14 @@ def complexFourierTransform(model_in, harmonics_in):
     y1 = vfun(x)
     vfun = np.vectorize(fourierSeries)
     y2 = vfun(x)
+
+    # Background shading slots
+    minY1, maxY1 = min(y2), max(y2)
+    xPosLines = list(map(lambda x: x.x, model.matrix[0][model.coilArray[::model.ppSlot]]))
+    for cnt, each in enumerate(xPosLines):
+        plt.axvspan(each, each + model.ws, facecolor='b', alpha=0.15, label="_" * cnt + "slot regions")
+    plt.legend()
+
     plt.plot(x, y1, 'b-')
     plt.plot(x, y2, 'r-')
     plt.xlabel('Position [m]')
@@ -1149,14 +1182,14 @@ def plotFourierError():
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
-    lowDiscrete = 30
+    lowDiscrete = 50
     n = range(-lowDiscrete, lowDiscrete + 1)
     n = np.delete(n, len(n) // 2, 0)
     slots = 16
     poles = 6
     wt, ws = 6 / 1000, 10 / 1000
     slotpitch = wt + ws
-    endTeeth = 2 * (4 / 3 * wt)
+    endTeeth = 2 * (5/3 * wt)
     length = ((slots - 1) * slotpitch + ws) + endTeeth
     meshDensity = np.array([4, 2])
     xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
