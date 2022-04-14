@@ -440,7 +440,7 @@ class Grid(LimMotor):
 
                 self.matrix[i][j].Rx, self.matrix[i][j].Ry = self.matrix[i][j].getReluctance()
 
-                isCurrentCu = self.matrix[i][j].material[:-1] == 'copper'
+                isCurrentCu = self.matrix[i][j].material == 'copper'
                 if i in self.yIndexesLowerSlot and j in self.coilArray:
                     if j in self.lower_slotsA:
                         angle_plex = cmath.exp(0)
@@ -473,7 +473,7 @@ class Grid(LimMotor):
                     # Set the scaling factor for MMF in equation 18
                     # 2 coils in slot
                     yLowerCoilIdx = i + self.ppSlotHeight // 2 if self.invertY else i - self.ppSlotHeight // 2
-                    isLowerCu = self.matrix[yLowerCoilIdx][j].material[:-1] == 'copper'
+                    isLowerCu = self.matrix[yLowerCoilIdx][j].material == 'copper'
                     if isCurrentCu and isLowerCu:
                         index_ = self.yIndexesUpperSlot.index(i)
                         if not self.invertY:
