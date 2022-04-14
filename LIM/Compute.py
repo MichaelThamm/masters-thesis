@@ -594,6 +594,8 @@ class Model(Grid):
 
     def __genForces(self, urSigma, iY):
 
+        return 0, 0
+
         Cnt = 0
         for nHM in self.n:
             gIdx = list(self.hmRegions.keys())[list(self.hmRegions.values()).index('g')]

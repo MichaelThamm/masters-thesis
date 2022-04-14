@@ -303,11 +303,11 @@ def main():
                   'invertY': True}
 
     # TODO This errors because parts of the code are not linked to hmmecRegions since self.ppH doesnt change
-    regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'bi', 4: 'dr', 6: 'g', 7: 'vac_upper'},
-                  'mecRegions': {5: 'core'},
+    regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 5: 'vac_upper'},
+                  'mecRegions': {4: 'core'},
                   'invertY': False}
 
-    choiceRegionCfg = regionCfg1
+    choiceRegionCfg = regionCfg3
 
     # Object for the model design, grid, and matrices
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
