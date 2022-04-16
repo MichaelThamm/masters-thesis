@@ -524,6 +524,10 @@ class Grid(LimMotor):
                 else:
                     self.matrix[i][j].MMF = 0.0
 
+                # TODO - This is temp
+                if j in self.outLower_slotsC[1]:
+                    self.matrix[i][j].MMF *= 1
+
                 j += 1
             j = 0
             i += 1
