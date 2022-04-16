@@ -70,7 +70,7 @@ class Model(Grid):
                     self.canvasRowRegIdxs.append(indexRowVal)
 
             self.canvasColRegIdxs.append(indexColVal)
-        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppHeight)]
+        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppMEC)]
 
         for i in self.mecRegionsIndex:
             self.mecIdxs.extend(list(range(i, i + self.mecRegionLength)))

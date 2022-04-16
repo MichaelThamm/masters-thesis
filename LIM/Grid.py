@@ -74,11 +74,19 @@ class Grid(LimMotor):
         if self.ppSlotHeight % 2 != 0:
             self.ppSlotHeight += 1
 
-        ppHM = self.ppAirGap + self.ppBladeRotor + self.ppBackIron
-        self.ppHeight = self.ppYoke + self.ppSlotHeight
-        self.ppH = self.ppHeight + ppHM
+        # Determine pixels per harmonic region
+        self.ppHM = 0
+        for each in self.hmRegions.values():
+            if each.split('_')[0] != 'vac':
+                self.ppHM += self.__dict__[self.getFullRegionDict()[each]['pp']]
+        self.ppMEC = 0
+        for core in self.mecRegions.values():
+            for pixel in self.getFullRegionDict()[core]['pp'].split(', '):
+                self.ppMEC += self.ppSlotHeight // 2 if pixel == 'ppSlotHeight' else self.__dict__[pixel]
+
+        self.ppH = self.ppMEC + self.ppHM
         self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + 2 * self.ppEndTooth + 2 * self.ppAirBuffer
-        self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppHeight + ppHM)])
+        self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppMEC + self.ppHM)])
 
         self.toothArray, self.coilArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
         self.removeLowerCoils, self.removeUpperCoils = np.zeros((2, 1), dtype=np.int16)
@@ -88,7 +96,7 @@ class Grid(LimMotor):
         # Mesh sizing
         self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
 
-        self.mecRegionLength = self.ppHeight * self.ppL
+        self.mecRegionLength = self.ppMEC * self.ppL
 
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
