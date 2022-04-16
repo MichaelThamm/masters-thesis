@@ -70,7 +70,8 @@ class Model(Grid):
                     self.canvasRowRegIdxs.append(indexRowVal)
 
             self.canvasColRegIdxs.append(indexColVal)
-        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppHeight)]
+        # TODO Here -
+        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppMEC)]
 
         for i in self.mecRegionsIndex:
             self.mecIdxs.extend(list(range(i, i + self.mecRegionLength)))
@@ -218,8 +219,6 @@ class Model(Grid):
 
             sumResEqn22Source += (resSource_kn + resSource_k + resSource_kp)
 
-        # TODO Here - It is possible that the HM part of this equation is done wrong since airgap is hm region
-        #  What would make the part with the upper coils unique to the rest though?
         # HM related equations
         hmResA, hmResB = self.__preEqn8(ur, lambdaN, wn, hb)
 
