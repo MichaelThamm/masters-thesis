@@ -51,7 +51,7 @@ class Test(Problem):
             canvasSpacing = 80
 
             regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 5: 'vac_upper'},
-                          'mecRegions': {4: 'core'},
+                          'mecRegions': {4: 'mec'},
                           'invertY': False}
 
             choiceRegionCfg = regionCfg3
@@ -155,11 +155,13 @@ class EncoderDecoder(object):
 
         # Json dump cannot handle numpy arrays
         elif type(inVal) == np.ndarray:
-            outVal = inVal.tolist()
-
-            # Case 1D list containing unacceptedTypes
-            if type(outVal[0]) in self.unacceptedTypeList:
-                outVal = self.__convertComplexInList(outVal)
+            if inVal.size == 0:
+                outVal = []
+            else:
+                outVal = inVal.tolist()
+                # Case 1D list containing unacceptedTypes
+                if type(outVal[0]) in self.unacceptedTypeList:
+                    outVal = self.__convertComplexInList(outVal)
 
         # Json dump and load cannot handle complex types
         elif type(inVal) in self.unacceptedTypeList:
@@ -329,20 +331,24 @@ def main():
     canvasSpacing = 80
 
     regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                  'mecRegions': {5: 'core'},
+                  'mecRegions': {5: 'mec'},
                   'invertY': False}
     # TODO Note that Cfg2 is wrong since the coil pattern in the x direction is only intended for Cfg1
     #  however, I could write some code to loop through all rows of matrix and invert them and test the results
     regionCfg2 = {'hmRegions': {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
-                  'mecRegions': {2: 'core'},
+                  'mecRegions': {2: 'mec'},
                   'invertY': True}
 
     # TODO This errors because parts of the code are not linked to hmmecRegions since self.ppH doesnt change
     regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 5: 'vac_upper'},
-                  'mecRegions': {4: 'core'},
+                  'mecRegions': {4: 'mec'},
                   'invertY': False}
 
-    choiceRegionCfg = regionCfg3
+    regionCfg4 = {'hmRegions': {},
+                  'mecRegions': {1: 'mec'},
+                  'invertY': False}
+
+    choiceRegionCfg = regionCfg4
 
     # Object for the model design, grid, and matrices
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
