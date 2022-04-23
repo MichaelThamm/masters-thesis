@@ -3,6 +3,8 @@ from numpy.core._multiarray_umath import ndarray
 from LIM.SlotPoleCalculation import*
 from collections import deque
 
+PP_SLOTHEIGHT = 'ppSlotHeight'
+
 
 class Grid(LimMotor):
 
@@ -30,22 +32,31 @@ class Grid(LimMotor):
 
         super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'])
 
+        # Turn inputs into attributes
         self.invertY = kwargs['invertY']
-
         xMeshIndexes = kwargs['meshIndexes'][0]
         yMeshIndexes = kwargs['meshIndexes'][1]
-
         self.Spacing = kwargs['pixelSpacing']
         self.Cspacing = kwargs['canvasSpacing'] / self.H
         self.meshDensity = kwargs['meshDensity']
         self.n = kwargs['n']
         self.hmRegions = kwargs['hmRegions']
         self.mecRegions = kwargs['mecRegions']
-        self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
-        self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
+        self.allMecRegions = not self.hmRegions
+        combinedList = list(self.hmRegions.items()) + list(self.mecRegions.items())
+        self.allRegions = dict(sorted(combinedList, key=lambda x: x[0]))
 
-        self.yIndexesBackIron, self.yIndexesBladeRotor, self.yIndexesAirgap = None, None, None
-        self.yIndexesLowerSlot, self.yIndexesUpperSlot, self.yIndexesYoke = None, None, None
+        if self.allMecRegions:
+            self.hmRegionsIndex = np.zeros(len(self.hmRegions), dtype=np.int32)
+            self.mecRegionsIndex = np.zeros(len(self.mecRegions) + 1, dtype=np.int32)
+        else:
+            self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
+            self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
+        self.lenUnknowns = 0
+
+        self.yIndexesVacLower, self.yIndexesVacUpper = [], []
+        self.yIndexesBackIron, self.yIndexesBladeRotor, self.yIndexesAirgap = [], [], []
+        self.yIndexesLowerSlot, self.yIndexesUpperSlot, self.yIndexesYoke = [], [], []
 
         self.removeLowerCoilIdxs, self.removeUpperCoilIdxs = [], []
         self.xFirstEdgeNodes, self.xSecondEdgeNodes = [], []
@@ -97,6 +108,11 @@ class Grid(LimMotor):
         self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
 
         self.mecRegionLength = self.ppMEC * self.ppL
+        self.modelHeight = 0
+        for region, values in self.getFullRegionDict().items():
+            if region.split('_')[0] != 'vac':
+                for spatial in values['spatial'].split(', '):
+                    self.modelHeight += self.__dict__[spatial] / 2 if spatial == 'hs' else self.__dict__[spatial]
 
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
@@ -111,18 +127,17 @@ class Grid(LimMotor):
 
         offsetList = []
         cnt, offsetLower, offsetUpper = 0, 0, 0
-        str_ppSlotHeight = self.getFullRegionDict()['core']['pp'].split(', ')[1]
         for region in self.getFullRegionDict():
             if region.split('_')[0] != 'vac':
                 # Set up the y-axis indexes
                 for pp in self.getFullRegionDict()[region]['pp'].split(', '):
                     offsetLower = offsetUpper
-                    offsetUpper += self.__dict__[pp] // 2 if pp == str_ppSlotHeight else self.__dict__[pp]
+                    offsetUpper += self.__dict__[pp] // 2 if pp == PP_SLOTHEIGHT else self.__dict__[pp]
                     offsetList.append((offsetLower, offsetUpper))
                 for inner_cnt, spatial in enumerate(self.getFullRegionDict()[region]['spatial'].split(', ')):
                     pixelKey = self.getFullRegionDict()[region]['pp'].split(', ')[inner_cnt]
-                    pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == str_ppSlotHeight else self.__dict__[pixelKey]
-                    spatialVal = self.__dict__[spatial] / 2 if pixelKey == str_ppSlotHeight else self.__dict__[spatial]
+                    pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[pixelKey]
+                    spatialVal = self.__dict__[spatial] / 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[spatial]
                     self.yListPixelsPerRegion.append(pixelVal)
                     self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal, self.Spacing, self.fractionSize,
                                                         sum(yMeshIndexes[cnt]), self.meshDensity))
@@ -134,7 +149,8 @@ class Grid(LimMotor):
             if region.split('_')[0] != 'vac':
                 for idx in self.getFullRegionDict()[region]['idx'].split(', '):
                     self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
-                    self.yBoundaryList.append(self.__dict__[idx][-1])
+                    if region != 'vac_upper':
+                        self.yBoundaryList.append(self.__dict__[idx][-1])
                     if region in self.hmRegions.values():
                         self.yIndexesHM.extend(self.__dict__[idx])
                     elif region in self.mecRegions.values():
@@ -347,6 +363,7 @@ class Grid(LimMotor):
             else:
                 yCnt += delY
 
+            # TODO We cannot have the last row in this list so it must be unwritten
             if a in self.yBoundaryList:
                 c += 1
 
@@ -357,7 +374,11 @@ class Grid(LimMotor):
         a, b = 0, 0
         while a < self.ppH:
             while b < self.ppL:
-                if a in self.yIndexesYoke and b not in self.bufferArray:
+                if a in self.yIndexesVacLower or a in self.yIndexesVacUpper:
+                    self.matrix[a][b].material = 'vacuum'
+                    self.matrix[a][b].ur = self.ur_air
+                    self.matrix[a][b].sigma = self.sigma_air
+                elif a in self.yIndexesYoke and b not in self.bufferArray:
                     self.matrix[a][b].material = 'iron'
                     self.matrix[a][b].ur = self.ur_iron
                     self.matrix[a][b].sigma = self.sigma_iron
@@ -446,7 +467,7 @@ class Grid(LimMotor):
         while i < self.ppH:
             while j < self.ppL:
 
-                self.matrix[i][j].Rx, self.matrix[i][j].Ry = self.matrix[i][j].getReluctance()
+                self.matrix[i][j].Rx, self.matrix[i][j].Ry = self.matrix[i][j].getReluctance(self)
 
                 isCurrentCu = self.matrix[i][j].material[:-1] == 'copper'
                 if i in self.yIndexesLowerSlot and j in self.coilArray:
@@ -528,10 +549,13 @@ class Grid(LimMotor):
                         inOutCoeffMMF = 0
 
                     self.matrix[i][j].MMF = inOutCoeffMMF * scalingUpper * self.N * self.matrix[i][j].Iph / (2 * turnAreaRatio)
-
                 # Stator teeth
                 else:
                     self.matrix[i][j].MMF = 0.0
+
+                # TODO - This is temp
+                if j in self.outLower_slotsC[1]:
+                    self.matrix[i][j].MMF *= 1
 
                 j += 1
             j = 0
@@ -546,73 +570,64 @@ class Grid(LimMotor):
 
         # Create the starting index for each region in the columns of matrix A
         regionIndex, hmCount, mecCount = 0, 0, 0
-        for count in range(1, len(self.mecRegions) + len(self.hmRegions) + 2):
-            if count in self.hmRegions:
+        for index, name in self.allRegions.items():
+            if index in self.hmRegions:
                 # Dirichlet boundaries have half the unknown coefficients
-                if self.hmRegions[count].split('_')[0] == 'vac':
+                if self.hmRegions[index].split('_')[0] == 'vac':
                     self.hmRegionsIndex[hmCount] = regionIndex
                     regionIndex += len(self.n)
-
                 else:
                     self.hmRegionsIndex[hmCount] = regionIndex
                     regionIndex += 2 * len(self.n)
                 hmCount += 1
 
-            elif count in self.mecRegions:
+                if index == list(self.hmRegions)[-1]:
+                    self.hmRegionsIndex[-1] = regionIndex
+
+        # TODO the for loop excluded += self.mecRegionLength
+            if index in self.mecRegions:
                 self.mecRegionsIndex[mecCount] = regionIndex
                 regionIndex += self.mecRegionLength
                 mecCount += 1
 
-            elif count == list(self.hmRegions)[-1] + 1:
-                self.hmRegionsIndex[hmCount] = regionIndex
-
-            else:
-                self.writeErrorToDict(key='name',
-                                      error=Error.buildFromScratch(name='gridRegion',
-                                                                   description='ERROR - Error in the iGrid regions list',
-                                                                   cause=True))
+                if index == list(self.mecRegions)[-1] and self.allMecRegions:
+                    self.mecRegionsIndex[-1] = regionIndex
 
     def getFullRegionDict(self):
         config = configparser.ConfigParser()
         config.read('Properties.ini')
         regDict = {}
-        for key in range(list(self.hmRegions.keys())[0], list(self.hmRegions.keys())[-1] + 1):
-            if key in self.hmRegions:
-                hmType = self.hmRegions[key]
-                regDict[hmType] = {'pp': config.get('PP', hmType),
-                                   'bc': config.get('BC', hmType),
-                                   'idx': config.get('Y_IDX', hmType),
-                                   'spatial': config.get('SPATIAL', hmType)}
 
-            elif key in self.mecRegions:
-                mecType = self.mecRegions[key]
-                regDict[mecType] = {'pp': config.get('PP', mecType),
-                                    'bc': config.get('BC', mecType),
-                                    'idx': config.get('Y_IDX', mecType),
-                                    'spatial': config.get('SPATIAL', mecType)}
-                # We need to reverse the Properties.ini file
-                if self.invertY:
-                    for each in regDict[mecType]:
-                        stringList = ''
-                        temp = regDict[mecType][each].split(', ')
-                        temp.reverse()
-                        for cnt, string in enumerate(temp):
-                            if cnt == 0:
-                                stringList += string
-                            else:
-                                stringList += f', {string}'
-                        regDict[mecType][each] = stringList
+        for index, name in self.allRegions.items():
+            regDict[name] = {'pp': config.get('PP', name),
+                               'bc': config.get('BC', name),
+                               'idx': config.get('Y_IDX', name),
+                               'spatial': config.get('SPATIAL', name)}
 
-            else:
-                self.writeErrorToDict(key='name',
-                                      error=Error.buildFromScratch(name='InputRegions',
-                                                                   description='ERROR - The input regions overlap between mec and hm',
-                                                                   cause=True))
+            # We need to reverse the Properties.ini file
+            if self.invertY and index in self.mecRegions:
+                for each in regDict[name]:
+                    stringList = ''
+                    temp = regDict[name][each].split(', ')
+                    temp.reverse()
+                    for cnt, string in enumerate(temp):
+                        if cnt == 0:
+                            stringList += string
+                        else:
+                            stringList += f', {string}'
+                    regDict[name][each] = stringList
+
         return regDict
 
     def getLastAndNextRegionName(self, name):
-        previous = list(self.getFullRegionDict())[list(self.getFullRegionDict()).index(name)-1]
-        next_ = list(self.getFullRegionDict())[list(self.getFullRegionDict()).index(name)+1]
+        if list(self.getFullRegionDict()).index(name) == 0:
+            previous = None
+        else:
+            previous = list(self.getFullRegionDict())[list(self.getFullRegionDict()).index(name)-1]
+        if list(self.getFullRegionDict()).index(name) == len(self.getFullRegionDict()) - 1:
+            next_ = None
+        else:
+            next_ = list(self.getFullRegionDict())[list(self.getFullRegionDict()).index(name)+1]
 
         return previous, next_
 
@@ -683,8 +698,15 @@ class Grid(LimMotor):
         if round(diffUpperSlotHeightDims, 12) != 0:
             print(f'flag - slot height: {diffUpperSlotHeightDims}')
             spatialDomainFlag = True
+        # Check if all regions are mec regions
+        if self.allMecRegions:
+            isYokeAtUpperVac = True
+            isBIAtUpperVac = True
         # Check Yoke and Back Iron since they can be the last region next to upperVac
-        isYokeAtUpperVac = list(self.getFullRegionDict())[1:-1].index('core') == len(list(self.getFullRegionDict())[1:-1]) - 1
+        else:
+            isYokeAtUpperVac = list(self.getFullRegionDict())[1:-1].index('mec') == len(list(self.getFullRegionDict())[1:-1]) - 1
+            isBIAtUpperVac = list(self.getFullRegionDict())[1:-1].index('bi') == len(list(self.getFullRegionDict())[1:-1]) - 1
+
         # Check if yoke is next to upperVac, otherwise index out of bounds will occur
         if isYokeAtUpperVac and not self.invertY:
             yokeY = self.matrix[self.yIndexesYoke[-1]][xIdx].y + self.matrix[self.yIndexesYoke[-1]][xIdx].ly - self.matrix[self.yIndexesYoke[0]][xIdx].y
@@ -695,7 +717,6 @@ class Grid(LimMotor):
             print(f'flag - yoke: {diffYokeDims}')
             spatialDomainFlag = True
 
-        isBIAtUpperVac = list(self.getFullRegionDict())[1:-1].index('bi') == len(list(self.getFullRegionDict())[1:-1]) - 1
         # Check if yoke is next to upperVac, otherwise index out of bounds will occur
         if isBIAtUpperVac:
             biY = self.matrix[self.yIndexesBackIron[-1]][xIdx].y + self.matrix[self.yIndexesBackIron[-1]][xIdx].ly - self.matrix[self.yIndexesBackIron[0]][xIdx].y
@@ -806,10 +827,13 @@ class Node(object):
 
         c.create_rectangle(x_old, y_old, x_new, y_new, width=nodeWidth, fill=fillColour, outline=outline)
 
-    def getReluctance(self, vacHeight=0, isVac=False):
+    def getReluctance(self, model, isVac=False):
 
+        vacHeight = model.vac/model.ppVac
         ResX = self.lx / (2 * uo * self.ur * self.Szy)
-        if isVac:
+        if model.allMecRegions and self.yIndex in [0, model.ppH - 1]:  #  MEC non-continuous boundary
+            ResY = np.inf
+        elif isVac:  # Create a fake vac node
             ResY = vacHeight / (2 * uo * self.ur * self.Sxz)
         else:
             ResY = self.ly / (2 * uo * self.ur * self.Sxz)

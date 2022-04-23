@@ -34,9 +34,9 @@ class Model(Grid):
         self.hmMatrixX, self.mecMatrixX = [], []
         self.vacLowerRow, self.vacUpperRow = [], []
 
-        lenUnknowns = self.hmRegionsIndex[-1]
+        self.lenUnknowns = int(self.hmRegionsIndex[-1] if not self.allMecRegions else self.mecRegionsIndex[-1])
 
-        self.matrixA = np.zeros((lenUnknowns, lenUnknowns), dtype=np.cdouble)
+        self.matrixA = np.zeros((self.lenUnknowns, self.lenUnknowns), dtype=np.cdouble)
         self.matrixB = np.zeros(len(self.matrixA), dtype=np.cdouble)
         self.matrixX = np.zeros(len(self.matrixA), dtype=np.cdouble)
 
@@ -51,7 +51,7 @@ class Model(Grid):
         # HM and MEC unknown indexes in matrix A and B, used for visualization
         indexRowVal, indexColVal = 0, 0
         for region in self.getFullRegionDict():
-            if region != 'core' and region.split('_')[0] != 'vac':
+            if region != 'mec' and region.split('_')[0] != 'vac':
                 indexColVal += 2 * len(self.n)
                 indexRowVal += 2 * len(self.n)
                 self.canvasRowRegIdxs.append(indexRowVal)
@@ -59,20 +59,22 @@ class Model(Grid):
             elif region.split('_')[0] == 'vac':
                 indexColVal += len(self.n)
 
-            elif region == 'core':
+            elif region == 'mec':
                 indexColVal += self.mecRegionLength
                 for bc in self.getFullRegionDict()[region]['bc'].split(', '):
                     if bc == 'mecHm':
                         indexRowVal += len(self.n)
-                    elif bc == 'mec':
+                    elif bc == 'mec' and not self.allMecRegions:
                         indexRowVal += self.mecRegionLength
+                    else:
+                        indexRowVal, indexColVal = 0, 0
 
                     self.canvasRowRegIdxs.append(indexRowVal)
 
             self.canvasColRegIdxs.append(indexColVal)
-        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('core')-1] + self.ppL * i for i in range(1, self.ppMEC)]
+        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('mec')-1] + self.ppL * i for i in range(1, self.ppMEC)]
 
-        for i in self.mecRegionsIndex:
+        for i in self.mecRegionsIndex if not self.allMecRegions else self.mecRegionsIndex[:-1]:
             self.mecIdxs.extend(list(range(i, i + self.mecRegionLength)))
         self.hmIdxs = [i for i in range(len(self.matrixX)) if i not in self.mecIdxs]
 
@@ -118,7 +120,7 @@ class Model(Grid):
                             try:
                                 if list(map(lambda x: str(x), entry[1].keys())) != list(otherItems[cnt][1].keys()):
                                     equality = False
-                            except ValueError:
+                            except AttributeError:
                                 pass
                 else:
                     equality = False
@@ -218,8 +220,6 @@ class Model(Grid):
 
             sumResEqn22Source += (resSource_kn + resSource_k + resSource_kp)
 
-        # TODO Here - It is possible that the HM part of this equation is done wrong since airgap is hm region
-        #  What would make the part with the upper coils unique to the rest though?
         # HM related equations
         hmResA, hmResB = self.__preEqn8(ur, lambdaN, wn, hb)
 
@@ -245,18 +245,18 @@ class Model(Grid):
         self.nLoop += 1
         self.matBCount += 1
 
-    def mec(self, i, j, node, time_plex, listBCInfo,
-            hmRegCountOffset1, hmRegCountOffset2, mecRegCountOffset, removed_an, removed_bn):
+    def mec(self, i, j, node, time_plex, listBCInfo, mecRegCountOffset,
+            hmRegCountOffset1=None, hmRegCountOffset2=None, removed_an=None, removed_bn=None):
 
+        # TODO finish looking through buildMatAB
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
-
         lNode, rNode = self.neighbourNodes(j)
         if i == 0:
-            _, vacResY = self.matrix[i, j].getReluctance(vacHeight=self.vac/self.ppVac, isVac=True)
+            _, vacResY = self.matrix[i, j].getReluctance(self, isVac=True)
             northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
             southRelDenom = self.matrix[i, j].Ry + vacResY
         elif i == self.ppH - 1:
-            _, vacResY = self.matrix[i, j].getReluctance(vacHeight=self.vac/self.ppVac, isVac=True)
+            _, vacResY = self.matrix[i, j].getReluctance(self, isVac=True)
             northRelDenom = self.matrix[i, j].Ry + vacResY
             southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
         else:
@@ -276,59 +276,69 @@ class Model(Grid):
 
         # Bottom layer of the mesh
         if i == self.yIndexesMEC[0]:
+            if not self.allMecRegions:
+                self.__setCurrColCount(0, 0)
+                # South Node
+                for nHM in self.n:
+                    wn = 2 * nHM * pi / self.Tper
+                    lambdaN1 = self.__lambda_n(wn, urSigma1)
+                    anCoeff, bnCoeff = self.__preEqn21(lambdaN1, wn, self.matrix[i, j].x,
+                                                       self.matrix[i, j].x + self.matrix[i, j].lx, hb1)
 
-            self.__setCurrColCount(0, 0)
-            # South Node
-            for nHM in self.n:
-                wn = 2 * nHM * pi / self.Tper
-                lambdaN1 = self.__lambda_n(wn, urSigma1)
-                anCoeff, bnCoeff = self.__preEqn21(lambdaN1, wn, self.matrix[i, j].x,
-                                                   self.matrix[i, j].x + self.matrix[i, j].lx, hb1)
+                    self.matrixA[self.nLoop + node, hmRegCountOffset1 + self.currColCount] = anCoeff  # an
+                    if not removed_bn:
+                        self.matrixA[self.nLoop + node, hmRegCountOffset1 + 1 + self.currColCount] = bnCoeff  # bn
 
-                self.matrixA[self.nLoop + node, hmRegCountOffset1 + self.currColCount] = anCoeff  # an
-                if not removed_bn:
-                    self.matrixA[self.nLoop + node, hmRegCountOffset1 + 1 + self.currColCount] = bnCoeff  # bn
+                    self.incrementCurrColCnt(False, removed_bn)
 
-                self.incrementCurrColCnt(False, removed_bn)
+                # North Node
+                self.matrixA[self.nLoop + node, northIdx] = - time_plex / northRelDenom
 
-            # North Node
-            self.matrixA[self.nLoop + node, northIdx] = - time_plex / northRelDenom
+                # Current Node
+                self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom)
 
-            # Current Node
-            self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom)
+            else:
+                # North Node
+                self.matrixA[self.nLoop + node, northIdx] = - time_plex / northRelDenom
+                # Current Node
+                self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
 
         # Top layer of the mesh
         elif i == self.yIndexesMEC[-1]:
+            if not self.allMecRegions:
+                self.__setCurrColCount(0, 0)
+                # North Node
+                for nHM in self.n:
+                    wn = 2 * nHM * pi / self.Tper
+                    lambdaN2 = self.__lambda_n(wn, urSigma2)
+                    anCoeff, bnCoeff = self.__preEqn21(lambdaN2, wn, self.matrix[i, j].x,
+                                                       self.matrix[i, j].x + self.matrix[i, j].lx, hb2)
 
-            self.__setCurrColCount(0, 0)
-            # North Node
-            for nHM in self.n:
-                wn = 2 * nHM * pi / self.Tper
-                lambdaN2 = self.__lambda_n(wn, urSigma2)
-                anCoeff, bnCoeff = self.__preEqn21(lambdaN2, wn, self.matrix[i, j].x,
-                                                   self.matrix[i, j].x + self.matrix[i, j].lx, hb2)
+                    if removed_an:
+                        self.matrixA[self.nLoop + node, hmRegCountOffset2 + self.currColCountUpper] = - bnCoeff  # bn
+                    else:
+                        self.matrixA[self.nLoop + node, hmRegCountOffset2 + self.currColCountUpper] = - anCoeff  # an
+                        self.matrixA[self.nLoop + node, hmRegCountOffset2 + 1 + self.currColCountUpper] = - bnCoeff  # bn
 
-                if removed_an:
-                    self.matrixA[self.nLoop + node, hmRegCountOffset2 + self.currColCountUpper] = - bnCoeff  # bn
-                else:
-                    self.matrixA[self.nLoop + node, hmRegCountOffset2 + self.currColCountUpper] = - anCoeff  # an
-                    self.matrixA[self.nLoop + node, hmRegCountOffset2 + 1 + self.currColCountUpper] = - bnCoeff  # bn
+                    self.incrementCurrColCnt(removed_an, False)
 
-                self.incrementCurrColCnt(removed_an, False)
+                # South Node
+                self.matrixA[self.nLoop + node, southIdx] = - time_plex / southRelDenom
 
-            # South Node
-            self.matrixA[self.nLoop + node, southIdx] = - time_plex / southRelDenom
+                # Current Node
+                self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / southRelDenom)
 
-            # Current Node
-            self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / southRelDenom)
+            else:
+                # South Node
+                self.matrixA[self.nLoop + node, southIdx] = - time_plex / southRelDenom
+                # Current Node
+                self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
 
         else:
             # North Node
             self.matrixA[self.nLoop + node, northIdx] = - time_plex / northRelDenom
-
             # South Node
             self.matrixA[self.nLoop + node, southIdx] = - time_plex / southRelDenom
-
             # Current Node
             self.matrixA[self.nLoop + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
 
@@ -464,10 +474,11 @@ class Model(Grid):
                                                            description='Error - matBCount',
                                                            cause=self.matBCount != self.matrixB.size))
 
-        self.writeErrorToDict(key='name',
-                              error=Error.buildFromScratch(name='regCount',
-                                                           description='Error - regCount',
-                                                           cause=self.hmRegionsIndex[-1] != self.matrixA.shape[1]))
+        if not self.allMecRegions:
+            self.writeErrorToDict(key='name',
+                                  error=Error.buildFromScratch(name='regCount',
+                                                               description='Error - regCount',
+                                                               cause=self.hmRegionsIndex[-1] != self.matrixA.shape[1]))
 
         self.writeErrorToDict(key='name',
                               error=Error.buildFromScratch(name='regCount',
@@ -593,6 +604,8 @@ class Model(Grid):
         return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
 
     def __genForces(self, urSigma, iY):
+
+        return 0, 0
 
         Cnt = 0
         for nHM in self.n:
@@ -743,7 +756,6 @@ class Model(Grid):
 
     def __buildMatAB(self):
 
-        lenUnknowns = self.hmRegionsIndex[-1]
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
 
         yBoundaryIncludeMec = self.__getYboundaryIncludeMEC()
@@ -756,8 +768,9 @@ class Model(Grid):
         for region in self.getFullRegionDict():
             if region.split('_')[0] != 'vac':
                 prevReg, nextReg = self.getLastAndNextRegionName(region)
-                if nextReg.split('_')[0] != 'vac':
-                    _, nextnextReg = self.getLastAndNextRegionName(nextReg)
+                if nextReg != None:
+                    if nextReg.split('_')[0] != 'vac':
+                        _, nextnextReg = self.getLastAndNextRegionName(nextReg)
                 for bc in self.getFullRegionDict()[region]['bc'].split(', '):
 
                     # Mec region calculation
@@ -769,11 +782,13 @@ class Model(Grid):
                             while j < self.ppL:
                                 params = {'i': i, 'j': j, 'node': node, 'time_plex': time_plex,
                                           'listBCInfo': self.__boundaryInfo(iY1, iY2, bc),
-                                          'hmRegCountOffset1': self.hmRegionsIndex[hmCnt],
-                                          'hmRegCountOffset2': self.hmRegionsIndex[hmCnt+1],
-                                          'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
-                                          'removed_an': True if nextReg.split('_')[0] == 'vac' else False,
-                                          'removed_bn': True if prevReg.split('_')[0] == 'vac' else False}
+                                          'mecRegCountOffset': self.mecRegionsIndex[mecCnt]}
+                                if not self.allMecRegions:
+                                    params['hmRegCountOffset1'] = self.hmRegionsIndex[hmCnt]
+                                    params['removed_bn'] = True if prevReg.split('_')[0] == 'vac' else False
+                                    params['hmRegCountOffset2'] = self.hmRegionsIndex[hmCnt + 1]
+                                    params['removed_an'] = True if nextReg.split('_')[0] == 'vac' else False
+
                                 # TODO We can try to cache these kind of functions for speed
                                 getattr(self, bc)(**params)
 
@@ -821,7 +836,7 @@ class Model(Grid):
                             # Increment cnt for all hmHm boundaries
                             if bc == 'hmHm':
                                 hmCnt += 1
-                                if nextReg != 'core' and nextnextReg.split('_')[0] != 'vac':
+                                if nextReg != 'mec' and nextnextReg.split('_')[0] != 'vac':
                                     cnt += 1
                             # Increment mecCnt only if leaving the mec region
                             if bc == 'mecHm' and hmMec:
@@ -877,7 +892,7 @@ class Model(Grid):
                 matIdx += 2 * len(self.n)
 
         # Unknowns in MEC regions
-        for mecCnt in range(len(self.mecRegions)):
+        for mecCnt, val in enumerate(self.mecRegions):
             Cnt = 0
             i, j = self.yIndexesMEC[0], 0
             while i < self.yIndexesMEC[-1] + 1:
@@ -891,8 +906,8 @@ class Model(Grid):
 
         # Solve for B in the mesh
         i, j = 0, 0
-        priorToCore, _ = self.getLastAndNextRegionName('core')
-        if priorToCore.split('_')[0] == 'vac':
+        priorToCore, _ = self.getLastAndNextRegionName('mec')
+        if self.allMecRegions or priorToCore.split('_')[0] == 'vac':
             regCnt = list(self.mecRegions)[0]
         else:
             regCnt = list(self.hmUnknownsList)[1:-1][0]
@@ -905,58 +920,74 @@ class Model(Grid):
 
                     # Bottom layer of the MEC
                     if i == self.yIndexesMEC[0]:
-                        isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
-                        ur1, sigma1 = self.__getLowerUrSigma(i)
-                        urSigma1 = ur1 * sigma1
-                        nCnt, Flux_ySum = 0, 0
-                        for nHM in self.n:
+                        if self.allMecRegions:
+                            # Eqn 16
+                            self.matrix[i, j].phiYp = self.__postEqn16to17(self.matrix[i + 1, j].Yk, self.matrix[i, j].Yk,
+                                                                           self.matrix[i + 1, j].Ry, self.matrix[i, j].Ry)
+                            # Eqn 17
+                            self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, 0,
+                                                                           self.matrix[i, j].Ry, np.inf)
+                        else:
+                            isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
+                            ur1, sigma1 = self.__getLowerUrSigma(i)
+                            urSigma1 = ur1 * sigma1
+                            nCnt, Flux_ySum = 0, 0
+                            for nHM in self.n:
 
-                            wn = 2 * nHM * pi / self.Tper
-                            lambdaN1 = self.__lambda_n(wn, urSigma1)
-                            if isNextToLowerVac:
-                                an = self.hmUnknownsList[regCnt - 1].an[nCnt]
-                                bn = 0
-                            else:
-                                an = self.hmUnknownsList[regCnt - 1].an[nCnt]
-                                bn = self.hmUnknownsList[regCnt - 1].bn[nCnt]
-                            Flux_ySum += self.__postEqn21(lambdaN1, wn, self.matrix[i, j].x,
-                                                          self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                          self.matrix[i, j].y,
-                                                          an, bn)
-                            nCnt += 1
+                                wn = 2 * nHM * pi / self.Tper
+                                lambdaN1 = self.__lambda_n(wn, urSigma1)
+                                if isNextToLowerVac:
+                                    an = self.hmUnknownsList[regCnt - 1].an[nCnt]
+                                    bn = 0
+                                else:
+                                    an = self.hmUnknownsList[regCnt - 1].an[nCnt]
+                                    bn = self.hmUnknownsList[regCnt - 1].bn[nCnt]
+                                Flux_ySum += self.__postEqn21(lambdaN1, wn, self.matrix[i, j].x,
+                                                              self.matrix[i, j].x + self.matrix[i, j].lx,
+                                                              self.matrix[i, j].y,
+                                                              an, bn)
+                                nCnt += 1
 
-                        # Eqn 16
-                        self.matrix[i, j].phiYp = self.__postEqn16to17(self.matrix[i + 1, j].Yk, self.matrix[i, j].Yk,
-                                                                       self.matrix[i + 1, j].Ry, self.matrix[i, j].Ry)
-                        # Eqn 17
-                        self.matrix[i, j].phiYn = Flux_ySum
+                            # Eqn 16
+                            self.matrix[i, j].phiYp = self.__postEqn16to17(self.matrix[i + 1, j].Yk, self.matrix[i, j].Yk,
+                                                                           self.matrix[i + 1, j].Ry, self.matrix[i, j].Ry)
+                            # Eqn 17
+                            self.matrix[i, j].phiYn = Flux_ySum
 
                     # Top layer of the MEC
                     elif i == self.yIndexesMEC[-1]:
-                        isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
-                        ur2, sigma2 = self.__getUpperUrSigma(i)
-                        urSigma2 = ur2 * sigma2
-                        nCnt, Flux_ySum = 0, 0
-                        for nHM in self.n:
-                            wn = 2 * nHM * pi / self.Tper
-                            lambdaN2 = self.__lambda_n(wn, urSigma2)
-                            if isNextToUpperVac:
-                                an = 0
-                                bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
-                            else:
-                                an = self.hmUnknownsList[regCnt + 1].an[nCnt]
-                                bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
-                            Flux_ySum += self.__postEqn21(lambdaN2, wn, self.matrix[i, j].x,
-                                                          self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                          self.matrix[i, j].y + self.matrix[i, j].ly,
-                                                          an, bn)
-                            nCnt += 1
+                        if self.allMecRegions:
+                            # Eqn 16
+                            self.matrix[i, j].phiYp = self.__postEqn16to17(0, self.matrix[i, j].Yk,
+                                                                           np.inf, self.matrix[i, j].Ry)
+                            # Eqn 17
+                            self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, self.matrix[i - 1, j].Yk,
+                                                                           self.matrix[i, j].Ry, self.matrix[i - 1, j].Ry)
+                        else:
+                            isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
+                            ur2, sigma2 = self.__getUpperUrSigma(i)
+                            urSigma2 = ur2 * sigma2
+                            nCnt, Flux_ySum = 0, 0
+                            for nHM in self.n:
+                                wn = 2 * nHM * pi / self.Tper
+                                lambdaN2 = self.__lambda_n(wn, urSigma2)
+                                if isNextToUpperVac:
+                                    an = 0
+                                    bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
+                                else:
+                                    an = self.hmUnknownsList[regCnt + 1].an[nCnt]
+                                    bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
+                                Flux_ySum += self.__postEqn21(lambdaN2, wn, self.matrix[i, j].x,
+                                                              self.matrix[i, j].x + self.matrix[i, j].lx,
+                                                              self.matrix[i, j].y + self.matrix[i, j].ly,
+                                                              an, bn)
+                                nCnt += 1
 
-                        # Eqn 16
-                        self.matrix[i, j].phiYp = Flux_ySum
-                        # Eqn 17
-                        self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, self.matrix[i - 1, j].Yk,
-                                                                       self.matrix[i, j].Ry, self.matrix[i - 1, j].Ry)
+                            # Eqn 16
+                            self.matrix[i, j].phiYp = Flux_ySum
+                            # Eqn 17
+                            self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, self.matrix[i - 1, j].Yk,
+                                                                           self.matrix[i, j].Ry, self.matrix[i - 1, j].Ry)
 
                     else:
                         # Eqn 16
@@ -1201,7 +1232,7 @@ def plotFourierError():
 
         pixelSpacing = slotpitch / pixelDivisions
         regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                      'mecRegions': {5: 'core'},
+                      'mecRegions': {5: 'mec'},
                       'invertY': False}
         choiceRegionCfg = regionCfg1
 
