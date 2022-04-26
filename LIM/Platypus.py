@@ -240,6 +240,45 @@ class EncoderDecoder(object):
                                                                             cause=True))
 
 
+def platypus(n, run=False):
+    if not run:
+        return
+
+    with timing():
+        algorithm = NSGAII(Test(n))
+        algorithm.run(5000)
+
+    # # TODO Platypus has parallelization built in instead of using Jit
+    # # TODO Look into changing population
+    feasible_solutions = [s for s in algorithm.result if s.feasible]
+    # # TODO Use the debugging tool to see the attributes of algorithm.population
+    plotResults = []
+    cnt = 1
+    for results in feasible_solutions:
+        slotpoles = [algorithm.problem.types[0].decode(results.variables[0]), algorithm.problem.types[0].decode(results.variables[1])]
+        objectives = [results.objectives[0], results.objectives[1]]
+        # TODO Think of a good way to plot results
+        print(slotpoles, objectives)
+        plotResults.append((slotpoles, objectives))
+        cnt += 1
+
+    fig, axs = plt.subplots(2)
+    fig.suptitle('Mass and Thrust')
+    axs[0].scatter(range(1, cnt), [x[1, 0] for x in plotResults])
+    axs[0].set_title('Mass')
+    axs[1].scatter(range(1, cnt), [x[1, 1] for x in plotResults])
+    axs[1].set_title('Thrust')
+    axs[2].scatter(range(1, cnt), [x[0, 0] for x in plotResults])
+    axs[2].set_title('mass obj')
+    axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
+    axs[3].set_title('thrust obj')
+    plt.scatter(range(1, cnt), [x[1, 1] for x in pltResults])
+    # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
+    plt.xlabel('Generations')
+    plt.ylabel('Thrust Objective Value')
+    plt.show()
+
+
 def profile_main():
 
     import cProfile, pstats, io
@@ -280,41 +319,7 @@ def main():
     endTeeth = 2 * (5/3 * wt)
     length = ((slots - 1) * slotpitch + ws) + endTeeth
 
-    def platypus():
-        with timing():
-            algorithm = NSGAII(Test(n))
-            algorithm.run(5000)
-
-        # # TODO Platypus has parallelization built in instead of using Jit
-        # # TODO Look into changing population
-        feasible_solutions = [s for s in algorithm.result if s.feasible]
-        # # TODO Use the debugging tool to see the attributes of algorithm.population
-        plotResults = []
-        cnt = 1
-        for results in feasible_solutions:
-            slotpoles = [algorithm.problem.types[0].decode(results.variables[0]), algorithm.problem.types[0].decode(results.variables[1])]
-            objectives = [results.objectives[0], results.objectives[1]]
-            # TODO Think of a good way to plot results
-            print(slotpoles, objectives)
-            plotResults.append((slotpoles, objectives))
-            cnt += 1
-
-        fig, axs = plt.subplots(2)
-        fig.suptitle('Mass and Thrust')
-        axs[0].scatter(range(1, cnt), [x[1, 0] for x in plotResults])
-        axs[0].set_title('Mass')
-        axs[1].scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-        axs[1].set_title('Thrust')
-        axs[2].scatter(range(1, cnt), [x[0, 0] for x in plotResults])
-        axs[2].set_title('mass obj')
-        axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
-        axs[3].set_title('thrust obj')
-        plt.scatter(range(1, cnt), [x[1, 1] for x in pltResults])
-        # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-        plt.xlabel('Generations')
-        plt.ylabel('Thrust Objective Value')
-        plt.show()
-    # platypus()
+    platypus(n, run=False)
 
     # This value defines how small the mesh is at [border, border+1].
     # Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
@@ -358,7 +363,7 @@ def main():
                                    choiceRegionCfg['hmRegions'],
                                    mecRegions=
                                    choiceRegionCfg['mecRegions'],
-                                   errorTolerance=1e-15,
+                                   errorTolerance=1e-14,
                                    # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
                                    # TODO This invertY flips the core MEC region
                                    invertY=choiceRegionCfg['invertY'])
@@ -380,8 +385,8 @@ def main():
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='Ry',
-                  showGrid=False, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
+        showModel(encodeModel, model, fieldType='Iph',
+                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   # TODO This invertY inverts the Tkinter Canvas plot
                   numColours=20, dims=[1080, 1920], invertY=False)
         pass

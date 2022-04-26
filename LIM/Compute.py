@@ -668,7 +668,7 @@ class Model(Grid):
         plt.title('Solved Unknown Airgap')
         plt.show()
 
-    def __plotPointsAlongX(self, evenOdd, iY, invertY=False):
+    def __plotPointsAlongX(self, iY, invertY=False):
 
         lineWidth = 2
         markerSize = 5
@@ -680,15 +680,8 @@ class Model(Grid):
         xSorted = np.array([i.real for i in dataArray[0]], dtype=np.float64)
 
         #  Y axis array
-        if evenOdd == 'even':  # even - calculated at lower node boundary in the y-direction
-            yBxList = np.array([self.matrix[iY, j].BxLower for j in range(self.ppL)], dtype=np.cdouble)
-            yByList = np.array([self.matrix[iY, j].ByLower for j in range(self.ppL)], dtype=np.cdouble)
-        elif evenOdd == 'odd':  # odd - calculated at node center in the y-direction
-            yBxList = np.array([self.matrix[iY, j].Bx for j in range(self.ppL)], dtype=np.cdouble)
-            yByList = np.array([self.matrix[iY, j].By for j in range(self.ppL)], dtype=np.cdouble)
-        else:
-            print('neither even nor odd was chosen')
-            return
+        yBxList = np.array([self.matrix[iY, j].Bx for j in range(self.ppL)], dtype=np.cdouble)
+        yByList = np.array([self.matrix[iY, j].By for j in range(self.ppL)], dtype=np.cdouble)
 
         # This flips the plot about the x-axis
         if invertY:
@@ -869,7 +862,6 @@ class Model(Grid):
         self.mecMatrixX = [self.matrixX[self.mecIdxs[i]] for i in range(len(self.mecIdxs))]
         self.hmMatrixX = np.array(self.hmMatrixX, dtype=np.cdouble)
         self.mecMatrixX = np.array(self.mecMatrixX, dtype=np.cdouble)
-        mecOffsetL, mecOffsetR = 0, self.ppL
 
         return preProcessError_matX
 
@@ -1018,7 +1010,7 @@ class Model(Grid):
                     ur = self.matrix[i, 0].ur
                     sigma = self.matrix[i, 0].sigma
                     urSigma = ur * sigma
-                    nCnt, BxSumCenter, BySumCenter, BxSumLower, BySumLower = 0, 0, 0, 0, 0
+                    nCnt, BxSumCenter, BySumCenter = 0, 0, 0
                     for nHM in self.n:
                         wn = 2 * nHM * pi / self.Tper
                         lambdaN = self.__lambda_n(wn, urSigma)
@@ -1026,24 +1018,13 @@ class Model(Grid):
                         bn = self.hmUnknownsList[regCnt].bn[nCnt]
                         BxSumCenter += self.__postEqn8(lambdaN, wn,
                                                        self.matrix[i, j].xCenter, self.matrix[i, j].yCenter, an, bn)
-                        BxSumLower += self.__postEqn8(lambdaN, wn,
-                                                      self.matrix[i, j].xCenter, self.matrix[i, j].y, an, bn)
                         BySumCenter += self.__postEqn9(lambdaN, wn,
                                                        self.matrix[i, j].xCenter, self.matrix[i, j].yCenter, an, bn)
-                        BySumLower += self.__postEqn9(lambdaN, wn,
-                                                      self.matrix[i, j].xCenter, self.matrix[i, j].y, an, bn)
 
                         nCnt += 1
 
                     self.matrix[i, j].Bx = BxSumCenter
-                    self.matrix[i, j].BxLower = BxSumLower
-
                     self.matrix[i, j].By = BySumCenter
-                    self.matrix[i, j].ByLower = BySumLower
-
-                else:
-                    print('we cant be here')
-                    return
 
                 self.matrix[i, j].B = cmath.sqrt(self.matrix[i, j].Bx ** 2 + self.matrix[i, j].By ** 2)
 
@@ -1070,12 +1051,7 @@ class Model(Grid):
 
         # Thrust Calculation
         centerAirgapIdx_y = self.yIndexesAirgap[0] + self.ppAirGap // 2
-        if self.ppAirGap % 2 == 0:  # even
-            evenOdd = 'even'
-            centerAirgap_y = self.matrix[centerAirgapIdx_y][0].y
-        else:  # odd
-            evenOdd = 'odd'
-            centerAirgap_y = self.matrix[centerAirgapIdx_y][0].yCenter
+        centerAirgap_y = self.matrix[centerAirgapIdx_y][0].yCenter
 
         ur = self.matrix[centerAirgapIdx_y, 0].ur
         sigma = self.matrix[centerAirgapIdx_y, 0].sigma
@@ -1091,7 +1067,7 @@ class Model(Grid):
         print(f'Fx: {round(resFx.real, 2)}N,', f'Fy: {round(resFy.real, 2)}N')
 
         if showAirgapPlot:
-            self.__plotPointsAlongX(evenOdd, centerAirgapIdx_y, invertY=invertY)
+            self.__plotPointsAlongX(centerAirgapIdx_y, invertY=invertY)
         if showUnknowns:
             self.__plotPointsAlongHM(centerAirgapIdx_y)
 

@@ -82,6 +82,10 @@ class Grid(LimMotor):
         self.ppBackIron = self.setPixelsPerLength(length=self.bi, minimum=1)
         self.ppSlotHeight = self.setPixelsPerLength(length=self.hs, minimum=2)
 
+        # Keeping the airgap odd allows for a center airgap thrust calculation
+        if self.ppAirGap % 2 == 0:
+            self.ppAirGap += 1
+
         if self.ppSlotHeight % 2 != 0:
             self.ppSlotHeight += 1
 
@@ -464,6 +468,7 @@ class Grid(LimMotor):
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
         turnAreaRatio = self.ppSlot
         i, j = 0, 0
+        tempTesting = 1
         while i < self.ppH:
             while j < self.ppL:
 
@@ -514,8 +519,6 @@ class Grid(LimMotor):
                         if self.invertY:
                             index_ -= len(doubleCoilScaling) // 2
                         scalingUpper = doubleCoilScaling[index_]
-                        # TODO Here -
-                        scalingUpper *= 1
                     else:
                         scalingUpper = 0.0
 
@@ -549,6 +552,7 @@ class Grid(LimMotor):
                         inOutCoeffMMF = 0
 
                     self.matrix[i][j].MMF = inOutCoeffMMF * scalingUpper * self.N * self.matrix[i][j].Iph / (2 * turnAreaRatio)
+
                 # Stator teeth
                 else:
                     self.matrix[i][j].MMF = 0.0
@@ -772,11 +776,10 @@ class Node(object):
         self.Yk = np.cdouble(0.0)
 
         # B field
-        self.Bx, self.By, self.B, self.BxLower, self.ByLower, self.B_Lower = np.zeros(6, dtype=np.cdouble)
+        self.Bx, self.By, self.B = np.zeros(3, dtype=np.cdouble)
 
         # Flux
-        self.phiXp, self.phiXn, self.phiYp, self.phiYn, self.phiX, self.phiY, self.phi = np.zeros(7, dtype=np.cdouble)
-        self.phiError = np.cdouble(0.0)
+        self.phiXp, self.phiXn, self.phiYp, self.phiYn, self.phiError = np.zeros(5, dtype=np.cdouble)
 
         # Current
         self.Iph = np.cdouble(0.0)  # phase
