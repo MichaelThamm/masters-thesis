@@ -272,7 +272,7 @@ def platypus(n, run=False):
     axs[2].set_title('mass obj')
     axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
     axs[3].set_title('thrust obj')
-    plt.scatter(range(1, cnt), [x[1, 1] for x in pltResults])
+    plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     plt.xlabel('Generations')
     plt.ylabel('Thrust Objective Value')
