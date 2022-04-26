@@ -248,7 +248,6 @@ class Model(Grid):
     def mec(self, i, j, node, time_plex, listBCInfo, mecRegCountOffset,
             hmRegCountOffset1=None, hmRegCountOffset2=None, removed_an=None, removed_bn=None):
 
-        # TODO finish looking through buildMatAB
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
         lNode, rNode = self.neighbourNodes(j)
         if i == 0:
