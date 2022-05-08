@@ -1,7 +1,7 @@
 from LIM.Show import *
 import json
 import os
-from platypus import *
+from platypus import Problem, Integer, NSGAII
 
 PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Output')
@@ -15,8 +15,7 @@ https://platypus.readthedocs.io/en/latest/getting-started.html
 # Problem is the object that Test will inherit from
 class Test(Problem):
 
-    def __init__(self, iN):
-        self.n = iN
+    def __init__(self):
         # The numbers indicate: #inputs, #objectives, #constraints
         super(Test, self).__init__(2, 2, 1)
         # Constrain the range and type for each input
@@ -240,12 +239,12 @@ class EncoderDecoder(object):
                                                                             cause=True))
 
 
-def platypus(n, run=False):
+def platypus(run=False):
     if not run:
         return
 
     with timing():
-        algorithm = NSGAII(Test(n))
+        algorithm = NSGAII(Test())
         algorithm.run(5000)
 
     # # TODO Platypus has parallelization built in instead of using Jit
@@ -353,7 +352,7 @@ def main():
                   'mecRegions': {1: 'mec'},
                   'invertY': False}
 
-    choiceRegionCfg = regionCfg4
+    choiceRegionCfg = regionCfg1
 
     # Object for the model design, grid, and matrices
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
