@@ -1,0 +1,8 @@
+LOGGER = logging.getLogger("Platypus")
+returns a Logger (WARNING) Object
+
+I see that all throughout the Platypus pip installed library, the "Platypus" logger is written to with some important
+algorithm information. I want to access the file location of the logger, but nowhere in the platypus-opt directories
+is logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG) called to set that file location
+
+Q: Do I have to run this ^ somewhere or is the log location in the directories
