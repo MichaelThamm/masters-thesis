@@ -17,6 +17,8 @@ PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Optimizations')
 
 
+# TODO Currently this enum is useless since I can't change Algorithm.run() code
+#  Instead I am trying to get this info from the logger
 class ExitReason(Enum):
     MAX_EVALS = 1
     OBJECTIVE_TOLERANCE = 2
@@ -177,8 +179,9 @@ def main():
     lower, upper, num = -500, 500, 100
     x1 = np.linspace(lower, upper, num)
     x2 = np.linspace(lower, upper, num)
-    function_evals = 5000
-    tolerance = 10 ** (-4)
+    function_evals = 5000000
+    # tolerance = 10 ** (-4)
+    tolerance = 10
     common_params = {'lower': lower, 'upper': upper, 'evals': function_evals, 'tolerance': tolerance}
 
     # NSGAII
