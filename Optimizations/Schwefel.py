@@ -5,7 +5,6 @@ from platypus import *
 from enum import Enum
 import numpy as np
 import logging
-import copy
 import os
 
 '''
@@ -14,24 +13,30 @@ https://www.indusmic.com/post/schwefel-function
 '''
 
 PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
-OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Optimizations')
+OPTIMIZATIONS_PATH = os.path.join(PROJECT_PATH, 'Optimizations')
+LOGGER_FILE = os.path.join(OPTIMIZATIONS_PATH, 'Optimization.log')
+
+LOGGER = logging.getLogger("Platypus")
+LOGGER.setLevel(logging.INFO)
+LOGGER.addHandler(logging.FileHandler(LOGGER_FILE))
+
+SCHWEFEL_SOLUTION = np.array([420.9687, 420.9687])
 
 
-# TODO Currently this enum is useless since I can't change Algorithm.run() code
-#  Instead I am trying to get this info from the logger
 class ExitReason(Enum):
     MAX_EVALS = 1
-    OBJECTIVE_TOLERANCE = 2
+    STALL = 2
+    TIMEOUT = 3
 
 
 # Problem is the object that Test will inherit from
 class Constraints(Problem):
 
-    def __init__(self, _lower, _upper):
+    def __init__(self, lower, upper):
         # The numbers indicate: #inputs, #objectives, #constraints
         super(Constraints, self).__init__(2, 1)
         # Constrain the range and type for each input
-        self.types[:] = [Real(_lower, _upper), Real(_lower, _upper)]
+        self.types[:] = [Real(lower, upper), Real(lower, upper)]
         # Choose which objective to maximize and minimize
         self.directions[:] = [self.MINIMIZE]
 
@@ -43,11 +48,15 @@ class Constraints(Problem):
 
 
 class WrappedTerminationCondition(TerminationCondition):
-    def __init__(self, max_evals, tolerance):
+    def __init__(self, max_evals, tolerance, max_stalls, timeout):
         super(TerminationCondition, self).__init__()
         self.iteration = 0
+        self.stall_iteration = 0
         self.max_evals = max_evals
         self.solver_tolerance = tolerance
+        self.max_stalls = max_stalls
+        self.start_time = time.time()
+        self.timeout = timeout
         self.old_fittest = np.inf
         self.reason = None
 
@@ -59,19 +68,59 @@ class WrappedTerminationCondition(TerminationCondition):
 
     def shouldTerminate(self, algorithm):
         self.iteration += 1
+        if isinstance(algorithm, NSGAIII):
+            if len(algorithm.result) > 0:
+                fittest = sorted(algorithm.result, key=functools.cmp_to_key(ParetoDominance()))[0]
+            else:
+                fittest = None
+        elif isinstance(algorithm, NSGAII):
+            if len(algorithm.result) > 0:
+                fittest = sorted(algorithm.result, key=functools.cmp_to_key(ParetoDominance()))[0]
+            else:
+                fittest = None
+        elif isinstance(algorithm, GeneticAlgorithm):
+            if hasattr(algorithm, 'fittest'):
+                fittest = algorithm.fittest
+            else:
+                fittest = None
+        elif isinstance(algorithm, ParticleSwarm):
+            if hasattr(algorithm, 'leaders'):
+                fittest = algorithm.leaders._contents[0]  # Use this for efficiency
+            else:
+                fittest = None
+        else:
+            fittest = None
+
+        # Max evaluations
         if self.iteration > self.max_evals:
             self.reason = ExitReason.MAX_EVALS
+            LOGGER.log(logging.INFO, f'Termination after {self.iteration} iterations due to {self.reason}\n'
+                                     f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
+                                     f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
             return True
-        if hasattr(algorithm, 'fittest'):
-            if self.old_fittest - algorithm.fittest.objectives[0] < self.solver_tolerance:
-                self.reason = ExitReason.OBJECTIVE_TOLERANCE
-                return True
-            else:
-                self.old_fittest = algorithm.fittest.objectives[0]
-                return False
-        # The initial check of condition(self) has no algorithm.fittest attribute so we continue until its set
-        else:
+        # Timeout exceeded
+        if (time.time()-self.start_time) >= self.timeout:
+            self.reason = ExitReason.TIMEOUT
+            LOGGER.log(logging.INFO, f'Termination after {self.iteration} iterations due to {self.reason}\n'
+                                     f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
+                                     f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
+            return True
+        # Objective plateau
+        if fittest is None:
             return False
+        else:
+            if self.old_fittest - fittest.objectives[0] <= self.solver_tolerance:
+                self.stall_iteration += 1
+                if self.stall_iteration >= self.max_stalls:
+                    self.reason = ExitReason.STALL
+                    LOGGER.log(logging.INFO, f'Termination after {self.iteration} iterations due to {self.reason}\n'
+                                             f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
+                                             f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
+                    return True
+            else:
+                self.stall_iteration = 0
+                self.old_fittest = fittest.objectives[0]
+                return False
 
 
 def plotResults(str_name, algorithm):
@@ -82,9 +131,6 @@ def plotResults(str_name, algorithm):
     for results in feasible_solutions:
         x, y = (algorithm.problem.types[0].decode(results.variables[0]), algorithm.problem.types[0].decode(results.variables[1]))
         objective = results.objectives[0]
-        # TODO printing algorithm.nfe I dont think is useful unless this .nfe is different than the one in core.py Algorithm
-        #  Check if its printing 5000 or something else
-        print(f'***{str_name}*** coords: {(x, y)}, objective: {objective}, iterations: {algorithm.nfe}')
         plotResults.append((x, y, objective))
 
     fig, axs = plt.subplots(3)
@@ -99,47 +145,13 @@ def plotResults(str_name, algorithm):
     plt.show()
 
 
-def nsgaii(lower, upper, evals, tolerance, population_size, offspring_size, selector, run=False):
+def solveOptimization(algorithm, constraint, termination, solver, run=False):
     if not run:
         return
-    algorithm = NSGAII(Constraints(lower, upper), population_size, selector=selector, offspring_size=offspring_size)
-    algorithm.run(WrappedTerminationCondition(evals, tolerance))
+    optimization = algorithm(Constraints(**constraint), **solver)
+    optimization.run(WrappedTerminationCondition(**termination))
 
-    return algorithm
-
-
-def ga(lower, upper, evals, tolerance, population_size, offspring_size, selector, run=False):
-    '''
-    1) Initialize a random set of solutions of size population_size
-    2) evaluate that population and sort them based on objective to find fittest
-    3)
-    '''
-    if not run:
-        return
-    algorithm = GeneticAlgorithm(Constraints(lower, upper), population_size, offspring_size, selector=selector)
-    algorithm.run(WrappedTerminationCondition(evals, tolerance))
-
-    return algorithm
-
-
-def pso(lower, upper, evals, tolerance, swarm_size, leader_size, generator, run=False):
-    '''
-    1) Creates a list of random input sets within the bounds set in problem of length swarm_size called particles
-    2) The particles list is evaluated on each iterations after which update_velocities(), update_positions(), mutate()
-    3) Update the leaders
-    '''
-    if not run:
-        return
-    # https: // deap.readthedocs.io / en / master / api / tools.html  # deap.tools.mutGaussian
-    algorithm = ParticleSwarm(Constraints(lower, upper), swarm_size, leader_size, generator,
-                              leader_comparator=AttributeDominance(crowding_distance_key),
-                              fitness=crowding_distance, fitness_getter=crowding_distance_key)
-    # TODO GeneticAlgorithm uses step() method from AbstractGeneticAlgorithm which must be the base class to SingleObjectiveAlgorithm
-    #   Line 393 in Core.py sets self.nfe += len(unevaluated)
-    #   Line 114 in algorithms.py takes the solutions from each particle and sorts them in order of objective function which sets self.fittest = self.population[0]
-    algorithm.run(WrappedTerminationCondition(evals, tolerance))
-
-    return algorithm
+    return optimization
 
 
 def schwefel(x1,x2):
@@ -147,70 +159,63 @@ def schwefel(x1,x2):
     return 418.9829 * dims - x1 * np.sin(np.sqrt(abs(x1))) - x2 * np.sin(np.sqrt(abs(x2)))
 
 
-def profile_main():
-
-    import cProfile, pstats, io
-
-    lower, upper, num = -500, 500, 100
-    x1 = np.linspace(lower, upper, num)
-    x2 = np.linspace(lower, upper, num)
-
-    prof = cProfile.Profile()
-    prof = prof.runctx("nsgaii(lower, upper, run=True)", globals(), locals())
-
-    stream = io.StringIO()
-
-    stats = pstats.Stats(prof, stream=stream)
-    stats.sort_stats("time")  # or cumulative
-    stats.print_stats(80)  # 80 = how many to print
-
-    # The rest is optional.
-    # stats.print_callees()
-    # stats.print_callers()
-
-    # logging.info("Profile data:\n%s", stream.getvalue())
-
-    f = open(os.path.join(OUTPUT_PATH, 'profile.txt'), 'a')
-    f.write(stream.getvalue())
-    f.close()
-
-
 def main():
+
+    # Clear the log file
+    logging.FileHandler(LOGGER_FILE, mode='w')
+
     lower, upper, num = -500, 500, 100
     x1 = np.linspace(lower, upper, num)
     x2 = np.linspace(lower, upper, num)
-    function_evals = 5000000
-    # tolerance = 10 ** (-4)
-    tolerance = 10
-    common_params = {'lower': lower, 'upper': upper, 'evals': function_evals, 'tolerance': tolerance}
+    max_evals = 500
+    max_stalls = 10
+    tolerance = 10 ** (-4)
+    timeout = 30  # seconds
+    constraint_params = {'lower': lower, 'upper': upper}
+    termination_params = {'max_evals': max_evals, 'tolerance': tolerance, 'max_stalls': max_stalls,
+                          'timeout': timeout}
+
+    # TODO from .config import default_variator, default_mutator are the default mutation or selection algorithms
 
     # NSGAII
-    nsgaii_params = copy.deepcopy(common_params)
-    nsgaii_params['population_size'] = 500
-    nsgaii_params['offspring_size'] = 1000
-    nsgaii_params['selector'] = TournamentSelector(2)
-    plotResults('NSGAII', nsgaii(**nsgaii_params, run=False))
+    nsgaii_params = {'population_size': 1000, 'offspring_size': 200, 'generator': RandomGenerator(),
+                     'selector': TournamentSelector(2), 'archive': None, 'variator': None}
+    plotResults('NSGAII', solveOptimization(NSGAII, constraint_params, termination_params, nsgaii_params, run=True))
 
     # GA
-    ga_params = copy.deepcopy(common_params)
-    ga_params['population_size'] = 500
-    ga_params['offspring_size'] = 1000
-    ga_params['selector'] = TournamentSelector(2)
-    plotResults('GA', ga(**ga_params, run=True))
+    '''
+    1) Initialize a random set of solutions of size population_size
+    2) evaluate that population and sort them based on objective to find fittest
+    3)
+    '''
+    ga_params = {'population_size': 1000, 'offspring_size': 200, 'generator': RandomGenerator(),
+                 'selector': TournamentSelector(2), 'variator': None}
+    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=True))
 
     # PSO
-    pso_params = copy.deepcopy(common_params)
-    pso_params['generator'] = RandomGenerator()
-    pso_params['swarm_size'] = 500
-    pso_params['leader_size'] = 1000
-    plotResults('PSO', pso(**pso_params, run=False))
+    '''
+    1) Creates a list of random input sets within the bounds set in problem of length swarm_size called particles
+    2) The particles list is evaluated on each iterations after which update_velocities(), update_positions(), mutate()
+    3) Update the leaders
+    '''
+
+    pso_params = {'swarm_size': 1000, 'leader_size': 200, 'generator': RandomGenerator(), 'mutate': None,
+                  'leader_comparator': AttributeDominance(crowding_distance_key), 'larger_preferred': True,
+                  'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
+    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=True))
+
+    # OMOPSO
+    omopso_params = {'epsilons': 1, 'swarm_size': 1000, 'leader_size': 200,
+                     'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
+                     'generator': RandomGenerator(), 'selector': TournamentSelector(2), 'variator': None}
+    plotResults('OMOPSO', solveOptimization(OMOPSO, constraint_params, termination_params, omopso_params, run=True))
 
     # Plotting
     x1, x2 = np.meshgrid(x1, x2)
     results = schwefel(x1, x2)
     figure = plt.figure()
     axis = figure.gca(projection='3d')
-    axis.plot_surface(x1, x2, results, cmap=cm.jet, linewidth=0, antialiased=False)
+    axis.plot_surface(x1, x2, results, rstride=1, cstride=1, cmap=cm.jet, linewidth=0, antialiased=False)
     axis.set_xlabel('X')
     axis.set_ylabel('Y')
     axis.set_zlabel('Z')
@@ -218,5 +223,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # profile_main()
     main()
