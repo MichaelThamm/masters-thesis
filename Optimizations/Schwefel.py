@@ -68,59 +68,77 @@ class WrappedTerminationCondition(TerminationCondition):
 
     def shouldTerminate(self, algorithm):
         self.iteration += 1
-        if isinstance(algorithm, NSGAIII):
-            if len(algorithm.result) > 0:
-                fittest = sorted(algorithm.result, key=functools.cmp_to_key(ParetoDominance()))[0]
-            else:
-                fittest = None
-        elif isinstance(algorithm, NSGAII):
-            if len(algorithm.result) > 0:
-                fittest = sorted(algorithm.result, key=functools.cmp_to_key(ParetoDominance()))[0]
-            else:
-                fittest = None
-        elif isinstance(algorithm, GeneticAlgorithm):
-            if hasattr(algorithm, 'fittest'):
-                fittest = algorithm.fittest
-            else:
-                fittest = None
-        elif isinstance(algorithm, ParticleSwarm):
-            if hasattr(algorithm, 'leaders'):
-                fittest = algorithm.leaders._contents[0]  # Use this for efficiency
-            else:
-                fittest = None
-        else:
-            fittest = None
+        # if isinstance(algorithm, AbstractGeneticAlgorithm):
+        #     if len(algorithm.result) > 0:
+        #         fittest = sorted(algorithm.result, key=functools.cmp_to_key(ParetoDominance()))[0]
+        #     else:
+        #         fittest = None
+        # elif isinstance(algorithm, GeneticAlgorithm):
+        #     if hasattr(algorithm, 'fittest'):
+        #         fittest = algorithm.fittest
+        #     else:
+        #         fittest = None
+        # elif isinstance(algorithm, ParticleSwarm):
+        #     if hasattr(algorithm, 'leaders'):
+        #         # self.fitness(self._contents)
+        #         fittest = algorithm.leaders._contents[0]  # Use this for efficiency
+        #     else:
+        #         fittest = None
+        # else:
+        #     fittest = None
 
         # Max evaluations
         if self.iteration > self.max_evals:
             self.reason = ExitReason.MAX_EVALS
-            LOGGER.log(logging.INFO, f'Termination after {self.iteration} iterations due to {self.reason}\n'
-                                     f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
-                                     f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
-            return True
-        # Timeout exceeded
-        if (time.time()-self.start_time) >= self.timeout:
-            self.reason = ExitReason.TIMEOUT
-            LOGGER.log(logging.INFO, f'Termination after {self.iteration} iterations due to {self.reason}\n'
-                                     f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
-                                     f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
-            return True
-        # Objective plateau
-        if fittest is None:
-            return False
-        else:
-            if self.old_fittest - fittest.objectives[0] <= self.solver_tolerance:
-                self.stall_iteration += 1
-                if self.stall_iteration >= self.max_stalls:
-                    self.reason = ExitReason.STALL
-                    LOGGER.log(logging.INFO, f'Termination after {self.iteration} iterations due to {self.reason}\n'
-                                             f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
-                                             f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
-                    return True
+
+            if isinstance(algorithm, AbstractGeneticAlgorithm):
+                if len(algorithm.result) > 0:
+                    fittest = sorted(algorithm.result, key=functools.cmp_to_key(ParetoDominance()))[0]
+                else:
+                    fittest = None
+            elif isinstance(algorithm, GeneticAlgorithm):
+                if hasattr(algorithm, 'fittest'):
+                    fittest = algorithm.fittest
+                else:
+                    fittest = None
+            elif isinstance(algorithm, ParticleSwarm):
+                if hasattr(algorithm, 'leaders'):
+                    fittest = algorithm.leaders._contents[0]  # Use this for efficiency
+                else:
+                    fittest = None
             else:
-                self.stall_iteration = 0
-                self.old_fittest = fittest.objectives[0]
-                return False
+                fittest = None
+
+            LOGGER.log(logging.INFO, f'Termination after {self.iteration - 1} iterations due to {self.reason}\n'
+                                     f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
+                                     f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
+
+            return True
+        else:
+            return False
+        # # Timeout exceeded
+        # if (time.time()-self.start_time) >= self.timeout:
+        #     self.reason = ExitReason.TIMEOUT
+        #     LOGGER.log(logging.INFO, f'Termination after {self.iteration - 1} iterations due to {self.reason}\n'
+        #                              f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
+        #                              f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
+        #     return True
+        # # Objective plateau
+        # if fittest is None:
+        #     return False
+        # else:
+        #     if self.old_fittest - fittest.objectives[0] <= self.solver_tolerance:
+        #         self.stall_iteration += 1
+        #         if self.stall_iteration >= self.max_stalls:
+        #             self.reason = ExitReason.STALL
+        #             LOGGER.log(logging.INFO, f'Termination after {self.iteration - 1} iterations due to {self.reason}\n'
+        #                                      f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
+        #                                      f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}')
+        #             return True
+        #     else:
+        #         self.stall_iteration = 0
+        #         self.old_fittest = fittest.objectives[0]
+        #         return False
 
 
 def plotResults(str_name, algorithm):
@@ -167,10 +185,13 @@ def main():
     lower, upper, num = -500, 500, 100
     x1 = np.linspace(lower, upper, num)
     x2 = np.linspace(lower, upper, num)
-    max_evals = 500
+    max_evals = 30
     max_stalls = 10
     tolerance = 10 ** (-4)
     timeout = 30  # seconds
+    parent_size = 1000
+    child_size = round(0.25 * parent_size)
+    tournament_size = round(0.1 * parent_size)
     constraint_params = {'lower': lower, 'upper': upper}
     termination_params = {'max_evals': max_evals, 'tolerance': tolerance, 'max_stalls': max_stalls,
                           'timeout': timeout}
@@ -178,9 +199,9 @@ def main():
     # TODO from .config import default_variator, default_mutator are the default mutation or selection algorithms
 
     # NSGAII
-    nsgaii_params = {'population_size': 1000, 'offspring_size': 200, 'generator': RandomGenerator(),
-                     'selector': TournamentSelector(2), 'archive': None, 'variator': None}
-    plotResults('NSGAII', solveOptimization(NSGAII, constraint_params, termination_params, nsgaii_params, run=True))
+    nsgaii_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
+                     'selector': TournamentSelector(tournament_size), 'archive': None, 'variator': None}
+    plotResults('NSGAII', solveOptimization(NSGAII, constraint_params, termination_params, nsgaii_params, run=False))
 
     # GA
     '''
@@ -188,9 +209,9 @@ def main():
     2) evaluate that population and sort them based on objective to find fittest
     3)
     '''
-    ga_params = {'population_size': 1000, 'offspring_size': 200, 'generator': RandomGenerator(),
-                 'selector': TournamentSelector(2), 'variator': None}
-    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=True))
+    ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
+                 'selector': TournamentSelector(tournament_size), 'variator': None}
+    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=False))
 
     # PSO
     '''
@@ -199,16 +220,16 @@ def main():
     3) Update the leaders
     '''
 
-    pso_params = {'swarm_size': 1000, 'leader_size': 200, 'generator': RandomGenerator(), 'mutate': None,
+    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(), 'mutate': None,
                   'leader_comparator': AttributeDominance(crowding_distance_key), 'larger_preferred': True,
                   'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
-    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=True))
+    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=False))
 
     # OMOPSO
-    omopso_params = {'epsilons': 1, 'swarm_size': 1000, 'leader_size': 200,
+    omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': child_size,
                      'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
-                     'generator': RandomGenerator(), 'selector': TournamentSelector(2), 'variator': None}
-    plotResults('OMOPSO', solveOptimization(OMOPSO, constraint_params, termination_params, omopso_params, run=True))
+                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': None}
+    plotResults('OMOPSO', solveOptimization(OMOPSO, constraint_params, termination_params, omopso_params, run=False))
 
     # Plotting
     x1, x2 = np.meshgrid(x1, x2)
@@ -216,9 +237,9 @@ def main():
     figure = plt.figure()
     axis = figure.gca(projection='3d')
     axis.plot_surface(x1, x2, results, rstride=1, cstride=1, cmap=cm.jet, linewidth=0, antialiased=False)
-    axis.set_xlabel('X')
-    axis.set_ylabel('Y')
-    axis.set_zlabel('Z')
+    axis.set_xlabel('x1')
+    axis.set_ylabel('x2')
+    axis.set_zlabel('f(x1,x2)')
     plt.show()
 
 

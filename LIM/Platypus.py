@@ -318,7 +318,7 @@ def main():
     endTeeth = 2 * (5/3 * wt)
     length = ((slots - 1) * slotpitch + ws) + endTeeth
 
-    platypus(n, run=False)
+    platypus(run=False)
 
     # This value defines how small the mesh is at [border, border+1].
     # Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
