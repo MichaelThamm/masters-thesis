@@ -73,7 +73,7 @@ class WrappedTerminationCondition(TerminationCondition):
                 fittest = sorted(algorithm.result, key=functools.cmp_to_key(ParetoDominance()))[0]
             else:
                 fittest = None
-        elif isinstance(algorithm, GeneticAlgorithm):
+        elif isinstance(algorithm, GeneticAlgorithm):  # GA is a child of AbstractGA but already calculates fittest
             if hasattr(algorithm, 'fittest'):
                 fittest = algorithm.fittest
             else:
@@ -122,7 +122,7 @@ class WrappedTerminationCondition(TerminationCondition):
 
 
 def logTermination(objTermination, fittest):
-    message = f'Termination after {objTermination.iteration - 1} iterations due to {objTermination.reason}\n' \
+    message = f'Termination after {objTermination.iteration} iterations due to {objTermination.reason}\n' \
               f'Solution: {fittest.variables} Objective: {fittest.objectives}\n' \
               f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}'
     logging.getLogger("Platypus").log(logging.INFO, message)
@@ -164,72 +164,9 @@ def schwefel(x1,x2):
     return 418.9829 * dims - x1 * np.sin(np.sqrt(abs(x1))) - x2 * np.sin(np.sqrt(abs(x2)))
 
 
-def main():
-
-    # Clear the log file
-    logging.FileHandler(LOGGER_FILE, mode='w')
-
-    lower, upper, num = -500, 500, 1000
-    x1 = np.linspace(lower, upper, num)
-    x2 = np.linspace(lower, upper, num)
-    tolerance = 10 ** (-6)
-    max_evals = 30000
-    max_stalls = 25
-    stall_tolerance = tolerance
-    timeout = 30000  # seconds
-    parent_size = 1000
-    child_size = round(0.25 * parent_size)
-    tournament_size = round(0.1 * parent_size)
-    constraint_params = {'lower': lower, 'upper': upper}
-    termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
-                          'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
-                          'timeout': timeout}
-
-    # TODO PM (probability for mutation) and SBX (Simulated binary crossover) for Real type
-    '''
-        self.default_variator = {Real : GAOperator(SBX(), PM()),
-                                 Binary : GAOperator(HUX(), BitFlip()),
-                                 Permutation : CompoundOperator(PMX(), Insertion(), Swap()),
-                                 Subset : GAOperator(SSX(), Replace())}
-        
-        self.default_mutator = {Real : PM(),
-                                Binary : BitFlip(),
-                                Permutation : CompoundMutation(Insertion(), Swap()),
-                                Subset : Replace()}
-    '''
-
-    # NSGAII
-    nsgaii_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
-                     'selector': TournamentSelector(tournament_size), 'archive': None, 'variator': None}
-    plotResults('NSGAII', solveOptimization(NSGAII, constraint_params, termination_params, nsgaii_params, run=False))
-
-    # GA
-    '''
-    1) Initialize a random set of solutions of size population_size
-    2) evaluate that population and sort them based on objective to find fittest
-    3)
-    '''
-    ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
-                 'selector': TournamentSelector(tournament_size), 'variator': None}
-    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=True))
-
-    # PSO
-    '''
-    1) Creates a list of random input sets within the bounds set in problem of length swarm_size called particles
-    2) The particles list is evaluated on each iterations after which update_velocities(), update_positions(), mutate()
-    3) Update the leaders
-    '''
-
-    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(), 'mutate': None,
-                  'leader_comparator': AttributeDominance(crowding_distance_key), 'larger_preferred': True,
-                  'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
-    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=True))
-
-    # OMOPSO
-    omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': child_size,
-                     'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
-                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': None}
-    plotResults('OMOPSO', solveOptimization(OMOPSO, constraint_params, termination_params, omopso_params, run=True))
+def plottingSchwefel(x1, x2, lower, upper, run=False):
+    if not run:
+        return
 
     # Plotting
     x1, x2 = np.meshgrid(x1, x2)
@@ -249,6 +186,77 @@ def main():
     plt.xlabel('x1')
     plt.ylabel('x2')
     plt.show()
+
+
+def main():
+
+    # Clear the log file
+    logging.FileHandler(LOGGER_FILE, mode='w')
+
+    lower, upper, num = -500, 500, 200
+    x1 = np.linspace(lower, upper, num)
+    x2 = np.linspace(lower, upper, num)
+    tolerance = 10 ** (-6)
+    max_evals = 30000 - 1
+    max_stalls = 25
+    stall_tolerance = tolerance
+    timeout = 30000  # seconds
+    parent_size = 200
+    child_size = round(0.25 * parent_size)
+    tournament_size = round(0.1 * parent_size)
+    constraint_params = {'lower': lower, 'upper': upper}
+    termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
+                          'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
+                          'timeout': timeout}
+
+    # TODO PM (probability for mutation) and SBX (Simulated binary crossover) for Real type
+    '''
+        self.default_variator = {Real : GAOperator(SBX(), PM()),
+                                 Binary : GAOperator(HUX(), BitFlip()),
+                                 Permutation : CompoundOperator(PMX(), Insertion(), Swap()),
+                                 Subset : GAOperator(SSX(), Replace())}
+        
+        PM probability is determined by the input (default 1) divided by the length or Reals in Problem. For 2-D its 1/2 for 3-D its 1/3
+        self.default_mutator = {Real : PM(),
+                                Binary : BitFlip(),
+                                Permutation : CompoundMutation(Insertion(), Swap()),
+                                Subset : Replace()}
+    '''
+
+    # NSGAII
+    nsgaii_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
+                     'selector': TournamentSelector(tournament_size), 'archive': None, 'variator': SBX(0.1)}
+    plotResults('NSGAII', solveOptimization(NSGAII, constraint_params, termination_params, nsgaii_params, run=False))
+
+    # GA
+    '''
+    1) Initialize a random set of solutions of size population_size
+    2) evaluate that population and sort them based on objective to find fittest
+    3)
+    '''
+    ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
+                 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.1)}
+    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=True))
+
+    # PSO
+    '''
+    1) Creates a list of random input sets within the bounds set in problem of length swarm_size called particles
+    2) The particles list is evaluated on each iterations after which update_velocities(), update_positions(), mutate()
+    3) Update the leaders
+    '''
+
+    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(), 'mutate': PM(0.1),
+                  'leader_comparator': AttributeDominance(crowding_distance_key), 'larger_preferred': True,
+                  'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
+    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=False))
+
+    # OMOPSO
+    omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': child_size,
+                     'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
+                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.9)}
+    plotResults('OMOPSO', solveOptimization(OMOPSO, constraint_params, termination_params, omopso_params, run=False))
+
+    plottingSchwefel(x1, x2, lower, upper, run=False)
 
 
 if __name__ == '__main__':
