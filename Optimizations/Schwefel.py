@@ -193,7 +193,7 @@ def main():
     # Clear the log file
     logging.FileHandler(LOGGER_FILE, mode='w')
 
-    lower, upper, num = -500, 500, 200
+    lower, upper, num = -500, 500, 100
     x1 = np.linspace(lower, upper, num)
     x2 = np.linspace(lower, upper, num)
     tolerance = 10 ** (-6)
