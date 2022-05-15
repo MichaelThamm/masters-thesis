@@ -103,14 +103,14 @@ class WrappedTerminationCondition(TerminationCondition):
         self.store.addIterationResults(self.iteration, solution)
 
         # Determine the fittest based on the algorithm type
-        if isinstance(algorithm, AbstractGeneticAlgorithm):
-            if len(algorithm.result) > 0:
-                fittest = sorted(algorithm.population, key=functools.cmp_to_key(ParetoDominance()))[0]
-            else:
-                fittest = None
-        elif isinstance(algorithm, GeneticAlgorithm):  # GA is a child of AbstractGA but already calculates fittest
+        if isinstance(algorithm, GeneticAlgorithm):  # GA is a child of AbstractGA but already calculates fittest
             if hasattr(algorithm, 'fittest'):
                 fittest = algorithm.fittest
+            else:
+                fittest = None
+        elif isinstance(algorithm, AbstractGeneticAlgorithm):
+            if len(algorithm.result) > 0:
+                fittest = sorted(algorithm.population, key=functools.cmp_to_key(ParetoDominance()))[0]
             else:
                 fittest = None
         elif isinstance(algorithm, ParticleSwarm):
@@ -173,45 +173,56 @@ def logGeneration(optimization):
             logging.getLogger("Platypus").log(logging.INFO, message)
 
 
-def getSolution(log_oder):
+def getSolution(log_order):
     import re
 
     def strToFloat(str_in):
         return eval(f'float(str_in)')
 
     counter = 0
-    storeSolution = {}
+    sectionIdxs = {}
+    storeSolution, storeSolutions = {}, {}
     with open(LOGGER_FILE) as f:
         f = f.readlines()
+
+        # Define the indexes for each solution section in the log
         sectionFooters = list(map(lambda x: x.find('finished; Total NFE:') != -1, f))
-        sectionIdxs = [index for index, value in enumerate(sectionFooters) if value]
-        for idx, line in enumerate(f):
-            section = log_oder[counter]
-            if line.find('iteration: ') != -1:
-                try:
-                    iteration = int(re.search('iteration: [0-9]*', line).group(0).split(': ')[1])
-                    solutions = re.search('generation: .*', line).group(0).split(': ')[1][1:-1].split(', ')
+        sectionFooterIdxs = [0] + [index for index, value in enumerate(sectionFooters) if value]
+        for cnt, idx in enumerate(sectionFooterIdxs):
+            if cnt < len(sectionFooterIdxs) - 1:
+                sectionIdxs[log_order[cnt]] = list(range(sectionFooterIdxs[cnt], sectionFooterIdxs[cnt + 1] + 1))
 
-                    storeStrSolutions = {}
-                    for cnt, solution in enumerate(solutions):
-                        variables = solution.split('[')
-                        nums = variables[1].split(',')
-                        num1 = nums[0]
-                        temp = nums[1].split('|')
-                        num2 = temp[0]
-                        objective = temp[1]
-                        storeStrSolutions[cnt] = WrappedSingleSolution([strToFloat(num1), strToFloat(num2)],
-                                                                       strToFloat(objective))
-                    storeSolution[iteration] = storeStrSolutions
+        # Store lines in the log that contain population information
+        for section, indexes in sectionIdxs.items():
+            for index in indexes:
+                line = f[index]
+                if line.find('iteration: ') != -1:
+                    try:
+                        iteration = int(re.search('iteration: [0-9]*', line).group(0).split(': ')[1])
+                        solutions = re.search('generation: .*', line).group(0).split(': ')[1][1:-1].split(', ')
 
-                except AttributeError:
-                    pass
+                        storeWrappedSolutions = {}
+                        for cnt, solution in enumerate(solutions):
+                            variables = solution.split('[')
+                            nums = variables[1].split(',')
+                            num1 = nums[0]
+                            temp = nums[1].split('|')
+                            num2 = temp[0]
+                            objective = temp[1]
+                            storeWrappedSolutions[cnt] = WrappedSingleSolution([strToFloat(num1), strToFloat(num2)],
+                                                                               strToFloat(objective))
+                        storeSolution[iteration] = storeWrappedSolutions
 
-            if idx in sectionIdxs:
-                counter += 1
+                    except AttributeError:
+                        pass
 
-    # TODO I need to return this correctly in the form of {'GA': solution1, 'PSO': solution2}
-    return storeSolution
+                    except IndexError:
+                        pass
+
+            storeSolutions[section] = storeSolution
+            storeSolution = {}
+
+    return storeSolutions
 
 
 def plotResults(str_name, algorithm):
@@ -281,12 +292,12 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
 
     x1, x2 = np.meshgrid(x1, x2)
     space = schwefel(x1, x2)
-    for name, solution in solutions.items():
-        for iteration, objSolution in solution.items():
+    for name, solverSolution in solutions.items():
+        for iteration, solution in solverSolution.items():
             plt.contour(x1, x2, space, 15, colors='grey', zorder=-1)
             plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.jet, alpha=0.5)
-            xVariables = [value.variables[0] for value in objSolution.values()]
-            yVariables = [value.variables[1] for value in objSolution.values()]
+            xVariables = [value.variables[0] for value in solution.values()]
+            yVariables = [value.variables[1] for value in solution.values()]
             plt.scatter(xVariables, yVariables, marker='*', color='red', zorder=1)
 
             plt.plot(SCHWEFEL_SOLUTION[0], SCHWEFEL_SOLUTION[1], marker='+', color='red', markersize=12)
@@ -338,25 +349,28 @@ def main():
     stall_tolerance = tolerance
     timeout = 30000  # seconds
     parent_size = 40
-    child_size = round(1 * parent_size)
+    child_size = round(1.0 * parent_size)
     tournament_size = round(0.1 * parent_size)
     constraint_params = {'lower': lower, 'upper': upper}
     termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
                           'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
                           'timeout': timeout}
 
-    plotGA = True
-    plotPSO = True
+    solverList = ['GeneticAlgorithm']
+
     ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
-                 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.1)}
-    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=plotGA))
+                 'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
+                 'variator': GAOperator(SBX(0.3), PM(0.1))}
+    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params,
+                                        run=GeneticAlgorithm.__name__ in solverList))
 
-    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(), 'mutate': PM(0.1),
-                  'leader_comparator': AttributeDominance(crowding_distance_key), 'larger_preferred': True,
-                  'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
-    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=plotPSO))
+    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
+                  'mutate': PM(0.9), 'leader_comparator': AttributeDominance(crowding_distance_key),
+                  'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
+    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params,
+                                         run=ParticleSwarm.__name__ in solverList))
 
-    solutions = getSolution(['GeneticAlgorithm', 'ParticleSwarm'])
+    solutions = getSolution(solverList)
     plottingConvergence(x1, x2, lower, upper, solutions, run=True)
 
     plottingSchwefel(x1, x2, lower, upper, run=False)
