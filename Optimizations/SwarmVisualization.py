@@ -1,5 +1,6 @@
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from itertools import count
 from matplotlib import cm
 from platypus import *
 from enum import Enum
@@ -28,6 +29,12 @@ class ExitReason(Enum):
     MAX_EVALS = 1
     STALL = 2
     TIMEOUT = 3
+
+
+class LogHeader(Enum):
+    ITERATION = 'iteration'
+    BEST = 'best'
+    GENERATION = 'generation'
 
 
 class Constraints(Problem):
@@ -103,23 +110,7 @@ class WrappedTerminationCondition(TerminationCondition):
         self.store.addIterationResults(self.iteration, solution)
 
         # Determine the fittest based on the algorithm type
-        if isinstance(algorithm, GeneticAlgorithm):  # GA is a child of AbstractGA but already calculates fittest
-            if hasattr(algorithm, 'fittest'):
-                fittest = algorithm.fittest
-            else:
-                fittest = None
-        elif isinstance(algorithm, AbstractGeneticAlgorithm):
-            if len(algorithm.result) > 0:
-                fittest = sorted(algorithm.population, key=functools.cmp_to_key(ParetoDominance()))[0]
-            else:
-                fittest = None
-        elif isinstance(algorithm, ParticleSwarm):
-            if hasattr(algorithm, 'leaders'):
-                fittest = algorithm.leaders._contents[0]  # Use this for efficiency
-            else:
-                fittest = None
-        else:
-            fittest = None
+        fittest = getFittest(algorithm)
 
         # First iteration
         if fittest is None:
@@ -159,6 +150,36 @@ class WrappedTerminationCondition(TerminationCondition):
         return False
 
 
+class _ParticlSwarmOptimization(ParticleSwarm):
+    def __init__(self, problem,
+                 swarm_size=100,
+                 leader_size=100,
+                 generator=RandomGenerator(),
+                 mutate=None,
+                 leader_comparator=AttributeDominance(fitness_key),
+                 dominance=ParetoDominance(),
+                 fitness=None,
+                 larger_preferred=True,
+                 fitness_getter=fitness_key,
+                 **kwargs):
+        super().__init__(problem,
+                         swarm_size=swarm_size,
+                         leader_size=leader_size,
+                         generator=generator,
+                         mutate=mutate,
+                         leader_comparator=leader_comparator,
+                         dominance=dominance,
+                         fitness=fitness,
+                         larger_preferred=larger_preferred,
+                         fitness_getter=fitness_getter,
+                         **kwargs)
+
+    def _mutate(self):
+        if self.mutate is not None:
+            for i in range(self.swarm_size):
+                self.particles[i] = self.mutate.mutate(self.particles[i])
+
+
 def logTermination(objTermination, fittest):
     message = f'Termination after {objTermination.iteration} iterations due to {objTermination.reason}\n' \
               f'Solution: {fittest.variables} Objective: {fittest.objectives}\n' \
@@ -169,17 +190,35 @@ def logTermination(objTermination, fittest):
 def logGeneration(optimization):
     for iteration, generation in optimization.store.solution.items():
         if iteration % optimization.log_frequency == 0 or iteration in [2, list(optimization.store.solution.keys())[-1]]:
-            message = f'iteration: {iteration}, generation: {generation}'
+            message = f'{LogHeader.ITERATION.value}: {iteration}, ' \
+                      f'{LogHeader.BEST.value}: {sorted(generation, key=functools.cmp_to_key(ParetoDominance()))[0]}, ' \
+                      f'{LogHeader.GENERATION.value}: {generation}'
             logging.getLogger("Platypus").log(logging.INFO, message)
 
 
-def getSolution(log_order):
+def getSolutionFromLog(log_order):
     import re
 
     def strToFloat(str_in):
         return eval(f'float(str_in)')
 
-    counter = 0
+    def extractStrSolution(str_in):
+        variables = str_in.split('[')
+        nums = variables[1].split(',')
+        num1 = nums[0]
+        temp = nums[1].split('|')
+        num2 = temp[0]
+        objective = temp[1]
+        return WrappedSingleSolution([strToFloat(num1), strToFloat(num2)], strToFloat(objective))
+
+    # Ensure that there are no duplicate solution names in the solverList
+    archive = copy.deepcopy(log_order)
+    for cnt, log_name in enumerate(archive):
+        zippedCount = [(i, j) for i, j in zip(count(), log_order) if j == log_name]
+        if len(zippedCount) > 1:
+            for index, name in zippedCount:
+                log_order[index] += f'{index}'
+
     sectionIdxs = {}
     storeSolution, storeSolutions = {}, {}
     with open(LOGGER_FILE) as f:
@@ -196,22 +235,18 @@ def getSolution(log_order):
         for section, indexes in sectionIdxs.items():
             for index in indexes:
                 line = f[index]
-                if line.find('iteration: ') != -1:
+                if line.find(f'{LogHeader.ITERATION.value}: ') != -1:
                     try:
-                        iteration = int(re.search('iteration: [0-9]*', line).group(0).split(': ')[1])
-                        solutions = re.search('generation: .*', line).group(0).split(': ')[1][1:-1].split(', ')
+                        iteration = int(re.search(f'{LogHeader.ITERATION.value}: [0-9]*', line).group(0).split(': ')[1])
+                        best = re.search(f'{LogHeader.BEST.value}: (.*?), {LogHeader.GENERATION.value}', line).group(1)
+                        solutions = re.search(f'{LogHeader.GENERATION.value}: .*', line).group(0).split(': ')[1][1:-1].split(', ')
 
+                        # Store solutions
                         storeWrappedSolutions = {}
                         for cnt, solution in enumerate(solutions):
-                            variables = solution.split('[')
-                            nums = variables[1].split(',')
-                            num1 = nums[0]
-                            temp = nums[1].split('|')
-                            num2 = temp[0]
-                            objective = temp[1]
-                            storeWrappedSolutions[cnt] = WrappedSingleSolution([strToFloat(num1), strToFloat(num2)],
-                                                                               strToFloat(objective))
-                        storeSolution[iteration] = storeWrappedSolutions
+                            storeWrappedSolutions[cnt] = extractStrSolution(solution)
+                        storeSolution[iteration] = {LogHeader.BEST.value: extractStrSolution(best),
+                                                    LogHeader.GENERATION.value: storeWrappedSolutions}
 
                     except AttributeError:
                         pass
@@ -225,36 +260,37 @@ def getSolution(log_order):
     return storeSolutions
 
 
-def plotResults(str_name, algorithm):
-    if not algorithm:
-        return
-    feasible_solutions = [s for s in unique(nondominated(algorithm.result))]
-    plotResults = []
-    for results in feasible_solutions:
-        x, y = (algorithm.problem.types[0].decode(results.variables[0]),
-                algorithm.problem.types[0].decode(results.variables[1]))
-        objective = results.objectives[0]
-        plotResults.append((x, y, objective))
+def getFittest(algorithm):
+    if isinstance(algorithm, GeneticAlgorithm):  # GA is a child of AbstractGA but already calculates fittest
+        if hasattr(algorithm, 'fittest'):
+            fittest = algorithm.fittest
+        else:
+            fittest = None
+    elif isinstance(algorithm, AbstractGeneticAlgorithm):
+        if len(algorithm.result) > 0:
+            fittest = sorted(algorithm.population, key=functools.cmp_to_key(ParetoDominance()))[0]
+        else:
+            fittest = None
+    elif isinstance(algorithm, ParticleSwarm):
+        if hasattr(algorithm, 'leaders'):
+            fittest = algorithm.leaders._contents[0]  # Use this for efficiency
+        else:
+            fittest = None
+    else:
+        fittest = None
 
-    fig, axs = plt.subplots(3)
-    fig.suptitle(str_name)
-    axs[0].scatter(range(len(feasible_solutions)), [x[0] for x in plotResults])
-    axs[0].set(ylabel='x')
-    axs[1].scatter(range(len(feasible_solutions)), [x[1] for x in plotResults])
-    axs[1].set(ylabel='y')
-    axs[2].scatter(range(len(feasible_solutions)), [x[2] for x in plotResults])
-    axs[2].set(ylabel='objective')
-    plt.xlabel('Generations')
-    plt.show()
+    return fittest
 
 
-def solveOptimization(algorithm, constraint, termination, solver, run=False):
+def solveOptimization(algorithm, solverList, constraint, termination, solver, run=False):
     if not run:
-        return
+        return solverList
     optimization = algorithm(Constraints(**constraint), **solver)
     optimization.run(WrappedTerminationCondition(**termination))
-
-    return optimization
+    if hasattr(algorithm, '__name__'):
+        return addAlgoName(solverList, algorithm.__name__)
+    else:
+        return addAlgoName(solverList, type(algorithm).__name__)
 
 
 def schwefel(x1, x2):
@@ -296,16 +332,26 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
         for iteration, solution in solverSolution.items():
             plt.contour(x1, x2, space, 15, colors='grey', zorder=-1)
             plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.jet, alpha=0.5)
-            xVariables = [value.variables[0] for value in solution.values()]
-            yVariables = [value.variables[1] for value in solution.values()]
-            plt.scatter(xVariables, yVariables, marker='*', color='red', zorder=1)
+            xVariables = [value.variables[0] for value in solution[LogHeader.GENERATION.value].values()]
+            yVariables = [value.variables[1] for value in solution[LogHeader.GENERATION.value].values()]
+            plt.scatter(xVariables, yVariables, marker='*', color='green')
+            plt.scatter(solution[LogHeader.BEST.value].variables[0], solution[LogHeader.BEST.value].variables[1],
+                        marker='*', color='red')
 
             plt.plot(SCHWEFEL_SOLUTION[0], SCHWEFEL_SOLUTION[1], marker='+', color='red', markersize=12)
             plt.colorbar()
             plt.xlabel('x1')
             plt.ylabel('x2')
-            plt.title(f'{name} Iteration: {iteration}')
+            formattedObj = "{:.2f}".format(solution[LogHeader.BEST.value].objective)
+            formattedVars = ["{:.2f}".format(x) for x in solution[LogHeader.BEST.value].variables]
+            plt.title(f'{name} Iteration: {iteration}\nBest: {formattedObj}@{formattedVars}')
             plt.show()
+
+
+def addAlgoName(solverList, name):
+    if name != 'NoneType':
+        solverList.append(name)
+    return solverList
 
 
 def main():
@@ -342,13 +388,13 @@ def main():
     lower, upper, num = -500, 500, 100
     x1 = np.linspace(lower, upper, num)
     x2 = np.linspace(lower, upper, num)
-    tolerance = 10 ** (-6)
+    tolerance = 10 ** (-5)
     max_evals = 30000 - 1
 
     max_stalls = 25
     stall_tolerance = tolerance
     timeout = 30000  # seconds
-    parent_size = 40
+    parent_size = 200
     child_size = round(1.0 * parent_size)
     tournament_size = round(0.1 * parent_size)
     constraint_params = {'lower': lower, 'upper': upper}
@@ -360,16 +406,24 @@ def main():
     ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
                  'variator': GAOperator(SBX(0.3), PM(0.1))}
-    algo = solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=True)
-    solverList.append(type(algo).__name__)
+    solverList = solveOptimization(GeneticAlgorithm, solverList, constraint_params, termination_params, ga_params, run=False)
 
     pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(crowding_distance_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
-    algo = solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=True)
-    solverList.append(type(algo).__name__)
+    solverList = solveOptimization(_ParticlSwarmOptimization, solverList, constraint_params, termination_params, pso_params, run=True)
 
-    solutions = getSolution(solverList)
+    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
+                  'mutate': PM(0.1), 'leader_comparator': AttributeDominance(objective_key),
+                  'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': objective_key}
+    solverList = solveOptimization(_ParticlSwarmOptimization, solverList, constraint_params, termination_params, pso_params, run=True)
+
+    omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': child_size,
+                     'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
+                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.1)}
+    solverList = solveOptimization(OMOPSO, solverList, constraint_params, termination_params, omopso_params, run=False)
+
+    solutions = getSolutionFromLog(solverList)
     plottingConvergence(x1, x2, lower, upper, solutions, run=True)
     plottingSchwefel(x1, x2, lower, upper, run=False)
 

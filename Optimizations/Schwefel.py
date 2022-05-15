@@ -241,8 +241,10 @@ def main():
     # PSO
     '''
     1) Creates a list of random input sets within the bounds set in problem of length swarm_size called particles
-    2) The particles list is evaluated on each iterations after which update_velocities(), update_positions(), mutate()
-    3) Update the leaders
+    2) The leaders are chosen by iterating through the particles and archiving them as leaders if a particle is
+       better than all others in the archive through the ParetoDominance() comparator
+    a) The leaders then have their crowding distance and fitness determined and trimmed to a max leader size
+    3) The particles list is evaluated on each iterations after which update_velocities(), update_positions(), mutate()
     '''
 
     pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(), 'mutate': PM(0.1),
