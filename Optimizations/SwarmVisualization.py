@@ -15,7 +15,7 @@ https://www.indusmic.com/post/schwefel-function
 
 PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 OPTIMIZATIONS_PATH = os.path.join(PROJECT_PATH, 'Optimizations')
-LOGGER_FILE = os.path.join(OPTIMIZATIONS_PATH, 'Swarm.log')
+LOGGER_FILE = os.path.join(OPTIMIZATIONS_PATH, 'Solvers.log')
 
 LOGGER = logging.getLogger("Platypus")
 LOGGER.setLevel(logging.INFO)
@@ -355,24 +355,22 @@ def main():
     termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
                           'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
                           'timeout': timeout}
-
-    solverList = ['GeneticAlgorithm']
+    solverList = []
 
     ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
                  'variator': GAOperator(SBX(0.3), PM(0.1))}
-    plotResults('GA', solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params,
-                                        run=GeneticAlgorithm.__name__ in solverList))
+    algo = solveOptimization(GeneticAlgorithm, constraint_params, termination_params, ga_params, run=True)
+    solverList.append(type(algo).__name__)
 
     pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
-                  'mutate': PM(0.9), 'leader_comparator': AttributeDominance(crowding_distance_key),
+                  'mutate': PM(0.1), 'leader_comparator': AttributeDominance(crowding_distance_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
-    plotResults('PSO', solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params,
-                                         run=ParticleSwarm.__name__ in solverList))
+    algo = solveOptimization(ParticleSwarm, constraint_params, termination_params, pso_params, run=True)
+    solverList.append(type(algo).__name__)
 
     solutions = getSolution(solverList)
     plottingConvergence(x1, x2, lower, upper, solutions, run=True)
-
     plottingSchwefel(x1, x2, lower, upper, run=False)
 
 
