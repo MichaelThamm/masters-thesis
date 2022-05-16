@@ -332,18 +332,17 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
         for iteration, solution in solverSolution.items():
             plt.contour(x1, x2, space, 15, colors='grey', zorder=-1)
             plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.jet, alpha=0.5)
+            plt.colorbar()
             xVariables = [value.variables[0] for value in solution[LogHeader.GENERATION.value].values()]
             yVariables = [value.variables[1] for value in solution[LogHeader.GENERATION.value].values()]
             plt.scatter(xVariables, yVariables, marker='*', color='green')
             plt.scatter(solution[LogHeader.BEST.value].variables[0], solution[LogHeader.BEST.value].variables[1],
                         marker='*', color='red')
-
             plt.plot(SCHWEFEL_SOLUTION[0], SCHWEFEL_SOLUTION[1], marker='+', color='red', markersize=12)
-            plt.colorbar()
             plt.xlabel('x1')
             plt.ylabel('x2')
-            formattedObj = "{:.2f}".format(solution[LogHeader.BEST.value].objective)
-            formattedVars = ["{:.2f}".format(x) for x in solution[LogHeader.BEST.value].variables]
+            formattedObj = "{:.4f}".format(solution[LogHeader.BEST.value].objective)
+            formattedVars = ["{:.4f}".format(x) for x in solution[LogHeader.BEST.value].variables]
             plt.title(f'{name} Iteration: {iteration}\nBest: {formattedObj}@{formattedVars}')
             plt.show()
 
@@ -356,12 +355,13 @@ def addAlgoName(solverList, name):
 
 def main():
 
+    # TODO For Kars discussion tmr:
+    #   1) Tell him I need Ansys with quote
+    #   2) Show the Core results and how close you are and the optimization progress
+    #   3) Explain how many pages you are in thesis and your layout of it
+    #   4) Explain expected completion date
     # TODO
-    #   1) Finish the mutation and selection sections in thesis
-    #       a) Run a test case and tabulate it for different tournament sizes
-    #   2) Set up the plotting per 10 gens for PSO particles and velocities to be added to the Optimization integration section
-    #   2) Integrate some of this code (OMOPSO) into Platypus.py
-    #   3) Decide the layout for thesis chapters
+    #   Decide the layout for thesis chapters
     #       *) AT THE END OF EVERY CHAPTER TIE THE MOST IMPORTANT THING BACK TO THE OVERALL OBJECTIVE
     #       a) Chpt1: intro (EV and why is this important, include generics for opt and modeling)
     #           i) At the end of chapt 1 allude to the motor variables to be optimized and what I will be optimizing them for
@@ -406,7 +406,7 @@ def main():
     ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
                  'variator': GAOperator(SBX(0.3), PM(0.1))}
-    solverList = solveOptimization(GeneticAlgorithm, solverList, constraint_params, termination_params, ga_params, run=False)
+    solverList = solveOptimization(GeneticAlgorithm, solverList, constraint_params, termination_params, ga_params, run=True)
 
     pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(crowding_distance_key),
@@ -416,7 +416,7 @@ def main():
     pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(objective_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': objective_key}
-    solverList = solveOptimization(_ParticlSwarmOptimization, solverList, constraint_params, termination_params, pso_params, run=True)
+    solverList = solveOptimization(_ParticlSwarmOptimization, solverList, constraint_params, termination_params, pso_params, run=False)
 
     omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': child_size,
                      'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
@@ -424,7 +424,15 @@ def main():
     solverList = solveOptimization(OMOPSO, solverList, constraint_params, termination_params, omopso_params, run=False)
 
     solutions = getSolutionFromLog(solverList)
-    plottingConvergence(x1, x2, lower, upper, solutions, run=True)
+
+    def compareSolutions(solverList, data):
+        # [(node.yIndex, node.xIndex) for row in jsonObject.rebuiltModel.matrix for node in row]
+        plotDict = {}
+        # TODO Continue here by creating lists of np.arrays of the bests and the averages(error, objective, time) across iterations
+        for name in solverList:
+            bests = [generation['best'].objective for iteration, generation in data[name].items()]
+    compareSolutions(solverList, solutions)
+    plottingConvergence(x1, x2, lower, upper, solutions, run=False)
     plottingSchwefel(x1, x2, lower, upper, run=False)
 
 

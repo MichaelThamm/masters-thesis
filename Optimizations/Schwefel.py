@@ -209,20 +209,6 @@ def main():
                           'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
                           'timeout': timeout}
 
-    # TODO PM (probability for mutation) and SBX (Simulated binary crossover) for Real type
-    '''
-        self.default_variator = {Real : GAOperator(SBX(), PM()),
-                                 Binary : GAOperator(HUX(), BitFlip()),
-                                 Permutation : CompoundOperator(PMX(), Insertion(), Swap()),
-                                 Subset : GAOperator(SSX(), Replace())}
-        
-        PM probability is determined by the input (default 1) divided by the length or Reals in Problem. For 2-D its 1/2 for 3-D its 1/3
-        self.default_mutator = {Real : PM(),
-                                Binary : BitFlip(),
-                                Permutation : CompoundMutation(Insertion(), Swap()),
-                                Subset : Replace()}
-    '''
-
     # NSGAII
     nsgaii_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
                      'selector': TournamentSelector(tournament_size), 'archive': None, 'variator': SBX(0.1)}
@@ -230,9 +216,25 @@ def main():
 
     # GA
     '''
-    1) Initialize a random set of solutions of size population_size
-    2) evaluate that population and sort them based on objective to find fittest
-    3)
+    Initialize:
+        self.population = [self.generator.generate(self.problem) for _ in range(self.population_size)]
+        self.evaluate_all(self.population)
+        self.population = sorted(self.population, key=functools.cmp_to_key(self.comparator))
+        self.fittest = self.population[0]
+    Iterate:
+    # TODO arity is the number of times we run tournament selection. So if arity = 2 and participants = 5 then
+    # TODO we choose 5 at random from population and find the winner and conduct this trail 2 times for 2 winners.
+    # TODO This means that the offspring size = offspring_size * arity
+    # TODO You can have a larger offspring size than population
+        offspring = []
+        while len(offspring) < self.offspring_size:
+            parents = self.selector.select(self.variator.arity, self.population)
+            offspring.extend(self.variator.evolve(parents))
+        self.evaluate_all(offspring)
+        offspring.append(self.fittest)
+        offspring = sorted(offspring, key=functools.cmp_to_key(self.comparator))
+        self.population = offspring[:self.population_size]
+        self.fittest = self.population[0]
     '''
     ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'variator': SBX(0.1)}
@@ -240,11 +242,23 @@ def main():
 
     # PSO
     '''
-    1) Creates a list of random input sets within the bounds set in problem of length swarm_size called particles
-    2) The leaders are chosen by iterating through the particles and archiving them as leaders if a particle is
-       better than all others in the archive through the ParetoDominance() comparator
-    a) The leaders then have their crowding distance and fitness determined and trimmed to a max leader size
-    3) The particles list is evaluated on each iterations after which update_velocities(), update_positions(), mutate()
+    Initialize:
+        1) self.particles = [self.generator.generate(self.problem) for _ in range(self.swarm_size)]
+        2) self.evaluate_all(self.particles)
+        3) self.local_best = self.particles[:]
+        4) self.leaders = FitnessArchive(self.fitness, larger_preferred = self.larger_preferred, getter = self.fitness_getter)
+        5) self.leaders += self.particles
+        6) self.leaders.truncate(self.leader_size)
+        7) self.velocities = [[0.0]*self.problem.nvars for _ in range(self.swarm_size)]
+    Iterate:
+    # TODO Learn what _update_local_best means
+        1) self._update_velocities()
+        2) self._update_positions()
+        3) self._mutate()
+        4) self.evaluate_all(self.particles)
+        5) self._update_local_best()
+        6) self.leaders += self.particles
+        7) self.leaders.truncate(self.leader_size)
     '''
 
     pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(), 'mutate': PM(0.1),
