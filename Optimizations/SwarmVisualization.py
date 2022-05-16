@@ -428,7 +428,9 @@ def main():
     def compareSolutions(solverList, data):
         # [(node.yIndex, node.xIndex) for row in jsonObject.rebuiltModel.matrix for node in row]
         plotDict = {}
-        # TODO Continue here by creating lists of np.arrays of the bests and the averages(error, objective, time) across iterations
+        # TODO Continue here by creating lists of np.arrays of the bests and the averages(error, objective, time)
+        #  across iterations and then look at deleting the Schwefel function after making sure no functionality is lost
+        #  and the comments about code execution is ported over to this file
         for name in solverList:
             bests = [generation['best'].objective for iteration, generation in data[name].items()]
     compareSolutions(solverList, solutions)
