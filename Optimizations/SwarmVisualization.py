@@ -1,3 +1,4 @@
+import matplotlib.offsetbox as offsetbox
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from itertools import count
@@ -23,6 +24,7 @@ LOGGER.setLevel(logging.INFO)
 LOGGER.addHandler(logging.FileHandler(LOGGER_FILE))
 
 SCHWEFEL_SOLUTION = np.array([420.9687, 420.9687])
+LOG_EVERY_X_ITERATIONS = 2
 
 
 class ExitReason(Enum):
@@ -72,7 +74,7 @@ class WrappedTerminationCondition(TerminationCondition):
     def __init__(self, max_evals, tolerance, stall_tolerance, max_stalls, timeout):
         super(TerminationCondition, self).__init__()
 
-        self.log_frequency = 10
+        self.log_frequency = LOG_EVERY_X_ITERATIONS
         self.store = GenerationalSolution()
 
         self.iteration = 0
@@ -358,6 +360,40 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
             plt.show()
 
 
+def plottingPerformance(solvers, data, plot=False):
+
+    plotDict = {}
+    for name in solvers:
+        plotDict[name] = {'iterations': np.array([iteration for iteration in data[name]['generation']]),
+                          'bests': np.array([generation[LogHeader.BEST.value].objective for iteration, generation in data[name]['generation'].items()]),
+                          'nfe': data[name]['summary']['nfe'],
+                          'time': data[name]['summary']['time']}
+
+        y_normal = plotDict[name]['bests']
+        y_logarithmic = np.log(y_normal)
+
+        if plot:
+            fig, ax1 = plt.subplots()
+            ax1.title.set_text(f"{name}\nObjective Value (Logarithmic-scale) vs Iterations")
+            stats = f"Best: {'{:.4f}'.format(min(y_normal))}\n" \
+                    f"Function Executions: {plotDict[name]['nfe']}\n" \
+                    f"Time: {'{:.4f}'.format(plotDict[name]['time'])}"
+
+            ob = offsetbox.AnchoredText(stats, loc=1, prop=dict(color='black', size=10))
+            ob.patch.set(boxstyle='round', color='grey', alpha=0.5)
+            ax1.add_artist(ob)
+
+            ax1.scatter(plotDict[name]['iterations'], y_logarithmic)
+            ax2 = ax1.twinx()
+            ax2.set_ylim([min(y_normal), max(y_normal)])
+            ax1.set_xlabel('Iterations')
+            ax1.set_ylabel('Logarithmic Scale of Objective Value')
+            ax2.set_ylabel('Objective Value')
+            plt.show()
+
+    return plotDict
+
+
 def addAlgoName(solverList, name):
     if name != 'NoneType':
         solverList.append(name)
@@ -436,21 +472,12 @@ def main():
 
     solutions = getSolutionFromLog(solverList)
 
-    def compareSolutions(solvers, data):
-        # [(node.yIndex, node.xIndex) for row in jsonObject.rebuiltModel.matrix for node in row]
-        plotDict = {}
-        # TODO Continue here by creating lists of np.arrays of the bests and the averages(error, objective, time)
-        #  across iterations and then look at deleting the Schwefel function after making sure no functionality is lost
-        #  and the comments about code execution is ported over to this file
-        for name in solvers:
-            plotDict[name] = {'iterations': [iteration for iteration in data[name]['generation']],
-                              'bests': [generation[LogHeader.BEST.value].objective for iteration, generation in data[name]['generation'].items()],
-                              'nfe': data[name]['summary']['nfe'],
-                              'time': data[name]['summary']['time']}
-
-        return plotDict
-    summarizedResult = compareSolutions(solverList, solutions)
-    # TODO I changed the format of solutions which is passed in below so I will need to update the method
+    summarizedResult = plottingPerformance(solverList, solutions, plot=False)
+    for name, generations in summarizedResult.items():
+        print(f"________{name}________\n"
+              f"objective: {min(generations['bests'])}\n"
+              f"nfe: {generations['nfe']}\n"
+              f"time: {generations['time']}\n")
     plottingConvergence(x1, x2, lower, upper, solutions, run=False)
     plottingSchwefel(x1, x2, lower, upper, run=False)
 
