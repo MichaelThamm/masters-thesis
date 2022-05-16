@@ -68,11 +68,6 @@ class WrappedSingleSolution:
         self.objective = objective
 
 
-class Velocity:
-    def __init__(self, vector):
-        self.vector = vector
-
-
 class WrappedTerminationCondition(TerminationCondition):
     def __init__(self, max_evals, tolerance, stall_tolerance, max_stalls, timeout):
         super(TerminationCondition, self).__init__()
@@ -211,6 +206,13 @@ def getSolutionFromLog(log_order):
         objective = temp[1]
         return WrappedSingleSolution([strToFloat(num1), strToFloat(num2)], strToFloat(objective))
 
+    def time_string_to_decimals(time_string):
+        fields = time_string.split(":")
+        hours = fields[0] if len(fields) > 0 else 0.0
+        minutes = fields[1] if len(fields) > 1 else 0.0
+        seconds = fields[2] if len(fields) > 2 else 0.0
+        return float(hours) * 3600.0 + float(minutes) * 60.0 + float(seconds)
+
     # Ensure that there are no duplicate solution names in the solverList
     archive = copy.deepcopy(log_order)
     for cnt, log_name in enumerate(archive):
@@ -237,9 +239,9 @@ def getSolutionFromLog(log_order):
                 line = f[index]
                 if line.find(f'{LogHeader.ITERATION.value}: ') != -1:
                     try:
-                        iteration = int(re.search(f'{LogHeader.ITERATION.value}: [0-9]*', line).group(0).split(': ')[1])
+                        iteration = int(re.search(f'{LogHeader.ITERATION.value}: ([0-9]*)', line).group(1))
                         best = re.search(f'{LogHeader.BEST.value}: (.*?), {LogHeader.GENERATION.value}', line).group(1)
-                        solutions = re.search(f'{LogHeader.GENERATION.value}: .*', line).group(0).split(': ')[1][1:-1].split(', ')
+                        solutions = re.search(f'{LogHeader.GENERATION.value}: (.*)', line).group(1)[1:-1].split(', ')
 
                         # Store solutions
                         storeWrappedSolutions = {}
@@ -253,8 +255,17 @@ def getSolutionFromLog(log_order):
 
                     except IndexError:
                         pass
+                elif line.find('finished; Total NFE: ') != -1:
+                    try:
+                        nfe = int(re.search(f'finished; Total NFE: ([0-9]*)', line).group(1))
+                        _time = time_string_to_decimals(re.search(f'Elapsed Time: (.*)', line).group(1))
 
-            storeSolutions[section] = storeSolution
+                    except AttributeError:
+                        pass
+
+                    except IndexError:
+                        pass
+            storeSolutions[section] = {'summary': {'nfe': nfe, 'time': _time}, 'generation': storeSolution}
             storeSolution = {}
 
     return storeSolutions
@@ -388,12 +399,12 @@ def main():
     lower, upper, num = -500, 500, 100
     x1 = np.linspace(lower, upper, num)
     x2 = np.linspace(lower, upper, num)
-    tolerance = 10 ** (-5)
+    tolerance = 10 ** (-6)
     max_evals = 30000 - 1
 
     max_stalls = 25
     stall_tolerance = tolerance
-    timeout = 30000  # seconds
+    timeout = 3000  # seconds
     parent_size = 200
     child_size = round(1.0 * parent_size)
     tournament_size = round(0.1 * parent_size)
@@ -425,17 +436,21 @@ def main():
 
     solutions = getSolutionFromLog(solverList)
 
-    def compareSolutions(solverList, data):
+    def compareSolutions(solvers, data):
         # [(node.yIndex, node.xIndex) for row in jsonObject.rebuiltModel.matrix for node in row]
         plotDict = {}
         # TODO Continue here by creating lists of np.arrays of the bests and the averages(error, objective, time)
         #  across iterations and then look at deleting the Schwefel function after making sure no functionality is lost
         #  and the comments about code execution is ported over to this file
-        for name in solverList:
-            iterations = []
-            bests = [generation['best'].objective for iteration, generation in data[name].items()]
-            errors = []
-    compareSolutions(solverList, solutions)
+        for name in solvers:
+            plotDict[name] = {'iterations': [iteration for iteration in data[name]['generation']],
+                              'bests': [generation[LogHeader.BEST.value].objective for iteration, generation in data[name]['generation'].items()],
+                              'nfe': data[name]['summary']['nfe'],
+                              'time': data[name]['summary']['time']}
+
+        return plotDict
+    summarizedResult = compareSolutions(solverList, solutions)
+    # TODO I changed the format of solutions which is passed in below so I will need to update the method
     plottingConvergence(x1, x2, lower, upper, solutions, run=False)
     plottingSchwefel(x1, x2, lower, upper, run=False)
 
