@@ -432,7 +432,9 @@ def main():
         #  across iterations and then look at deleting the Schwefel function after making sure no functionality is lost
         #  and the comments about code execution is ported over to this file
         for name in solverList:
+            iterations = []
             bests = [generation['best'].objective for iteration, generation in data[name].items()]
+            errors = []
     compareSolutions(solverList, solutions)
     plottingConvergence(x1, x2, lower, upper, solutions, run=False)
     plottingSchwefel(x1, x2, lower, upper, run=False)
