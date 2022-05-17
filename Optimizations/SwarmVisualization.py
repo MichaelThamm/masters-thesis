@@ -521,7 +521,7 @@ def main():
     pso_params = {'swarm_size': parent_size, 'leader_size': leader_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(objective_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': objective_key}
-    solverList = solveOptimization(_ParticlSwarm, solverList, constraint_params, termination_params, pso_params, run=False)
+    solverList = solveOptimization(_ParticlSwarm, solverList, constraint_params, termination_params, pso_params, run=True)
 
     omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': leader_size,
                      'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
