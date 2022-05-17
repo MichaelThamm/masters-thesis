@@ -24,7 +24,7 @@ LOGGER.setLevel(logging.INFO)
 LOGGER.addHandler(logging.FileHandler(LOGGER_FILE))
 
 SCHWEFEL_SOLUTION = np.array([420.9687, 420.9687])
-LOG_EVERY_X_ITERATIONS = 2
+LOG_EVERY_X_ITERATIONS = 5
 
 
 class ExitReason(Enum):
@@ -64,13 +64,13 @@ class GenerationalSolution(object):
         self.solution[iteration] = copy.deepcopy(solution)
 
 
-class WrappedSingleSolution:
+class _SingleSolution:
     def __init__(self, variables, objective):
         self.variables = variables
         self.objective = objective
 
 
-class WrappedTerminationCondition(TerminationCondition):
+class _TerminationCondition(TerminationCondition):
     def __init__(self, max_evals, tolerance, stall_tolerance, max_stalls, timeout):
         super(TerminationCondition, self).__init__()
 
@@ -147,7 +147,42 @@ class WrappedTerminationCondition(TerminationCondition):
         return False
 
 
-class _ParticlSwarmOptimization(ParticleSwarm):
+class _Archive(Archive):
+
+    def __init__(self, dominance=ParetoDominance()):
+        super(Archive, self).__init__(dominance)
+        self._dominance = dominance
+        self._contents = []
+
+    def add(self, solution):
+        flags = [self._dominance.compare(solution, s) for s in self._contents]
+        dominates = [x > 0 for x in flags]
+        nondominated = [x == 0 for x in flags]
+
+        if any(dominates):
+            return False
+        else:
+            self._contents = list(itertools.compress(self._contents, nondominated)) + [solution]
+            return True
+
+
+class _FitnessArchive(_Archive):
+
+    def __init__(self, fitness, dominance=ParetoDominance(), larger_preferred=True, getter=fitness_key):
+        super(_Archive, self).__init__(dominance)
+        self.fitness = fitness
+        self.larger_preferred = larger_preferred
+        self.getter = getter
+
+    def truncate(self, size):
+        self.fitness(self._contents)
+        self._contents = truncate_fitness(self._contents,
+                                          size,
+                                          larger_preferred=self.larger_preferred,
+                                          getter=self.getter)
+
+
+class _ParticlSwarm(ParticleSwarm):
     def __init__(self, problem,
                  swarm_size=100,
                  leader_size=100,
@@ -170,6 +205,30 @@ class _ParticlSwarmOptimization(ParticleSwarm):
                          larger_preferred=larger_preferred,
                          fitness_getter=fitness_getter,
                          **kwargs)
+
+    def initialize(self):
+        self.particles = [self.generator.generate(self.problem) for _ in range(self.swarm_size)]
+        self.evaluate_all(self.particles)
+
+        self.local_best = self.particles[:]
+
+        self.leaders = _FitnessArchive(self.fitness,
+                                      larger_preferred=self.larger_preferred,
+                                      getter=self.fitness_getter)
+        self.leaders += self.particles
+        self.leaders._contents = sorted(self.leaders, key=functools.cmp_to_key(ParetoDominance()))
+        self.leaders.truncate(self.leader_size)
+        self.velocities = [[0.0] * self.problem.nvars for _ in range(self.swarm_size)]
+
+    def iterate(self):
+        self._update_velocities()
+        self._update_positions()
+        self._mutate()
+        self.evaluate_all(self.particles)
+        self._update_local_best()
+
+        self.leaders += self.particles
+        self.leaders.truncate(self.leader_size)
 
     def _mutate(self):
         if self.mutate is not None:
@@ -206,7 +265,7 @@ def getSolutionFromLog(log_order):
         temp = nums[1].split('|')
         num2 = temp[0]
         objective = temp[1]
-        return WrappedSingleSolution([strToFloat(num1), strToFloat(num2)], strToFloat(objective))
+        return _SingleSolution([strToFloat(num1), strToFloat(num2)], strToFloat(objective))
 
     def time_string_to_decimals(time_string):
         fields = time_string.split(":")
@@ -299,7 +358,7 @@ def solveOptimization(algorithm, solverList, constraint, termination, solver, ru
     if not run:
         return solverList
     optimization = algorithm(Constraints(**constraint), **solver)
-    optimization.run(WrappedTerminationCondition(**termination))
+    optimization.run(_TerminationCondition(**termination))
     if hasattr(algorithm, '__name__'):
         return addAlgoName(solverList, algorithm.__name__)
     else:
@@ -341,23 +400,25 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
 
     x1, x2 = np.meshgrid(x1, x2)
     space = schwefel(x1, x2)
-    for name, solverSolution in solutions.items():
-        for iteration, solution in solverSolution.items():
-            plt.contour(x1, x2, space, 15, colors='grey', zorder=-1)
-            plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.jet, alpha=0.5)
-            plt.colorbar()
-            xVariables = [value.variables[0] for value in solution[LogHeader.GENERATION.value].values()]
-            yVariables = [value.variables[1] for value in solution[LogHeader.GENERATION.value].values()]
-            plt.scatter(xVariables, yVariables, marker='*', color='green')
-            plt.scatter(solution[LogHeader.BEST.value].variables[0], solution[LogHeader.BEST.value].variables[1],
-                        marker='*', color='red')
-            plt.plot(SCHWEFEL_SOLUTION[0], SCHWEFEL_SOLUTION[1], marker='+', color='red', markersize=12)
-            plt.xlabel('x1')
-            plt.ylabel('x2')
-            formattedObj = "{:.4f}".format(solution[LogHeader.BEST.value].objective)
-            formattedVars = ["{:.4f}".format(x) for x in solution[LogHeader.BEST.value].variables]
-            plt.title(f'{name} Iteration: {iteration}\nBest: {formattedObj}@{formattedVars}')
-            plt.show()
+    for algorithmName, solverSolution in solutions.items():
+        for solutionName, solutionType in solverSolution.items():
+            if solutionName == LogHeader.GENERATION.value:
+                for iteration, solution in solutionType.items():
+                    plt.contour(x1, x2, space, 15, colors='grey', zorder=-1)
+                    plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.jet, alpha=0.5)
+                    plt.colorbar()
+                    xVariables = [value.variables[0] for value in solution[LogHeader.GENERATION.value].values()]
+                    yVariables = [value.variables[1] for value in solution[LogHeader.GENERATION.value].values()]
+                    plt.scatter(xVariables, yVariables, marker='*', color='green')
+                    plt.scatter(solution[LogHeader.BEST.value].variables[0], solution[LogHeader.BEST.value].variables[1],
+                                marker='*', color='red')
+                    plt.plot(SCHWEFEL_SOLUTION[0], SCHWEFEL_SOLUTION[1], marker='+', color='red', markersize=12)
+                    plt.xlabel('x1')
+                    plt.ylabel('x2')
+                    formattedObj = "{:.4f}".format(solution[LogHeader.BEST.value].objective)
+                    formattedVars = ["{:.4f}".format(x) for x in solution[LogHeader.BEST.value].variables]
+                    plt.title(f'{algorithmName} Iteration: {iteration}\nBest: {formattedObj}@{formattedVars}')
+                    plt.show()
 
 
 def plottingPerformance(solvers, data, plot=False):
@@ -442,30 +503,27 @@ def main():
     stall_tolerance = tolerance
     timeout = 3000  # seconds
     parent_size = 200
-    child_size = round(1.0 * parent_size)
-    tournament_size = round(0.1 * parent_size)
+    offspring_size = round(0.5 * parent_size)
+    leader_size = round(1.0 * parent_size)
+    # tournament_size = round(0.25 * parent_size)
+    tournament_size = 2
     constraint_params = {'lower': lower, 'upper': upper}
     termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
                           'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
                           'timeout': timeout}
     solverList = []
 
-    ga_params = {'population_size': parent_size, 'offspring_size': child_size, 'generator': RandomGenerator(),
+    ga_params = {'population_size': parent_size, 'offspring_size': offspring_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
                  'variator': GAOperator(SBX(0.3), PM(0.1))}
     solverList = solveOptimization(GeneticAlgorithm, solverList, constraint_params, termination_params, ga_params, run=True)
 
-    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
-                  'mutate': PM(0.1), 'leader_comparator': AttributeDominance(crowding_distance_key),
-                  'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': crowding_distance_key}
-    solverList = solveOptimization(_ParticlSwarmOptimization, solverList, constraint_params, termination_params, pso_params, run=True)
-
-    pso_params = {'swarm_size': parent_size, 'leader_size': child_size, 'generator': RandomGenerator(),
+    pso_params = {'swarm_size': parent_size, 'leader_size': leader_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(objective_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': objective_key}
-    solverList = solveOptimization(_ParticlSwarmOptimization, solverList, constraint_params, termination_params, pso_params, run=False)
+    solverList = solveOptimization(_ParticlSwarm, solverList, constraint_params, termination_params, pso_params, run=False)
 
-    omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': child_size,
+    omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': leader_size,
                      'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
                      'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.1)}
     solverList = solveOptimization(OMOPSO, solverList, constraint_params, termination_params, omopso_params, run=False)
