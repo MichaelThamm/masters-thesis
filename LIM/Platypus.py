@@ -384,7 +384,7 @@ def main():
     if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='Iph',
+        showModel(encodeModel, model, fieldType='B',
                   showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   # TODO This invertY inverts the Tkinter Canvas plot
                   numColours=20, dims=[1080, 1920], invertY=False)
