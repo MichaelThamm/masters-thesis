@@ -8,6 +8,7 @@ from enum import Enum
 import numpy as np
 import logging
 import copy
+import time
 import os
 
 '''
@@ -426,11 +427,12 @@ def plottingPerformance(solvers, data, plot=False):
     plotDict = {}
     for name in solvers:
         plotDict[name] = {'iterations': np.array([iteration for iteration in data[name]['generation']]),
-                          'bests': np.array([generation[LogHeader.BEST.value].objective for iteration, generation in data[name]['generation'].items()]),
+                          'best_objectives': np.array([generation[LogHeader.BEST.value].objective for iteration, generation in data[name]['generation'].items()]),
+                          'best_variables': np.array([generation[LogHeader.BEST.value].variables for iteration, generation in data[name]['generation'].items()]),
                           'nfe': data[name]['summary']['nfe'],
                           'time': data[name]['summary']['time']}
 
-        y_normal = plotDict[name]['bests']
+        y_normal = plotDict[name]['best_objectives']
         y_logarithmic = np.log(y_normal)
 
         if plot:
@@ -463,11 +465,6 @@ def addAlgoName(solverList, name):
 
 def main():
 
-    # TODO For Kars discussion tmr:
-    #   1) Tell him I need Ansys with quote
-    #   2) Show the Core results and how close you are and the optimization progress
-    #   3) Explain how many pages you are in thesis and your layout of it
-    #   4) Explain expected completion date
     # TODO
     #   Decide the layout for thesis chapters
     #       *) AT THE END OF EVERY CHAPTER TIE THE MOST IMPORTANT THING BACK TO THE OVERALL OBJECTIVE
@@ -516,12 +513,12 @@ def main():
     ga_params = {'population_size': parent_size, 'offspring_size': offspring_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
                  'variator': GAOperator(SBX(0.3), PM(0.1))}
-    solverList = solveOptimization(GeneticAlgorithm, solverList, constraint_params, termination_params, ga_params, run=True)
+    solverList = solveOptimization(GeneticAlgorithm, solverList, constraint_params, termination_params, ga_params, run=False)
 
     pso_params = {'swarm_size': parent_size, 'leader_size': leader_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(objective_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': objective_key}
-    solverList = solveOptimization(_ParticlSwarm, solverList, constraint_params, termination_params, pso_params, run=True)
+    solverList = solveOptimization(_ParticlSwarm, solverList, constraint_params, termination_params, pso_params, run=False)
 
     omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': leader_size,
                      'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
@@ -533,7 +530,8 @@ def main():
     summarizedResult = plottingPerformance(solverList, solutions, plot=False)
     for name, generations in summarizedResult.items():
         print(f"________{name}________\n"
-              f"objective: {min(generations['bests'])}\n"
+              f"objective: {generations['best_objectives'][-1]}\n"
+              f"variables: {generations['best_variables'][-1]}\n"
               f"nfe: {generations['nfe']}\n"
               f"time: {generations['time']}\n")
     plottingConvergence(x1, x2, lower, upper, solutions, run=False)
