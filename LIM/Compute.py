@@ -12,14 +12,14 @@ class Model(Grid):
 
     currColCount, currColCountUpper, matACount, matBCount = 0, 0, 0, 0
 
-    def __init__(self, kwargs, buildFromJson=False):
+    def __init__(self, kwargs, buildFromJson=False, buildBaseline=False):
 
         if buildFromJson:
             for attr_key in kwargs:
                 self.__dict__[attr_key] = kwargs[attr_key]
             return
 
-        super().__init__(kwargs)
+        super().__init__(kwargs, buildBaseline)
 
         self.writeErrorToDict(key='name',
                               error=Error.buildFromScratch(name='meshDensityDiscrepancy',
@@ -85,6 +85,10 @@ class Model(Grid):
     @classmethod
     def buildFromJson(cls, jsonObject):
         return cls(kwargs=jsonObject, buildFromJson=True)
+
+    @classmethod
+    def buildBaseline(cls, **kwargs):
+        return cls(kwargs=kwargs, buildBaseline=True)
 
     def equals(self, otherObject, removedAtts):
         equality = True

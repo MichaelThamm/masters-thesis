@@ -28,9 +28,9 @@ class Grid(LimMotor):
     inUpper_slotsC: ndarray
     outUpper_slotsC: ndarray
 
-    def __init__(self, kwargs):
+    def __init__(self, kwargs, buildBaseline=False):
 
-        super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'])
+        super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'], buildBaseline)
 
         # Turn inputs into attributes
         self.invertY = kwargs['invertY']

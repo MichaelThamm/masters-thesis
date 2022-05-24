@@ -1,6 +1,7 @@
 import matplotlib.offsetbox as offsetbox
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from time import perf_counter
 from itertools import count
 from matplotlib import cm
 from platypus import *
@@ -25,7 +26,7 @@ LOGGER.setLevel(logging.INFO)
 LOGGER.addHandler(logging.FileHandler(LOGGER_FILE))
 
 SCHWEFEL_SOLUTION = np.array([420.9687, 420.9687])
-LOG_EVERY_X_ITERATIONS = 5
+LOG_EVERY_X_ITERATIONS = 10
 
 
 class ExitReason(Enum):
@@ -40,11 +41,11 @@ class LogHeader(Enum):
     GENERATION = 'generation'
 
 
-class Constraints(Problem):
+class SchwefelProblem(Problem):
 
     def __init__(self, lower, upper):
         # The numbers indicate: #inputs, #objectives, #constraints
-        super(Constraints, self).__init__(2, 1)
+        super(SchwefelProblem, self).__init__(2, 1)
         # Constrain the range and type for each input
         self.types[:] = [Real(lower, upper), Real(lower, upper)]
         # Choose which objective to maximize and minimize
@@ -101,7 +102,7 @@ class _TerminationCondition(TerminationCondition):
         # Store the solution
         if isinstance(algorithm, ParticleSwarm):
             solution = algorithm.particles if hasattr(algorithm, 'particles') else []
-        elif isinstance(algorithm, GeneticAlgorithm):
+        elif isinstance(algorithm, AbstractGeneticAlgorithm):
             solution = algorithm.population if hasattr(algorithm, 'population') else []
         else:
             solution = None
@@ -148,39 +149,15 @@ class _TerminationCondition(TerminationCondition):
         return False
 
 
-class _Archive(Archive):
+class _RandomIntGenerator(Generator):
 
-    def __init__(self, dominance=ParetoDominance()):
-        super(Archive, self).__init__(dominance)
-        self._dominance = dominance
-        self._contents = []
+    def __init__(self):
+        super(Generator, self).__init__()
 
-    def add(self, solution):
-        flags = [self._dominance.compare(solution, s) for s in self._contents]
-        dominates = [x > 0 for x in flags]
-        nondominated = [x == 0 for x in flags]
-
-        if any(dominates):
-            return False
-        else:
-            self._contents = list(itertools.compress(self._contents, nondominated)) + [solution]
-            return True
-
-
-class _FitnessArchive(_Archive):
-
-    def __init__(self, fitness, dominance=ParetoDominance(), larger_preferred=True, getter=fitness_key):
-        super(_Archive, self).__init__(dominance)
-        self.fitness = fitness
-        self.larger_preferred = larger_preferred
-        self.getter = getter
-
-    def truncate(self, size):
-        self.fitness(self._contents)
-        self._contents = truncate_fitness(self._contents,
-                                          size,
-                                          larger_preferred=self.larger_preferred,
-                                          getter=self.getter)
+    def generate(self, problem):
+        solution = Solution(problem)
+        solution.variables = [x.rand() for x in problem.types]
+        return solution
 
 
 class _ParticlSwarm(ParticleSwarm):
@@ -206,20 +183,6 @@ class _ParticlSwarm(ParticleSwarm):
                          larger_preferred=larger_preferred,
                          fitness_getter=fitness_getter,
                          **kwargs)
-
-    def initialize(self):
-        self.particles = [self.generator.generate(self.problem) for _ in range(self.swarm_size)]
-        self.evaluate_all(self.particles)
-
-        self.local_best = self.particles[:]
-
-        self.leaders = _FitnessArchive(self.fitness,
-                                      larger_preferred=self.larger_preferred,
-                                      getter=self.fitness_getter)
-        self.leaders += self.particles
-        self.leaders._contents = sorted(self.leaders, key=functools.cmp_to_key(ParetoDominance()))
-        self.leaders.truncate(self.leader_size)
-        self.velocities = [[0.0] * self.problem.nvars for _ in range(self.swarm_size)]
 
     def iterate(self):
         self._update_velocities()
@@ -355,10 +318,10 @@ def getFittest(algorithm):
     return fittest
 
 
-def solveOptimization(algorithm, solverList, constraint, termination, solver, run=False):
+def solveOptimization(algorithm, problem, solverList, constraint, termination, solver, run=False):
     if not run:
         return solverList
-    optimization = algorithm(Constraints(**constraint), **solver)
+    optimization = algorithm(problem(**constraint), **solver)
     optimization.run(_TerminationCondition(**termination))
     if hasattr(algorithm, '__name__'):
         return addAlgoName(solverList, algorithm.__name__)
@@ -442,6 +405,7 @@ def plottingPerformance(solvers, data, plot=False):
                     f"Function Executions: {plotDict[name]['nfe']}\n" \
                     f"Time: {'{:.4f}'.format(plotDict[name]['time'])}"
 
+            # TODO Could try loc='best'
             ob = offsetbox.AnchoredText(stats, loc=1, prop=dict(color='black', size=10))
             ob.patch.set(boxstyle='round', color='grey', alpha=0.5)
             ax1.add_artist(ob)
@@ -493,12 +457,12 @@ def main():
     lower, upper, num = -500, 500, 100
     x1 = np.linspace(lower, upper, num)
     x2 = np.linspace(lower, upper, num)
-    tolerance = 10 ** (-6)
+    tolerance = 10 ** (-7)
     max_evals = 30000 - 1
 
     max_stalls = 25
     stall_tolerance = tolerance
-    timeout = 3000  # seconds
+    timeout = 3000000  # seconds
     parent_size = 200
     offspring_size = round(0.5 * parent_size)
     leader_size = round(1.0 * parent_size)
@@ -513,21 +477,28 @@ def main():
     ga_params = {'population_size': parent_size, 'offspring_size': offspring_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
                  'variator': GAOperator(SBX(0.3), PM(0.1))}
-    solverList = solveOptimization(GeneticAlgorithm, solverList, constraint_params, termination_params, ga_params, run=False)
+    solverList = solveOptimization(GeneticAlgorithm, SchwefelProblem, solverList, constraint_params, termination_params, ga_params, run=True)
+
+    # TODO NSGA doesnt have offspring parameter because it clips to population size instead
+    #  -> if pop = 200 then offspring + pop = 400 which is fitness sorted and clipped to 200 again
+    nsga_params = {'population_size': parent_size, 'generator': RandomGenerator(),
+                   'selector': TournamentSelector(tournament_size), 'variator': GAOperator(SBX(0.3), PM(0.1)),
+                   'archive': FitnessArchive(nondominated_sort)}
+    solverList = solveOptimization(NSGAII, SchwefelProblem, solverList, constraint_params, termination_params, nsga_params, run=True)
 
     pso_params = {'swarm_size': parent_size, 'leader_size': leader_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(objective_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': objective_key}
-    solverList = solveOptimization(_ParticlSwarm, solverList, constraint_params, termination_params, pso_params, run=False)
+    solverList = solveOptimization(_ParticlSwarm, SchwefelProblem, solverList, constraint_params, termination_params, pso_params, run=True)
 
     omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': leader_size,
                      'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
-                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.1)}
-    solverList = solveOptimization(OMOPSO, solverList, constraint_params, termination_params, omopso_params, run=False)
+                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.3)}
+    solverList = solveOptimization(OMOPSO, SchwefelProblem, solverList, constraint_params, termination_params, omopso_params, run=True)
 
     solutions = getSolutionFromLog(solverList)
 
-    summarizedResult = plottingPerformance(solverList, solutions, plot=False)
+    summarizedResult = plottingPerformance(solverList, solutions, plot=True)
     for name, generations in summarizedResult.items():
         print(f"________{name}________\n"
               f"objective: {generations['best_objectives'][-1]}\n"

@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-from LIM.Platypus import construct, LimMotor
+from LIM.Platypus import LimMotor
 from LIM.Show import showModel
 
 

@@ -37,7 +37,7 @@ Filters:
 
 
 class LimMotor(object):
-    def __init__(self, slots, poles, length):
+    def __init__(self, slots, poles, length, buildBaseline=False):
 
         self.errorDict = TransformedDict.buildFromScratch()
 
@@ -56,15 +56,19 @@ class LimMotor(object):
         self.q = self.slots/self.poles/3
         self.L = length  # meters
         self.Tp = self.L/self.poles  # meters
-        # self.slotpitch = self.L/self.slots  # meters
-        # self.wt = 3/8*self.slotpitch  # meters
-        # self.ws = self.slotpitch - self.wt  # meters
-        self.wt = 6/1000  # meters
-        self.ws = 10/1000  # meters
-        self.slotpitch = self.ws + self.wt  # meters
+
+        if buildBaseline:
+            self.wt = 6 / 1000  # meters
+            self.ws = 10 / 1000  # meters
+            self.slotpitch = self.ws + self.wt  # meters
+            self.Tper = 0.525  # meters
+        else:
+            self.slotpitch = self.L/self.slots  # meters
+            self.wt = 3/8*self.slotpitch  # meters
+            self.ws = self.slotpitch - self.wt  # meters
+            self.Tper = 12 * (self.slotpitch*3)  # meters
+
         self.endTeeth = (self.L - ((self.slots - 1) * self.slotpitch + self.ws))/2  # meters
-        # self.Tper = 12 * (self.slotpitch*3)  # meters
-        self.Tper = 0.525  # meters
         self.windingShift = 2
 
         self.Airbuffer = (self.Tper - self.L)/2  # meters

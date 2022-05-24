@@ -1,7 +1,8 @@
+from Optimizations.OptimizationCfg import *
 from LIM.Show import *
+from platypus import *
 import json
 import os
-from platypus import Problem, Integer, NSGAII
 
 PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Output')
@@ -12,14 +13,13 @@ https://platypus.readthedocs.io/en/latest/getting-started.html
 '''
 
 
-# Problem is the object that Test will inherit from
-class Test(Problem):
+class MotorOptProblem(Problem):
 
-    def __init__(self):
+    def __init__(self, slots, poles):
         # The numbers indicate: #inputs, #objectives, #constraints
-        super(Test, self).__init__(2, 2, 1)
+        super(MotorOptProblem, self).__init__(2, 2, 1)
         # Constrain the range and type for each input
-        self.types[:] = [Integer(12, 50), Integer(12, 50)]
+        self.types[:] = [Integer(slots[0], slots[1]), Integer(poles[0], poles[1])]
         # Constrain every input. This works in unison with with constraints in the evaluate method
         # Ex) Slots >= Poles becomes Slots - Poles >= 0 so init constraint becomes ">=0" and evaluate constraint becomes Slots - Poles
         self.constraints[:] = ">=0"
@@ -34,7 +34,7 @@ class Test(Problem):
         q = slots / poles / 3
         if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
 
-            pixelDivisions = 5
+            pixelDivisions = 2
             lowDiscrete = 50
             n = range(-lowDiscrete, lowDiscrete + 1)
             n = np.delete(n, len(n) // 2, 0)
@@ -49,11 +49,11 @@ class Test(Problem):
             pixelSpacing = slotpitch / pixelDivisions
             canvasSpacing = 80
 
-            regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 5: 'vac_upper'},
-                          'mecRegions': {4: 'mec'},
+            regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
+                          'mecRegions': {5: 'mec'},
                           'invertY': False}
 
-            choiceRegionCfg = regionCfg3
+            choiceRegionCfg = regionCfg1
 
             # Object for the model design, grid, and matrices
             model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
@@ -86,7 +86,6 @@ class Test(Problem):
 
 
 # Break apart the grid.matrix array
-
 class EncoderDecoder(object):
     def __init__(self, model):
 
@@ -243,68 +242,33 @@ def platypus(run=False):
     if not run:
         return
 
-    with timing():
-        algorithm = NSGAII(Test())
-        algorithm.run(5000)
+    tolerance = 10 ** (-7)
+    max_evals = 30000 - 1
+    max_stalls = 25
+    stall_tolerance = tolerance
+    timeout = 3000000  # seconds
+    parent_size = 200
+    tournament_size = 2
+    constraint_params = {'slots': [12, 50], 'poles': [12, 50]}
+    termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
+                          'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
+                          'timeout': timeout}
+    solverList = []
 
-    # # TODO Platypus has parallelization built in instead of using Jit
-    # # TODO Look into changing population
-    feasible_solutions = [s for s in algorithm.result if s.feasible]
-    # # TODO Use the debugging tool to see the attributes of algorithm.population
-    plotResults = []
-    cnt = 1
-    for results in feasible_solutions:
-        slotpoles = [algorithm.problem.types[0].decode(results.variables[0]), algorithm.problem.types[0].decode(results.variables[1])]
-        objectives = [results.objectives[0], results.objectives[1]]
-        # TODO Think of a good way to plot results
-        print(slotpoles, objectives)
-        plotResults.append((slotpoles, objectives))
-        cnt += 1
-
-    fig, axs = plt.subplots(2)
-    fig.suptitle('Mass and Thrust')
-    axs[0].scatter(range(1, cnt), [x[1, 0] for x in plotResults])
-    axs[0].set_title('Mass')
-    axs[1].scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-    axs[1].set_title('Thrust')
-    axs[2].scatter(range(1, cnt), [x[0, 0] for x in plotResults])
-    axs[2].set_title('mass obj')
-    axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
-    axs[3].set_title('thrust obj')
-    plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-    # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-    plt.xlabel('Generations')
-    plt.ylabel('Thrust Objective Value')
-    plt.show()
+    # TODO There is an issue with the initialization of variables. It seems like the support for Integer is not really there
+    #   I can try to fix this but swap to Real instead and then just round in the evaluate method instead using floor div
+    nsga_params = {'population_size': parent_size, 'generator': _RandomIntGenerator(),
+                   'selector': TournamentSelector(tournament_size), 'variator': GAOperator(SBX(0.3), PM(0.1)),
+                   'archive': FitnessArchive(nondominated_sort)}
+    solverList = solveOptimization(NSGAII, MotorOptProblem, solverList, constraint_params, termination_params, nsga_params, run=True)
 
 
-def profile_main():
+def baselineMotor(run=False):
+    if not run:
+        return
 
-    import cProfile, pstats, io
-
-    prof = cProfile.Profile()
-    prof = prof.runctx("main()", globals(), locals())
-
-    stream = io.StringIO()
-
-    stats = pstats.Stats(prof, stream=stream)
-    stats.sort_stats("time")  # or cumulative
-    stats.print_stats(80)  # 80 = how many to print
-
-    # The rest is optional.
-    # stats.print_callees()
-    # stats.print_callers()
-
-    # logging.info("Profile data:\n%s", stream.getvalue())
-
-    f = open(os.path.join(OUTPUT_PATH, 'profile.txt'), 'a')
-    f.write(stream.getvalue())
-    f.close()
-
-
-def main():
     # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = 5
+    pixelDivisions = 2
 
     lowDiscrete = 50
     # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
@@ -317,8 +281,6 @@ def main():
     slotpitch = wt + ws
     endTeeth = 2 * (5/3 * wt)
     length = ((slots - 1) * slotpitch + ws) + endTeeth
-
-    platypus(run=False)
 
     # This value defines how small the mesh is at [border, border+1].
     # Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
@@ -355,7 +317,7 @@ def main():
     choiceRegionCfg = regionCfg1
 
     # Object for the model design, grid, and matrices
-    model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
+    model = Model.buildBaseline(slots=slots, poles=poles, length=length, n=n,
                                    pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                    meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
                                    hmRegions=
@@ -397,6 +359,36 @@ def main():
         encodeModel.rebuiltModel.errorDict.printErrorsByAttr('description')
     else:
         print('   - there are no errors')
+
+
+def profile_main():
+
+    import cProfile, pstats, io
+
+    prof = cProfile.Profile()
+    prof = prof.runctx("main()", globals(), locals())
+
+    stream = io.StringIO()
+
+    stats = pstats.Stats(prof, stream=stream)
+    stats.sort_stats("time")  # or cumulative
+    stats.print_stats(80)  # 80 = how many to print
+
+    # The rest is optional.
+    # stats.print_callees()
+    # stats.print_callers()
+
+    # logging.info("Profile data:\n%s", stream.getvalue())
+
+    f = open(os.path.join(OUTPUT_PATH, 'profile.txt'), 'a')
+    f.write(stream.getvalue())
+    f.close()
+
+
+def main():
+
+    platypus(run=True)
+    baselineMotor(run=False)
 
 
 if __name__ == '__main__':
