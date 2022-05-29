@@ -58,18 +58,23 @@ class LimMotor(object):
         self.Tp = self.L/self.poles  # meters
 
         if buildBaseline:
-            self.wt = 6 / 1000  # meters
             self.ws = 10 / 1000  # meters
-            self.slotpitch = self.ws + self.wt  # meters
+            self.wt = 6 / 1000  # meters
             self.Tper = 0.525  # meters
         else:
-            self.slotpitch = self.L/self.slots  # meters
-            self.wt = 3/8*self.slotpitch  # meters
-            self.ws = self.slotpitch - self.wt  # meters
-            self.Tper = 12 * (self.slotpitch*3)  # meters
+            self.ws = self.reverseWs(endTooth2SlotWidthRatio=1)  # meters
+            self.wt = (3/5) * self.ws  # meters
+            self.Tper = 1.25 * self.L  # meters  # TODO I should check with the baseline that a change to the Airbuffer does not make much difference to the result
 
-        self.endTeeth = (self.L - ((self.slots - 1) * self.slotpitch + self.ws))/2  # meters
+        self.slotpitch = self.ws + self.wt  # meters
+        self.endTooth = self.getLenEndTooth()  # meters
+        self.writeErrorToDict(key='name',
+                              error=Error.buildFromScratch(name='MotorLength',
+                                                           description='ERROR - The inner dimensions do not sum to the motor length',
+                                                           cause=not self.validateLength()))
+
         self.windingShift = 2
+        self.windingLayers = 2
 
         self.Airbuffer = (self.Tper - self.L)/2  # meters
         self.hy = 6.5/1000  # meters
@@ -98,14 +103,15 @@ class LimMotor(object):
         self.Ip = np.float64(10)  # AmpsPeak
         self.Jin = 0.0  # A/m^2
         self.vel = 0.0  # m/s
-        self.N = 57  # turns
         self.f = 100.0  # Hz
         # self.f = self.vel/(2*self.Tp)  # Hz
         self.t = 0.0  # s
         FF = 0.6
         J = 5.0 * 10 ** 6  # A/m^2
-        # This value is the number of turns for an entire slot even if 2 phases share the slot
-        Nperslot = J*FF*self.ws*self.hs/self.Ip
+        if buildBaseline:
+            self.N = 57  # turns
+        else:
+            self.N = J * FF * (self.ws * self.hs / self.windingLayers) / self.Ip  # turns per coil
 
         # Stator Masses
         dCu = 8.96  # g/cm^3
@@ -124,8 +130,9 @@ class LimMotor(object):
             diamCond = currentDensityTable[1, idx_diamCond-1]
         else:
             diamCond = currentDensityTable[1, idx_diamCond]
-        MassCore = (self.hy*self.L + self.wt*self.hs*self.slots) * self.D * dSteel * 1000  # kg
-        MassCu = (self.Tp*2 + (self.D + self.ws)*2) * (diamCond/(10 ** 6)) * Nperslot * self.slots * dCu * 1000  # kg
+        MassCore = (self.hy*self.L + self.hs*(self.wt*(self.slots-1) + 2*self.endTooth)) * self.D * dSteel * 1000  # kg
+        # TODO MassCu and MassInsul are not accurate if some slots are unfilled
+        MassCu = (self.Tp*2 + (self.D + self.ws)*2)*(diamCond/(10 ** 6))*self.N*self.slots*dCu*1000  # kg
         MassInsul = (1 - FF) * self.ws * self.hs * self.D * self.slots * dInsul * 1000  # kg
         self.MassTot = 2*(MassCore + MassCu + MassInsul)  # kg
 
@@ -135,6 +142,17 @@ class LimMotor(object):
 
     def getDictKey(self):
         return self.errorDict.keys()
+
+    def reverseWs(self, endTooth2SlotWidthRatio):
+        # In general, endTooth2SlotWidthRatio should be 1 so the end teeth are the same size as slot width
+        coeff = (8/5) * (self.slots - 1) + 1 + 2 * endTooth2SlotWidthRatio
+        return self.L / coeff
+
+    def getLenEndTooth(self):
+        return (self.L - (self.slotpitch * (self.slots - 1) + self.ws)) / 2
+
+    def validateLength(self):
+        return round(self.L - (self.slotpitch*(self.slots-1)+self.ws+2*self.endTooth), 12) == 0
 
 
 class TransformedDict(MutableMapping):

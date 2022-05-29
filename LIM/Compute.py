@@ -608,8 +608,6 @@ class Model(Grid):
 
     def __genForces(self, urSigma, iY):
 
-        return 0, 0
-
         Cnt = 0
         for nHM in self.n:
             gIdx = list(self.hmRegions.keys())[list(self.hmRegions.values()).index('g')]
@@ -1067,7 +1065,9 @@ class Model(Grid):
 
         resFx *= - j_plex * self.D * self.Tper / (2 * uo)
         resFy *= - self.D * self.Tper / (4 * uo)
-        print(f'Fx: {round(resFx.real, 2)}N,', f'Fy: {round(resFy.real, 2)}N')
+        self.Fx = resFx
+        self.Fy = resFy
+        print(f'Fx: {round(self.Fx.real, 2)}N,', f'Fy: {round(self.Fy.real, 2)}N')
 
         if showAirgapPlot:
             self.__plotPointsAlongX(centerAirgapIdx_y, invertY=invertY)

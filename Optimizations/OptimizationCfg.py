@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from time import perf_counter
 from itertools import count
 from matplotlib import cm
+from pathlib import Path
 from platypus import *
 from enum import Enum
 import numpy as np
@@ -17,7 +18,7 @@ https://platypus.readthedocs.io/en/latest/getting-started.html
 https://www.indusmic.com/post/schwefel-function
 '''
 
-PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
+PROJECT_PATH = Path(__file__).resolve().parent.parent
 OPTIMIZATIONS_PATH = os.path.join(PROJECT_PATH, 'Optimizations')
 LOGGER_FILE = os.path.join(OPTIMIZATIONS_PATH, 'Solvers.log')
 
@@ -343,14 +344,14 @@ def plottingSchwefel(x1, x2, lower, upper, run=False):
     space = schwefel(x1, x2)
     figure = plt.figure()
     axis = figure.gca(projection='3d')
-    axis.plot_surface(x1, x2, space, rstride=1, cstride=1, cmap=cm.jet, linewidth=0, antialiased=False)
+    axis.plot_surface(x1, x2, space, rstride=1, cstride=1, cmap=cm.get_cmap('jet'), linewidth=0, antialiased=False)
     axis.set_xlabel('x1')
     axis.set_ylabel('x2')
     axis.set_zlabel('f(x1,x2)')
     plt.show()
 
     plt.contour(x1, x2, space, 15, colors='grey')
-    plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.jet, alpha=0.5)
+    plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.get_cmap('jet'), alpha=0.5)
     plt.plot(SCHWEFEL_SOLUTION[0], SCHWEFEL_SOLUTION[1], marker='+', color='red', markersize=12)
     plt.colorbar()
     plt.xlabel('x1')
@@ -369,7 +370,7 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
             if solutionName == LogHeader.GENERATION.value:
                 for iteration, solution in solutionType.items():
                     plt.contour(x1, x2, space, 15, colors='grey', zorder=-1)
-                    plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.jet, alpha=0.5)
+                    plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.get_cmap('jet'), alpha=0.5)
                     plt.colorbar()
                     xVariables = [value.variables[0] for value in solution[LogHeader.GENERATION.value].values()]
                     yVariables = [value.variables[1] for value in solution[LogHeader.GENERATION.value].values()]
@@ -405,8 +406,7 @@ def plottingPerformance(solvers, data, plot=False):
                     f"Function Executions: {plotDict[name]['nfe']}\n" \
                     f"Time: {'{:.4f}'.format(plotDict[name]['time'])}"
 
-            # TODO Could try loc='best'
-            ob = offsetbox.AnchoredText(stats, loc=1, prop=dict(color='black', size=10))
+            ob = offsetbox.AnchoredText(stats, loc='upper right', prop=dict(color='black', size=10))
             ob.patch.set(boxstyle='round', color='grey', alpha=0.5)
             ax1.add_artist(ob)
 
@@ -506,7 +506,7 @@ def main():
               f"nfe: {generations['nfe']}\n"
               f"time: {generations['time']}\n")
     plottingConvergence(x1, x2, lower, upper, solutions, run=False)
-    plottingSchwefel(x1, x2, lower, upper, run=False)
+    plottingSchwefel(x1, x2, lower, upper, run=True)
 
 
 if __name__ == '__main__':

@@ -73,7 +73,7 @@ class Grid(LimMotor):
         self.ppAirBuffer = self.setPixelsPerLength(length=self.Airbuffer, minimum=1)
         self.ppTooth = self.setPixelsPerLength(length=self.wt, minimum=1)
         self.ppSlot = self.ppSlotpitch - self.ppTooth
-        self.ppEndTooth = self.setPixelsPerLength(length=self.endTeeth, minimum=1)
+        self.ppEndTooth = self.setPixelsPerLength(length=self.endTooth, minimum=1)
         # Y-direction
         self.ppVac = self.setPixelsPerLength(length=self.vac, minimum=1)
         self.ppYoke = self.setPixelsPerLength(length=self.hy, minimum=1)
@@ -121,7 +121,7 @@ class Grid(LimMotor):
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
 
-        self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
+        self.xListSpatialDatum = [self.Airbuffer, self.endTooth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTooth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppEndTooth, self.ppAirBuffer]
         for Cnt in range(len(self.xMeshSizes)):
             self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
@@ -557,9 +557,9 @@ class Grid(LimMotor):
                 else:
                     self.matrix[i][j].MMF = 0.0
 
-                # TODO - This is temp
-                if j in self.outLower_slotsC[1]:
-                    self.matrix[i][j].MMF *= 1
+                # # TODO - This is temp
+                # if j in self.outLower_slotsC[1]:
+                #     self.matrix[i][j].MMF *= 1
 
                 j += 1
             j = 0
@@ -646,10 +646,6 @@ class Grid(LimMotor):
         # X direction Checks
 
         yIdx = 0
-        # Check grid spacing to slotpitch
-        if round(self.slotpitch - self.Spacing * pixelDivision, 12) != 0:
-            print(f'flag - iGrid spacing: {self.slotpitch - self.Spacing * pixelDivision}')
-            spatialDomainFlag = True
         # Check slotpitch
         if round(self.slotpitch - (self.matrix[yIdx][iIdxTooth + self.ppTooth].x - self.matrix[yIdx][iIdxSlot].x), 12) != 0:
             print(f'flag - slotpitch: {self.slotpitch - (self.matrix[yIdx][iIdxTooth + self.ppTooth].x - self.matrix[yIdx][iIdxSlot].x)}')
@@ -663,12 +659,12 @@ class Grid(LimMotor):
             print(f'flag - teeth: {self.wt - (self.matrix[yIdx][iIdxTooth + self.ppTooth].x - self.matrix[yIdx][iIdxTooth].x)}')
             spatialDomainFlag = True
         # Check left end tooth
-        if round(self.endTeeth - (self.matrix[yIdx][iIdxSlot].x - self.matrix[yIdx][iIdxLeftEndTooth].x), 12) != 0:
-            print(f'flag - left end tooth: {self.endTeeth - (self.matrix[yIdx][iIdxSlot].x - self.matrix[yIdx][iIdxLeftEndTooth].x)}')
+        if round(self.endTooth - (self.matrix[yIdx][iIdxSlot].x - self.matrix[yIdx][iIdxLeftEndTooth].x), 12) != 0:
+            print(f'flag - left end tooth: {self.endTooth - (self.matrix[yIdx][iIdxSlot].x - self.matrix[yIdx][iIdxLeftEndTooth].x)}')
             spatialDomainFlag = True
         # Check right end tooth
-        if round(self.endTeeth - (self.matrix[yIdx][iIdxRightAirBuffer].x - self.matrix[yIdx][iIdxRightEndTooth].x), 12) != 0:
-            print(f'flag - right end tooth: {self.endTeeth - (self.matrix[yIdx][iIdxRightAirBuffer].x - self.matrix[yIdx][iIdxRightEndTooth].x)}')
+        if round(self.endTooth - (self.matrix[yIdx][iIdxRightAirBuffer].x - self.matrix[yIdx][iIdxRightEndTooth].x), 12) != 0:
+            print(f'flag - right end tooth: {self.endTooth - (self.matrix[yIdx][iIdxRightAirBuffer].x - self.matrix[yIdx][iIdxRightEndTooth].x)}')
             spatialDomainFlag = True
         # Check left air buffer
         if round(self.Airbuffer - (self.matrix[yIdx][iIdxLeftEndTooth].x - self.matrix[yIdx][iIdxLeftAirBuffer].x), 12) != 0:
