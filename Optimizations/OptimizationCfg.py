@@ -505,7 +505,7 @@ def main():
               f"variables: {generations['best_variables'][-1]}\n"
               f"nfe: {generations['nfe']}\n"
               f"time: {generations['time']}\n")
-    plottingConvergence(x1, x2, lower, upper, solutions, run=False)
+    plottingConvergence(x1, x2, lower, upper, solutions, run=True)
     plottingSchwefel(x1, x2, lower, upper, run=True)
 
 

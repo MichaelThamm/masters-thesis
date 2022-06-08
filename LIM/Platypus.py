@@ -398,13 +398,10 @@ def buildMotor(run=False):
     model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
                                    pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                    meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                   hmRegions=
-                                   choiceRegionCfg['hmRegions'],
-                                   mecRegions=
-                                   choiceRegionCfg['mecRegions'],
+                                   hmRegions=choiceRegionCfg['hmRegions'],
+                                   mecRegions=choiceRegionCfg['mecRegions'],
                                    errorTolerance=1e-15,
                                    # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                   # TODO This invertY flips the core MEC region
                                    invertY=choiceRegionCfg['invertY'])
 
     model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])

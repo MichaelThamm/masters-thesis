@@ -131,10 +131,6 @@ class Model(Grid):
 
         return equality
 
-        self.currColCount += 2
-        self.matACount += 1
-        self.matBCount += 1
-
     def hmHm(self, nHM, listBCInfo, RegCountOffset1, RegCountOffset2, remove_an, remove_bn):
 
         hb1, ur1, urSigma1, _, ur2, urSigma2 = listBCInfo
@@ -1218,13 +1214,11 @@ def plotFourierError():
         loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
                                              pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                              meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                             hmRegions=
-                                             choiceRegionCfg['hmRegions'],
-                                             mecRegions=
-                                             choiceRegionCfg['mecRegions'],
+                                             hmRegions=choiceRegionCfg['hmRegions'],
+                                             mecRegions=choiceRegionCfg['mecRegions'],
                                              errorTolerance=1e-15,
                                              # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                             invertY = choiceRegionCfg['invertY'])
+                                             invertY=choiceRegionCfg['invertY'])
 
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
         loopedModel.finalizeGrid(pixelDivisions)
@@ -1238,5 +1232,4 @@ def plotFourierError():
 
 
 if __name__ == '__main__':
-    # profile_main()  # To profile the main execution
     plotFourierError()
