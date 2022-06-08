@@ -1182,8 +1182,8 @@ def complexFourierTransform(model_in, harmonics_in):
 
 def plotFourierError():
 
-    iterations = 1
-    step = 1
+    iterations = 3
+    step = 2
     start = 5
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)

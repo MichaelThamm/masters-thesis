@@ -132,7 +132,7 @@ class LimMotor(object):
             diamCond = currentDensityTable[1, idx_diamCond]
         MassCore = (self.hy*self.L + self.hs*(self.wt*(self.slots-1) + 2*self.endTooth)) * self.D * dSteel * 1000  # kg
         # TODO MassCu and MassInsul are not accurate if some slots are unfilled
-        MassCu = (self.Tp*2 + (self.D + self.ws)*2)*(diamCond/(10 ** 6))*self.N*self.slots*dCu*1000  # kg
+        MassCu = 2*(self.Tp + self.D + self.ws)*(diamCond/(10 ** 6))*self.N*self.slots*dCu*1000  # kg
         MassInsul = (1 - FF) * self.ws * self.hs * self.D * self.slots * dInsul * 1000  # kg
         self.MassTot = 2*(MassCore + MassCu + MassInsul)  # kg
 
