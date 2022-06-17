@@ -1166,9 +1166,10 @@ def complexFourierTransform(model_in, harmonics_in):
     # Background shading slots
     minY1, maxY1 = min(y2), max(y2)
     xPosLines = list(map(lambda x: x.x, model.matrix[0][model.coilArray[::model.ppSlot]]))
-    for cnt, each in enumerate(xPosLines):
-        plt.axvspan(each, each + model.ws, facecolor='b', alpha=0.15, label="_" * cnt + "slot regions")
-    plt.legend()
+    # for cnt, each in enumerate(xPosLines):
+    #     plt.axvspan(each, each + model.ws, facecolor='b', alpha=0.15, label="_" * cnt + "slot regions")
+    # plt.legend()
+    # plt.savefig('demo.png', transparent=True)
 
     plt.plot(x, y1, 'b-')
     plt.plot(x, y2, 'r-')
@@ -1182,9 +1183,9 @@ def complexFourierTransform(model_in, harmonics_in):
 
 def plotFourierError():
 
-    iterations = 3
+    iterations = 1
     step = 2
-    start = 5
+    start = 6
     pixDivs = range(start, start + iterations * step, step)
     modelList = np.empty(len(pixDivs), dtype=ndarray)
 
@@ -1227,7 +1228,7 @@ def plotFourierError():
     for (pixelDivisions, ppL, ppH), (xSequence, ySequence) in modelList:
         plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
 
-    plt.legend()
+    # plt.legend()
     plt.show()
 
 
