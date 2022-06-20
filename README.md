@@ -1,3 +1,7 @@
+# --------------------------------IMPORTANT--------------------------------
+## _This repository is an incomplete collection of all my masters documents and code which has untested functionality_
+# ------------------------------------------------------------------------------
+
 # Linear Induction Motor Optimization with Genetic Algorithm
 Title: **_2D Hybrid Magnetic Field Model Performance Optimization for Linear Induction Motors_**
 
