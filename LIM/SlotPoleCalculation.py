@@ -51,9 +51,10 @@ class LimMotor(object):
         synch_vel = max_vel
 
         # Stator Dimension Variables
+        self.m = 3
         self.slots = slots
         self.poles = poles
-        self.q = self.slots/self.poles/3
+        self.q = self.slots/self.poles/self.m
         self.L = length  # meters
         self.Tp = self.L/self.poles  # meters
 
@@ -113,6 +114,9 @@ class LimMotor(object):
         else:
             self.N = J * FF * (self.ws * self.hs / self.windingLayers) / self.Ip  # turns per coil
 
+        self.Zeq = self.getImpedance()
+        self.Vin = self.getVoltage()  # Volt
+
         # Stator Masses
         dCu = 8.96  # g/cm^3
         dSteel = 7.8  # g/cm^3
@@ -132,7 +136,7 @@ class LimMotor(object):
             diamCond = currentDensityTable[1, idx_diamCond]
         MassCore = (self.hy*self.L + self.hs*(self.wt*(self.slots-1) + 2*self.endTooth)) * self.D * dSteel * 1000  # kg
         # TODO MassCu and MassInsul are not accurate if some slots are unfilled
-        MassCu = 2*(self.Tp + self.D + self.ws)*(diamCond/(10 ** 6))*self.N*self.slots*dCu*1000  # kg
+        MassCu = 2*(self.m * self.slotpitch + self.D + 2*self.ws)*(diamCond/(10 ** 6))*self.N*self.slots*dCu*1000  # kg
         MassInsul = (1 - FF) * self.ws * self.hs * self.D * self.slots * dInsul * 1000  # kg
         self.MassTot = 2*(MassCore + MassCu + MassInsul)  # kg
 
@@ -142,6 +146,40 @@ class LimMotor(object):
 
     def getDictKey(self):
         return self.errorDict.keys()
+
+    def getInductance(self):
+        # The inductance for a square coil is calculated as:
+        # https://www.allaboutcircuits.com/tools/rectangle-loop-inductance-calculator/
+        2*(self.m * self.slotpitch + self.D + 2*self.ws)
+        coilLength = self.m * self.slotpitch + self.ws
+        coilWidth = self.D + self.ws
+        coilDiameter = 0
+        sqExp = math.sqrt(coilLength ** 2 + coilWidth ** 2)
+        term1 = 2 * (coilWidth + coilLength)
+        term2 = 2 * sqExp
+        term3 = coilLength * math.log((coilLength + sqExp)/coilWidth)
+        term4 = coilWidth * math.log((coilWidth + sqExp)/coilLength)
+        term5 = coilLength * math.log((2 * coilLength)/(coilDiameter/2))
+        term6 = coilWidth * math.log((2 * coilWidth)/(coilDiameter/2))
+        inductance = (uo * self.ur_iron / pi) * ((-term1) + term2 + (-term3) + (-term4) + term5 + term6)
+
+    def getResistance(self):
+        # I need to make sure this is correct in terms of total length and then think of it like the entire wire has
+        # 4 loops
+        coilLength = 2*(self.m * self.slotpitch + self.D + 2*self.ws) * self.N
+        # area = diamCond/(10 ** 6)
+        # resistance = (diamCond/(10 ** 6))*self.N*self.slots*dCu*1000
+        pass
+
+    def getImpedance(self):
+        loops = 4
+        # inductance = loops * (self.N ** 2 * uo * self.ur_iron * area / length)
+        # the entire wire has 4 loops so it would be inductance summation
+
+    def getVoltage(self):
+        pass
+        # self.Zeq = self.getResistance() + j_plex * 2 * pi * self.f * self.getInductance()
+        # self.V =
 
     def reverseWs(self, endTooth2SlotWidthRatio):
         # In general, endTooth2SlotWidthRatio should be 1 so the end teeth are the same size as slot width

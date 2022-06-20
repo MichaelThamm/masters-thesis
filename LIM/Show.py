@@ -299,7 +299,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
 
             xEndTeethBounds = [jsonObject.rebuiltModel.toothArray[0],
                                jsonObject.rebuiltModel.toothArray[-1],
-                               jsonObject.rebuiltModel.coilArray[3*jsonObject.rebuiltModel.ppSlot-1]+1]
+                               jsonObject.rebuiltModel.coilArray[jsonObject.rebuiltModel.m*jsonObject.rebuiltModel.ppSlot-1]+1]
 
             # Assigns a colour to a node based on its relative position in the range of values and the range of available colours
             i, j, k = 0, 0, 0

@@ -35,7 +35,7 @@ class MotorOptProblem(Problem):
         slots = solution.variables[0]
         poles = solution.variables[1]
 
-        q = slots / poles / 3
+        q = slots / poles / self.m
         print(slots, poles)
         # if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
         if slots > poles and slots > 6 and poles % 2 == 0:

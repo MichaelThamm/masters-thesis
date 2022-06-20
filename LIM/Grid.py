@@ -187,7 +187,7 @@ class Grid(LimMotor):
         self.bufferArray = [x for x in list(range(self.ppL)) if x not in self.coilArray and x not in self.toothArray]
 
         offset = self.ppSlot*math.ceil(self.q)
-        intSlots = math.ceil(self.q)*self.poles*3
+        intSlots = math.ceil(self.q)*self.poles*self.m
 
         # Split slots into respective phases
         temp_upper_slotArray = self.coilArray
