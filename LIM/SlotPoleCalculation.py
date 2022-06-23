@@ -141,6 +141,10 @@ class LimMotor(object):
         return self.copper.resistivity * phaseWindingLength / self.areaConductor
 
     def getImpedancePerPhase(self):
+        Figure out equivalent circuit model
+        impedancePrimary =
+        impedanceSecondary =
+        resistanceSecondary =
         loops = 4
         # inductance = loops * (self.N ** 2 * uo * self.ur_iron * area / length)
         # the entire wire has 4 loops so it would be inductance summation
