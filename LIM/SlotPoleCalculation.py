@@ -8,38 +8,29 @@ from timeit import default_timer as timer
 from collections.abc import MutableMapping
 import itertools
 import configparser
+import pandas as pd
+import os
 
 # from numba import cuda, njit, int32, float64
 # from numba.experimental import jitclass
 
-"""
-Constraints:
 
-Pod Mass = 250kg
-Top Speed = 500kph
-Thrust = 2778N
-L = 0.812m
-Dmax = 0.067818m
-J = 5A/mm2
-Iin = 140Arms
-FF = 0.6
-q = integer values
-g = 0.003m
-
-Assumptions:
-wt = 2/3 of the slot pitch
-ws = 1/3 of the slot pitch
-
-
-Filters:
-
-"""
+PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
+pi = math.pi
+j_plex = complex(0, 1)
+uo = (10 ** - 7)*4*pi
 
 
 class LimMotor(object):
     def __init__(self, slots, poles, length, buildBaseline=False):
 
         self.errorDict = TransformedDict.buildFromScratch()
+
+        self.copper = Material(1, 8.96, 5.96 * 10 ** 7, 1.72 * 10 ** (-8))
+        self.alum = Material(1, 8.96, 17.0 * 10 ** 6, None)
+        self.air = Material(1, 8.96, 0, None)
+        self.iron = Material(1000, 7.8, 4.5 * 10 ** 6, None)
+        self.insul = Material(None, 1.4, None, None)
 
         # Kinematic Variables
         mass = 250
@@ -88,18 +79,6 @@ class LimMotor(object):
         self.H = self.hy + self.hs  # meters
         self.vac = self.g * 1.5
 
-        # Conductivity
-        self.sigma_iron = 4.5 * 10 ** 6  # Sm^-1
-        self.sigma_alum = 17.0 * 10 ** 6  # Sm^-1
-        self.sigma_air = 0  # Sm^-1
-        self.sigma_copp = 5.96 * 10 ** 7  # Sm^-1
-
-        # Permeability
-        self.ur_iron = 1000
-        self.ur_alum = 1
-        self.ur_air = 1
-        self.ur_copp = 1
-
         # Electrical Variables
         self.Ip = np.float64(10)  # AmpsPeak
         self.Jin = 0.0  # A/m^2
@@ -107,38 +86,41 @@ class LimMotor(object):
         self.f = 100.0  # Hz
         # self.f = self.vel/(2*self.Tp)  # Hz
         self.t = 0.0  # s
-        FF = 0.6
+        fillFactor = 0.6
         J = 5.0 * 10 ** 6  # A/m^2
         if buildBaseline:
             self.N = 57  # turns
         else:
-            self.N = J * FF * (self.ws * self.hs / self.windingLayers) / self.Ip  # turns per coil
+            self.N = J * fillFactor * (self.ws * self.hs / self.windingLayers) / self.Ip  # turns per coil
+        self.coilLength = self.m * self.slotpitch
+        self.coilWidth = self.D + self.ws
 
-        self.Zeq = self.getImpedance()
-        self.Vin = self.getVoltage()  # Volt
+        self.removeUpperCoils = [0, self.slots-1, self.slots-2, self.slots-3]
+        self.removeLowerCoils = [0, 1, 2, self.slots-1]
 
-        # Stator Masses
-        dCu = 8.96  # g/cm^3
-        dSteel = 7.8  # g/cm^3
-        dInsul = 1.4  # g/cm^3
-        # temp_diamCond = min(currentDensityTable[0], key=lambda x: abs(x - self.Ip/math.sqrt(2)))
-        temp_diamCond = np_find_nearest(currentDensityTable[0], self.Ip/math.sqrt(2))
-        index_diamCond = np.where(currentDensityTable[0] == temp_diamCond)
-        if index_diamCond[0].shape == (1,):
-            idx_diamCond = index_diamCond[0][0]
-        else:
-            idx_diamCond = 0
-            print('We have an issue in SlotPoleCalculation - defaulting to highest gauge wire')
+        closestCurrent = np_find_nearest(currentTable, self.Ip/math.sqrt(2))
+        indexClosest = np.where(currentTable == closestCurrent)[0][0]
+        if self.Ip > currentTable[indexClosest]:
+            indexClosest -= 1
+        self.areaConductor = areaTable[indexClosest] / (10 ** 6)  # m^2
+        self.diamConductor = diamTable[indexClosest] / (10 ** 3)  # m
+        self.currentConductor = currentTable[indexClosest]  # A
 
-        if self.Ip > currentDensityTable[0, index_diamCond]:
-            diamCond = currentDensityTable[1, idx_diamCond-1]
-        else:
-            diamCond = currentDensityTable[1, idx_diamCond]
-        MassCore = (self.hy*self.L + self.hs*(self.wt*(self.slots-1) + 2*self.endTooth)) * self.D * dSteel * 1000  # kg
-        # TODO MassCu and MassInsul are not accurate if some slots are unfilled
-        MassCu = 2*(self.m * self.slotpitch + self.D + 2*self.ws)*(diamCond/(10 ** 6))*self.N*self.slots*dCu*1000  # kg
-        MassInsul = (1 - FF) * self.ws * self.hs * self.D * self.slots * dInsul * 1000  # kg
-        self.MassTot = 2*(MassCore + MassCu + MassInsul)  # kg
+        self.loops = 4
+        # Convert the square coil into a circular one to simplify inductance calculation
+        self.diamLoop = (self.coilWidth + self.coilLength)
+        self.perimeterCoil = pi * self.diamLoop
+        volCu = 2 * self.perimeterCoil * self.N * self.loops * self.areaConductor  # m^2
+        volInsul = (1 - fillFactor) * (volCu / fillFactor)  # m^2
+        massCu = volCu * self.copper.density*1000  # kg
+        massInsul = volInsul * self.insul.density*1000  # kg
+        massCore = (self.hy*self.L + self.hs*(self.wt*(self.slots-1) + 2*self.endTooth))*self.D*self.iron.density*1000  # kg
+        self.massTot = massCore + massCu + massInsul  # kg
+
+        self.Res = self.getResistancePerPhase()
+        # TODO Use the LIM_EquivalentCircuit paper to calculate this
+        self.Zeq = self.getImpedancePerPhase()
+        self.Vin = self.getVoltagePerPhase()  # Volt
 
     def writeErrorToDict(self, key, error):
         if error.state:
@@ -147,36 +129,23 @@ class LimMotor(object):
     def getDictKey(self):
         return self.errorDict.keys()
 
-    def getInductance(self):
+    def getInductancePerPhase(self):
         # The inductance for a square coil is calculated as:
         # https://www.allaboutcircuits.com/tools/rectangle-loop-inductance-calculator/
-        2*(self.m * self.slotpitch + self.D + 2*self.ws)
-        coilLength = self.m * self.slotpitch + self.ws
-        coilWidth = self.D + self.ws
-        coilDiameter = 0
-        sqExp = math.sqrt(coilLength ** 2 + coilWidth ** 2)
-        term1 = 2 * (coilWidth + coilLength)
-        term2 = 2 * sqExp
-        term3 = coilLength * math.log((coilLength + sqExp)/coilWidth)
-        term4 = coilWidth * math.log((coilWidth + sqExp)/coilLength)
-        term5 = coilLength * math.log((2 * coilLength)/(coilDiameter/2))
-        term6 = coilWidth * math.log((2 * coilWidth)/(coilDiameter/2))
-        inductance = (uo * self.ur_iron / pi) * ((-term1) + term2 + (-term3) + (-term4) + term5 + term6)
+        coilRadius = self.diamConductor / 2  # meters
+        areaCoilCircle = pi * coilRadius ** 2
+        return uo * self.N ** 2 * areaCoilCircle
 
-    def getResistance(self):
-        # I need to make sure this is correct in terms of total length and then think of it like the entire wire has
-        # 4 loops
-        coilLength = 2*(self.m * self.slotpitch + self.D + 2*self.ws) * self.N
-        # area = diamCond/(10 ** 6)
-        # resistance = (diamCond/(10 ** 6))*self.N*self.slots*dCu*1000
-        pass
+    def getResistancePerPhase(self):
+        phaseWindingLength = self.perimeterCoil * self.N * self.loops
+        return self.copper.resistivity * phaseWindingLength / self.areaConductor
 
-    def getImpedance(self):
+    def getImpedancePerPhase(self):
         loops = 4
         # inductance = loops * (self.N ** 2 * uo * self.ur_iron * area / length)
         # the entire wire has 4 loops so it would be inductance summation
 
-    def getVoltage(self):
+    def getVoltagePerPhase(self):
         pass
         # self.Zeq = self.getResistance() + j_plex * 2 * pi * self.f * self.getInductance()
         # self.V =
@@ -191,6 +160,14 @@ class LimMotor(object):
 
     def validateLength(self):
         return round(self.L - (self.slotpitch*(self.slots-1)+self.ws+2*self.endTooth), 12) == 0
+
+
+class Material(object):
+    def __init__(self, ur, density, sigma, resistivity):
+        self.ur = ur
+        self.density = density  # g/cm^3
+        self.sigma = sigma  # Sm^-1
+        self.resistivity = resistivity  # OhmMeter
 
 
 class TransformedDict(MutableMapping):
@@ -318,25 +295,23 @@ def rebuildPlex(val):
         return val
 
 
-pi = math.pi
-j_plex = complex(0, 1)
-uo = (10 ** - 7)*4*pi
+def getCurrDensityTable(key):
+    """
+    Note: The values in the WireSpecs sheet are not accounting for insulation
+    Note: All current is in amps
+    """
+    xlsxFile = os.path.join(PROJECT_PATH, 'SupportingDocs\\Calculators\\CurrentDensityChart.xlsx')
+    xl_file = pd.ExcelFile(xlsxFile)
 
-# All Currents are in Amps and All cross sectional areas are in mm^2
-# It is important to note that the cross sectional area is just for the bare copper and does not account for the insulation thickness
-currentDensityTable = np.array([1060, 840, 665, 527.66, 418.47, 331.79, 263.12, 208.69, 165.44, 131.22,
-104.11, 82.56, 65.44, 51.92, 41.13, 32.65, 25.92, 20.55, 16.3, 12.91,
-10.26, 8.12, 6.45, 5.12, 4.06, 3.2, 2.56, 2.02, 1.6, 1.27,
-1.01, 0.795, 0.64, 0.5, 0.395, 0.32, 0.251, 0.199, 0.158, 0.125,
-0.099, 0.079, 0.062, 0.049, 0.039, 0.031, 0.025, 0.02, 0.016, 0.012,
-0.01, 0.008, 0.006, 0.005, 136.77392, 108.38688, 85.80628, 68.08437996, 53.99602104, 42.81152728, 33.95089984, 26.92768808, 21.34705408, 16.93157904,
-13.43352152, 10.65288192, 8.44320892, 6.69934144, 5.30708616, 4.21224964, 3.34450944, 2.65096244, 2.1032216, 1.66515796,
-1.32386832, 1.04773984, 0.83161124, 0.66064384, 0.52386992, 0.4129024, 0.32967676, 0.26064464, 0.2064512, 0.16322548,
-0.13032232, 0.10258044, 0.08258048, 0.064516, 0.05096764, 0.04129024, 0.032338645, 0.02564511, 0.02032254, 0.016129,
-0.0127935228, 0.010129012, 0.0080451452, 0.0063806324, 0.00505934472, 0.00401225004, 0.00318192912, 0.00252322076, 0.00200128632, 0.0015870936,
-0.00125870716, 0.00099806252, 0.00079161132, 0.00062774068], dtype=np.float64)
-# currentDensityTable[0] = currents, currentDensityTable[1] = crossSections
-currentDensityTable = currentDensityTable.reshape(2, int(currentDensityTable.size/2))
+    dfs = {sheet_name: xl_file.parse(sheet_name)
+           for sheet_name in xl_file.sheet_names}
+
+    return dfs[key]
+
+
+currentTable = getCurrDensityTable('WireSpecs')['Current']
+diamTable = getCurrDensityTable('WireSpecs')['Dia in mm ']
+areaTable = getCurrDensityTable('WireSpecs')['Area in mm.sq']
 
 matList = np.array([('iron', 'gray10'), ('copperA', 'red'), ('copperB', 'green'), ('copperC', 'DodgerBlue2'),
                     ('aluminum', '#717676'), ('vacuum', '#E4EEEE')])

@@ -527,8 +527,8 @@ class Model(Grid):
             # Case Upper Dirichlet
             if iY1 == self.ppH:
                 hb1 = self.modelHeight
-                ur2 = self.ur_air
-                sigma2 = self.sigma_air
+                ur2 = self.air.ur
+                sigma2 = self.air.sigma
             else:
                 hb1 = self.matrix[iY1, 0].y
                 ur2 = self.matrix[iY1, 0].ur
@@ -728,8 +728,8 @@ class Model(Grid):
 
     def __getLowerUrSigma(self, i):
         if i == 0:
-            ur = self.ur_air
-            sigma = self.sigma_air
+            ur = self.air.ur
+            sigma = self.air.sigma
         else:
             ur = self.matrix[i - 1, 0].ur
             sigma = self.matrix[i - 1, 0].sigma
@@ -737,8 +737,8 @@ class Model(Grid):
 
     def __getUpperUrSigma(self, i):
         if i == self.ppH - 1:
-            ur = self.ur_air
-            sigma = self.sigma_air
+            ur = self.air.ur
+            sigma = self.air.sigma
         else:
             ur = self.matrix[i + 1, 0].ur
             sigma = self.matrix[i + 1, 0].sigma

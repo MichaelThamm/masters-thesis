@@ -6,9 +6,7 @@ from Optimizations.OptimizationCfg import *
 from LIM.Show import *
 from platypus import *
 import json
-import os
 
-PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Output')
 DATA_PATH = os.path.join(OUTPUT_PATH, 'StoredSolutionData.json')
 
@@ -80,7 +78,7 @@ class MotorOptProblem(Problem):
             errorInX = model.finalizeCompute()
             model.updateGrid(errorInX, showAirgapPlot=False, invertY=True, showUnknowns=False)
 
-            mass_fitness = model.MassTot
+            mass_fitness = model.massTot
             thrust_fitness = model.Fx
 
         else:

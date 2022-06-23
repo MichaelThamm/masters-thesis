@@ -207,9 +207,6 @@ class Grid(LimMotor):
             lower_slotArrayB += lower_slotArray[threeSlots*offset:(threeSlots+1)*offset]
             lower_slotArrayC += lower_slotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
 
-        self.removeLowerCoils = [0, 1, 2, self.slots-1]
-        self.removeUpperCoils = [0, self.slots-1, self.slots-2, self.slots-3]
-
         for idx in self.removeLowerCoils:
             coilOffset = idx*self.ppSlot
             self.removeLowerCoilIdxs += self.coilArray[coilOffset:coilOffset+self.ppSlot]
@@ -380,24 +377,24 @@ class Grid(LimMotor):
             while b < self.ppL:
                 if a in self.yIndexesVacLower or a in self.yIndexesVacUpper:
                     self.matrix[a][b].material = 'vacuum'
-                    self.matrix[a][b].ur = self.ur_air
-                    self.matrix[a][b].sigma = self.sigma_air
+                    self.matrix[a][b].ur = self.air.ur
+                    self.matrix[a][b].sigma = self.air.sigma
                 elif a in self.yIndexesYoke and b not in self.bufferArray:
                     self.matrix[a][b].material = 'iron'
-                    self.matrix[a][b].ur = self.ur_iron
-                    self.matrix[a][b].sigma = self.sigma_iron
+                    self.matrix[a][b].ur = self.iron.ur
+                    self.matrix[a][b].sigma = self.iron.sigma
                 elif a in self.yIndexesAirgap:
                     self.matrix[a][b].material = 'vacuum'
-                    self.matrix[a][b].ur = self.ur_air
-                    self.matrix[a][b].sigma = self.sigma_air
+                    self.matrix[a][b].ur = self.air.ur
+                    self.matrix[a][b].sigma = self.air.sigma
                 elif a in self.yIndexesBladeRotor:
                     self.matrix[a][b].material = 'aluminum'
-                    self.matrix[a][b].ur = self.ur_alum
-                    self.matrix[a][b].sigma = self.sigma_alum
+                    self.matrix[a][b].ur = self.alum.ur
+                    self.matrix[a][b].sigma = self.alum.sigma
                 elif a in self.yIndexesBackIron:
                     self.matrix[a][b].material = 'iron'
-                    self.matrix[a][b].ur = self.ur_iron
-                    self.matrix[a][b].sigma = self.sigma_iron
+                    self.matrix[a][b].ur = self.iron.ur
+                    self.matrix[a][b].sigma = self.iron.sigma
                 else:
                     if a in self.yIndexesUpperSlot:
                         aIdx = self.upper_slotsA
@@ -414,28 +411,28 @@ class Grid(LimMotor):
 
                     if b in self.toothArray:
                         self.matrix[a][b].material = 'iron'
-                        self.matrix[a][b].ur = self.ur_iron
-                        self.matrix[a][b].sigma = self.sigma_iron
+                        self.matrix[a][b].ur = self.iron.ur
+                        self.matrix[a][b].sigma = self.iron.sigma
                     elif b in self.bufferArray:
                         self.matrix[a][b].material = 'vacuum'
-                        self.matrix[a][b].ur = self.ur_air
-                        self.matrix[a][b].sigma = self.sigma_air
+                        self.matrix[a][b].ur = self.air.ur
+                        self.matrix[a][b].sigma = self.air.sigma
                     elif b in aIdx:
                         self.matrix[a][b].material = 'copperA'
-                        self.matrix[a][b].ur = self.ur_copp
-                        self.matrix[a][b].sigma = self.sigma_copp
+                        self.matrix[a][b].ur = self.copper.ur
+                        self.matrix[a][b].sigma = self.copper.sigma
                     elif b in bIdx:
                         self.matrix[a][b].material = 'copperB'
-                        self.matrix[a][b].ur = self.ur_copp
-                        self.matrix[a][b].sigma = self.sigma_copp
+                        self.matrix[a][b].ur = self.copper.ur
+                        self.matrix[a][b].sigma = self.copper.sigma
                     elif b in cIdx:
                         self.matrix[a][b].material = 'copperC'
-                        self.matrix[a][b].ur = self.ur_copp
-                        self.matrix[a][b].sigma = self.sigma_copp
+                        self.matrix[a][b].ur = self.copper.ur
+                        self.matrix[a][b].sigma = self.copper.sigma
                     elif b in self.removeLowerCoilIdxs + self.removeUpperCoilIdxs:
                         self.matrix[a][b].material = 'vacuum'
-                        self.matrix[a][b].ur = self.ur_air
-                        self.matrix[a][b].sigma = self.sigma_air
+                        self.matrix[a][b].ur = self.air.ur
+                        self.matrix[a][b].sigma = self.air.sigma
                     else:
                         self.matrix[a][b].material = ''
                 b += 1
