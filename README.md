@@ -1,6 +1,6 @@
-# --------------------------------IMPORTANT--------------------------------
-## _This repository is an incomplete collection of all my masters documents and code which has untested functionality_
-# ------------------------------------------------------------------------------
+---
+IMPORTANT: This repository is an incomplete collection of all my masters documents and code which has untested functionality
+---
 
 # Linear Induction Motor Optimization with Genetic Algorithm
 Title: **_2D Hybrid Magnetic Field Model Performance Optimization for Linear Induction Motors_**
@@ -25,8 +25,5 @@ Note: [LIM.Platypus.py](https://github.com/MichaelThamm/Masters/blob/main/LIM/Pl
 * LIM.ShowFromJSON.py
   *  Note: This file pulls the stored JSON results and creates a field plot without having to run the entire simulation
 
-## ----------VERY IMPORTANT----------
-
-Make sure to run LIM.Platypus.py from a terminal or the user input functionality will not work
-You must also change to the correct directory that contains these files and execute the LIM.Platypus.py using "python LIM.Platypus.py"
-
+---
+IMPORTANT: _Make sure to run LIM.Platypus.py from a terminal or the user input functionality will not work. You must also change to the correct directory that contains these files and execute the LIM.Platypus.py using "python LIM.Platypus.py"_
