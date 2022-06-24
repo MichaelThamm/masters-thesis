@@ -471,21 +471,4 @@ def main():
 
 if __name__ == '__main__':
     # profile_main()  # To profile the main execution
-    # main()
-    resistivity = 1/(17*10**6)
-    # resistivity = 2.857*10**-8
-    print(resistivity)
-    frequency = np.arange(1, 170, 1)
-    mu = 1
-    skin_depth = 1000*np.sqrt(2*resistivity/(frequency*mu))
-    skin_depth_1 = 1000*np.sqrt(2*resistivity/(1*mu))
-    skin_depth_10 = 1000*np.sqrt(2*resistivity/(10*mu))
-    print(skin_depth_1, skin_depth_10)
-    print(skin_depth)
-    plt.plot(frequency, skin_depth)
-    # TODO Throw this in a function and make it look like swiss. Then figure out why I cant reproduce swiss
-    plt.axhline((max(skin_depth) - min(skin_depth))/2)
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Skin Depth (mm)')
-    plt.title('Skin Depth vs. Frequency')
-    plt.show()
+    main()

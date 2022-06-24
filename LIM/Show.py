@@ -2,7 +2,6 @@ from LIM.Compute import *
 from tkinter import *
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from CanvasModel import CanvasInFrame
 
 
 # class GUI:

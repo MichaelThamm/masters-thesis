@@ -1,6 +1,8 @@
 """IMPORT LIBRARIES"""
 
 import math
+import matplotlib.pyplot as plt
+import matplotlib.transforms as transforms
 import cmath
 import numpy as np
 import contextlib
@@ -117,6 +119,9 @@ class LimMotor(object):
         massCore = (self.hy*self.L + self.hs*(self.wt*(self.slots-1) + 2*self.endTooth))*self.D*self.iron.density*1000  # kg
         self.massTot = massCore + massCu + massInsul  # kg
 
+        self.maxFreq = self.getFreqRangeFromAluminumPlate()  # Hz
+        # TODO This topspeed assumes that the voltage supplied can overcome the equivalent impedance to supply enough thrust
+        self.topSpeed = 2 * self.maxFreq * self.Tp * 3600 / 1000  # km/h
         self.Res = self.getResistancePerPhase()
         # TODO Use the LIM_EquivalentCircuit paper to calculate this
         self.Zeq = self.getImpedancePerPhase()
@@ -129,9 +134,20 @@ class LimMotor(object):
     def getDictKey(self):
         return self.errorDict.keys()
 
+    def getFreqRangeFromAluminumPlate(self):
+        resistivity = 1 / self.alum.sigma
+        frequency = np.arange(1, 4001, 1)
+        omega = 2 * pi * frequency
+        skin_depth = 1000 * np.sqrt(2 * resistivity / (omega * (1 * uo)))
+        idxDecoupledList = np.where(skin_depth <= 1000 * self.dr)[0]
+        if len(idxDecoupledList) == 0:
+            return max(frequency)
+        else:
+            decoupledStart = idxDecoupledList[0] - 1
+            return decoupledStart
+
     def getInductancePerPhase(self):
-        # The inductance for a square coil is calculated as:
-        # https://www.allaboutcircuits.com/tools/rectangle-loop-inductance-calculator/
+        # TODO This is not correct and requires semi-analytical curve-fitting to approximate the inductance
         coilRadius = self.diamConductor / 2  # meters
         areaCoilCircle = pi * coilRadius ** 2
         return uo * self.N ** 2 * areaCoilCircle
@@ -141,13 +157,11 @@ class LimMotor(object):
         return self.copper.resistivity * phaseWindingLength / self.areaConductor
 
     def getImpedancePerPhase(self):
-        Figure out equivalent circuit model
-        impedancePrimary =
-        impedanceSecondary =
-        resistanceSecondary =
-        loops = 4
-        # inductance = loops * (self.N ** 2 * uo * self.ur_iron * area / length)
-        # the entire wire has 4 loops so it would be inductance summation
+        # TODO Figure out equivalent circuit model
+        impedancePrimary = None
+        # impedanceSecondary =
+        # resistanceSecondary =
+        return None
 
     def getVoltagePerPhase(self):
         pass
@@ -299,13 +313,34 @@ def rebuildPlex(val):
         return val
 
 
+def plotSkinDepthSwiss():
+    bladeSecondary = 2  # mm
+    resistivity = 1 / (17 * 10 ** 6)
+    frequency = np.arange(1, 1000, 1)
+    omega = 2 * pi * frequency
+    skin_depth = 1000*np.sqrt(2*resistivity/(omega*(1 * uo)))
+
+    fig, ax = plt.subplots()
+    ax.plot(frequency, skin_depth)
+    ax.axhline(y=bladeSecondary, linestyle='--', color='orangered')
+    trans = transforms.blended_transform_factory(
+        ax.get_yticklabels()[0].get_transform(), ax.transData)
+    ax.text(0, bladeSecondary, "{:.0f}".format(bladeSecondary), color="orangered", transform=trans,
+            ha="right", va="bottom")
+
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Skin Depth (mm)')
+    plt.title('Skin Depth vs. Frequency')
+    plt.show()
+
+
 def getCurrDensityTable(key):
     """
     Note: The values in the WireSpecs sheet are not accounting for insulation
     Note: All current is in amps
     """
     xlsxFile = os.path.join(PROJECT_PATH, 'SupportingDocs\\Calculators\\CurrentDensityChart.xlsx')
-    xl_file = pd.ExcelFile(xlsxFile)
+    xl_file = pd.ExcelFile(xlsxFile, engine='openpyxl')
 
     dfs = {sheet_name: xl_file.parse(sheet_name)
            for sheet_name in xl_file.sheet_names}
@@ -337,4 +372,4 @@ with open('BuildTable.csv', 'w', newline='') as csvFile:
 '''
 
 if __name__ == '__main__':
-    pass
+    plotSkinDepthSwiss()
