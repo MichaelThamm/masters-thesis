@@ -122,8 +122,8 @@ class LimMotor(object):
         self.maxFreq = self.getFreqRangeFromAluminumPlate()  # Hz
         # TODO This topspeed assumes that the voltage supplied can overcome the equivalent impedance to supply enough thrust
         self.topSpeed = 2 * self.maxFreq * self.Tp * 3600 / 1000  # km/h
-        self.Res = self.getResistancePerPhase()
         # TODO Use the LIM_EquivalentCircuit paper to calculate this
+        self.Res = self.getResistancePerPhase()
         self.Zeq = self.getImpedancePerPhase()
         self.Vin = self.getVoltagePerPhase()  # Volt
 
