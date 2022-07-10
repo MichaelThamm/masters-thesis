@@ -24,9 +24,9 @@ class Model(Grid):
         self.writeErrorToDict(key='name',
                               error=Error.buildFromScratch(name='meshDensityDiscrepancy',
                                                            description="ERROR - The last slot has a different mesh density than all other slots",
-                                                           cause=kwargs['meshIndexes'][0][2] != kwargs['meshIndexes'][0][-3]))
+                                                           cause=kwargs['canvasCfg']['xMeshIndexes'][2] != kwargs['canvasCfg']['xMeshIndexes'][-3]))
 
-        self.errorTolerance = kwargs['errorTolerance']
+        self.errorTolerance = kwargs['hamCfg']['errorTolerance']
 
         self.hmUnknownsList = {}
         self.canvasRowRegIdxs, self.canvasColRegIdxs = [], []

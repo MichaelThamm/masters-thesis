@@ -30,18 +30,23 @@ class Grid(LimMotor):
 
     def __init__(self, kwargs, buildBaseline=False):
 
-        super().__init__(kwargs['slots'], kwargs['poles'], kwargs['length'], buildBaseline)
+        super().__init__(kwargs['motorCfg'], buildBaseline)
+
+        # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
+        #  since there are no magnets or anything constantly creating a magnetic field when input is off
+        harmBounds = kwargs['hamCfg']['N'] // 2 if kwargs['hamCfg']['N'] % 2 == 0 else (kwargs['hamCfg']['N'] + 1) // 2
+        n = range(-harmBounds, harmBounds + 1)
+        self.n = np.delete(n, len(n) // 2, 0)
 
         # Turn inputs into attributes
-        self.invertY = kwargs['invertY']
-        xMeshIndexes = kwargs['meshIndexes'][0]
-        yMeshIndexes = kwargs['meshIndexes'][1]
-        self.Spacing = kwargs['pixelSpacing']
-        self.Cspacing = kwargs['canvasSpacing'] / self.H
-        self.meshDensity = kwargs['meshDensity']
-        self.n = kwargs['n']
-        self.hmRegions = kwargs['hmRegions']
-        self.mecRegions = kwargs['mecRegions']
+        self.invertY = kwargs['hamCfg']['invertY']
+        xMeshIndexes = kwargs['canvasCfg']['xMeshIndexes']
+        yMeshIndexes = kwargs['canvasCfg']['yMeshIndexes']
+        self.Spacing = kwargs['motorCfg']['length'] / kwargs['motorCfg']['slots'] / kwargs['canvasCfg']['pixDiv']
+        self.Cspacing = kwargs['canvasCfg']['canvasSpacing'] / self.H
+        self.meshDensity = kwargs['canvasCfg']['meshDensity']
+        self.hmRegions = kwargs['hamCfg']['hmRegions']
+        self.mecRegions = kwargs['hamCfg']['mecRegions']
         self.allMecRegions = not self.hmRegions
         combinedList = list(self.hmRegions.items()) + list(self.mecRegions.items())
         self.allRegions = dict(sorted(combinedList, key=lambda x: x[0]))
@@ -165,9 +170,7 @@ class Grid(LimMotor):
         self.Fx = 0.0
         self.Fy = 0.0
 
-    def buildGrid(self, pixelSpacing, meshIndexes):
-        xMeshIndexes = meshIndexes[0]
-        yMeshIndexes = meshIndexes[1]
+    def buildGrid(self, xMeshIndexes, yMeshIndexes):
 
         #  Initialize grid with Nodes
         listOffset = self.ppAirBuffer + self.ppEndTooth
@@ -322,9 +325,9 @@ class Grid(LimMotor):
             xCnt = 0
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
-                delY = pixelSpacing / self.meshDensity[0]
+                delY = self.pixelSpacing / self.meshDensity[0]
             elif a in self.ySecondEdgeNodes:
-                delY = pixelSpacing / self.meshDensity[1]
+                delY = self.pixelSpacing / self.meshDensity[1]
             else:
                 delY = self.yMeshSizes[c]
 
@@ -332,9 +335,9 @@ class Grid(LimMotor):
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
-                    delX = pixelSpacing / self.meshDensity[0]
+                    delX = self.pixelSpacing / self.meshDensity[0]
                 elif b in self.xSecondEdgeNodes:
-                    delX = pixelSpacing / self.meshDensity[1]
+                    delX = self.pixelSpacing / self.meshDensity[1]
                 else:
                     delX = self.xMeshSizes[d]
 
@@ -343,9 +346,9 @@ class Grid(LimMotor):
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
-                    xCnt += pixelSpacing / self.meshDensity[0]
+                    xCnt += self.pixelSpacing / self.meshDensity[0]
                 elif b in self.xSecondEdgeNodes:
-                    xCnt += pixelSpacing / self.meshDensity[1]
+                    xCnt += self.pixelSpacing / self.meshDensity[1]
                 else:
                     xCnt += delX
 
@@ -358,9 +361,9 @@ class Grid(LimMotor):
 
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
-                yCnt += pixelSpacing / self.meshDensity[0]
+                yCnt += self.pixelSpacing / self.meshDensity[0]
             elif a in self.ySecondEdgeNodes:
-                yCnt += pixelSpacing / self.meshDensity[1]
+                yCnt += self.pixelSpacing / self.meshDensity[1]
             else:
                 yCnt += delY
 

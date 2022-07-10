@@ -1,10 +1,9 @@
-import math
-
-import matplotlib.pyplot as plt
-
 from Optimizations.OptimizationCfg import *
 from LIM.Show import *
 from platypus import *
+
+import math
+import matplotlib.pyplot as plt
 import json
 
 OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Output')
@@ -17,7 +16,7 @@ https://platypus.readthedocs.io/en/latest/getting-started.html
 
 class MotorOptProblem(Problem):
 
-    def __init__(self, slots, poles):
+    def __init__(self, slots, poles, motorCfg, hamCfg, canvasCfg):
         # The numbers indicate: #inputs, #objectives, #constraints
         super(MotorOptProblem, self).__init__(2, 2, 1)
         # Constrain the range and type for each input
@@ -27,57 +26,26 @@ class MotorOptProblem(Problem):
         self.constraints[:] = ">=0"
         # Choose which objective to maximize and minimize
         self.directions[:] = [self.MINIMIZE, self.MAXIMIZE]
+        self.motorCfg = motorCfg
+        self.hamCfg = hamCfg
+        self.canvasCfg = canvasCfg
 
     def evaluate(self, solution):
-        # TODO To get this to work you need to uncomment the robust ratios in SlotPoleCalculation
         slots = solution.variables[0]
         poles = solution.variables[1]
 
-        q = slots / poles / self.m
+        self.motorCfg['slots'] = slots
+        self.motorCfg['poles'] = poles
+
         print(slots, poles)
         # if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
         if slots > poles and slots > 6 and poles % 2 == 0:
 
-            pixelDivisions = 2
-            lowDiscrete = 50
-            n = range(-lowDiscrete, lowDiscrete + 1)
-            n = np.delete(n, len(n) // 2, 0)
             # TODO A couple of interesting things to note on failing models is that the dimensions of matrix A is 1001x1001 which should not be possible
             #  Also there is a spatial error with flag - iGrid spacing
             #  I can take the inputs that give me a hard time and use them in the baselineMotor to test them ex) (30, 26), (27, 22), (49, 40)
-            length = 0.27
-            slotpitch = length / slots
-
-            meshDensity = np.array([4, 2])
-            xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
-            yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-            pixelSpacing = slotpitch / pixelDivisions
-            canvasSpacing = 80
-
-            regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                          'mecRegions': {5: 'mec'},
-                          'invertY': False}
-
-            choiceRegionCfg = regionCfg1
-
             # Object for the model design, grid, and matrices
-            model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
-                                           pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                                           meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                           hmRegions=
-                                           choiceRegionCfg['hmRegions'],
-                                           mecRegions=
-                                           choiceRegionCfg['mecRegions'],
-                                           errorTolerance=1e-15,
-                                           # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                           # TODO This invertY flips the core MEC region
-                                           invertY=choiceRegionCfg['invertY'])
-
-            model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
-            model.finalizeGrid(pixelDivisions)
-            errorInX = model.finalizeCompute()
-            model.updateGrid(errorInX, showAirgapPlot=False, invertY=True, showUnknowns=False)
-
+            model = buildMotor(run=True, baseline=False, optimize=True, motorCfg=self.motorCfg, hamCfg=self.hamCfg, canvasCfg=self.canvasCfg)
             mass_fitness = model.massTot
             thrust_fitness = model.Fx
 
@@ -109,6 +77,7 @@ class EncoderDecoder(object):
 
         # This dict contains the attributes that contain unaccepted objects as values
         self.unacceptedJsonAttributes = {'matrix': Node, 'errorDict': (TransformedDict, Error), 'hmUnknownsList': Region}
+        self.unacceptedJsonClasses = {Material}
         self.unacceptedJsonObjects = []
         self.__setFlattenJsonObjects()
 
@@ -145,6 +114,8 @@ class EncoderDecoder(object):
                     else:
                         tempDict[dictKey] = self.__convertComplexInList(dictVal.tolist()) if type(dictVal) == np.ndarray else dictVal
                 returnVal[regionKey] = tempDict
+        elif type(originalValue) == Material:
+            returnVal = {key: _property for key, _property in originalValue.__dict__.items()}
         else:
             print('The object does not match a conditional')
             return
@@ -154,7 +125,7 @@ class EncoderDecoder(object):
     def __filterValType(self, inAttr, inVal):
 
         # Json dump cannot handle user defined class objects
-        if inAttr in self.unacceptedJsonAttributes:
+        if inAttr in self.unacceptedJsonAttributes or type(inVal) in self.unacceptedJsonClasses:
             outVal = self.__objectToDict(inAttr, inVal)
 
         # Json dump cannot handle numpy arrays
@@ -244,7 +215,11 @@ class EncoderDecoder(object):
                                                                             cause=True))
 
 
-def platypus(run=False):
+def platypus(motorCfg, hamCfg, canvasCfg, run=False):
+    '''
+    This is a function that iterates over many motor configurations while optimizing for performance
+    '''
+
     if not run:
         return
 
@@ -257,7 +232,7 @@ def platypus(run=False):
     timeout = 3000000  # seconds
     parent_size = 200
     tournament_size = 2
-    constraint_params = {'slots': [10, 24], 'poles': [4, 9]}
+    constraint_params = {'slots': [10, 24], 'poles': [4, 9], 'motorCfg': motorCfg, 'hamCfg': hamCfg, 'canvasCfg': canvasCfg}
     termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
                           'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
                           'timeout': timeout}
@@ -271,155 +246,48 @@ def platypus(run=False):
     solverList = solveOptimization(NSGAII, MotorOptProblem, solverList, constraint_params, termination_params, nsga_params, run=True)
 
 
-def baselineMotor(run=False):
-    if not run:
-        return
-
-    # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = 2
-
-    lowDiscrete = 50
-    # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
-    # since there are no magnets or anything constantly creating a magnetic field when input is off
-    n = range(-lowDiscrete, lowDiscrete + 1)
-    n = np.delete(n, len(n)//2, 0)
-    slots = 16
-    poles = 6
-    length = 0.27
-    slotpitch = length / slots
-
-    # This value defines how small the mesh is at [border, border+1].
-    # Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
-    meshDensity = np.array([4, 2])
-    # Change the mesh density at boundaries. A 1 indicates denser mesh at a size of len(meshDensity)
-    # [LeftAirBuffer], [LeftEndTooth], [Slots], [FullTeeth], [LastSlot], [RightEndTooth], [RightAirBuffer]
-
-    xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
-    # TODO yMeshIndexes needs to incorporate invertY and the removal of Dirichlet indexes
-    # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
-    yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-
-    pixelSpacing = slotpitch/pixelDivisions
-    canvasSpacing = 80
-
-    regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                  'mecRegions': {5: 'mec'},
-                  'invertY': False}
-    # TODO Note that Cfg2 is wrong since the coil pattern in the x direction is only intended for Cfg1
-    #  however, I could write some code to loop through all rows of matrix and invert them and test the results
-    regionCfg2 = {'hmRegions': {1: 'vac_lower', 3: 'g', 4: 'dr', 5: 'bi', 6: 'vac_upper'},
-                  'mecRegions': {2: 'mec'},
-                  'invertY': True}
-
-    # TODO This errors because parts of the code are not linked to hmmecRegions since self.ppH doesnt change
-    regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 5: 'vac_upper'},
-                  'mecRegions': {4: 'mec'},
-                  'invertY': False}
-
-    regionCfg4 = {'hmRegions': {},
-                  'mecRegions': {1: 'mec'},
-                  'invertY': False}
-
-    choiceRegionCfg = regionCfg1
-
-    # Object for the model design, grid, and matrices
-    model = Model.buildBaseline(slots=slots, poles=poles, length=length, n=n,
-                                   pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                                   meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                   hmRegions=
-                                   choiceRegionCfg['hmRegions'],
-                                   mecRegions=
-                                   choiceRegionCfg['mecRegions'],
-                                   errorTolerance=1e-14,
-                                   # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                   # TODO This invertY flips the core MEC region
-                                   invertY=choiceRegionCfg['invertY'])
-
-    model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
-    model.finalizeGrid(pixelDivisions)
-
-    with timing():
-        errorInX = model.finalizeCompute()
-
-    # TODO This invertY inverts the pyplot
-    model.updateGrid(errorInX, showAirgapPlot=True, invertY=True, showUnknowns=False)
-
-    # After this point, the json implementations should be used to not branch code direction
-    encodeModel = EncoderDecoder(model)
-    encodeModel.jsonStoreSolution()
-
-    # TODO The or True is here for convenience but should be removed
-    if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
-        # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-        # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='B',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
-                  # TODO This invertY inverts the Tkinter Canvas plot
-                  numColours=20, dims=[1080, 1920], invertY=False)
-        pass
-    else:
-        print('Resolve errors to show model')
-
-    print('\nBelow are a list of warnings and errors:')
-    if encodeModel.rebuiltModel.errorDict:
-        encodeModel.rebuiltModel.errorDict.printErrorsByAttr('description')
-    else:
-        print('   - there are no errors')
-
-
-def buildMotor(run=False):
+def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=False):
     '''
     This is a function that allows for a specific motor configuration without optimization to be simulated
     '''
+
     if not run:
         return
 
-    # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = 2
-
-    lowDiscrete = 50
-    # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
-    # since there are no magnets or anything constantly creating a magnetic field when input is off
-    n = range(-lowDiscrete, lowDiscrete + 1)
-    n = np.delete(n, len(n)//2, 0)
-    slots = 21
-    poles = 6
-    length = 0.27
-    slotpitch = length / slots
-
-    meshDensity = np.array([4, 2])
-    xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
+    # TODO yMeshIndexes needs to incorporate invertY and the removal of Dirichlet indexes
+    # Change the mesh density at boundaries. A 1 indicates denser mesh at a size of len(meshDensity)
+    # [LeftAirBuffer], [LeftEndTooth], [Slots], [FullTeeth], [LastSlot], [RightEndTooth], [RightAirBuffer]
+    xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (motorCfg["slots"] - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
+    # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
     yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-    pixelSpacing = slotpitch / pixelDivisions
-    canvasSpacing = 80
+    canvasCfg['xMeshIndexes'] = xMeshIndexes
+    canvasCfg['yMeshIndexes'] = yMeshIndexes
 
-    regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                  'mecRegions': {5: 'mec'},
-                  'invertY': False}
-
-    choiceRegionCfg = regionCfg1
+    # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
+    pixelDivisions = canvasCfg['pixDiv']
 
     # Object for the model design, grid, and matrices
-    model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
-                                   pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                                   meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                   hmRegions=choiceRegionCfg['hmRegions'],
-                                   mecRegions=choiceRegionCfg['mecRegions'],
-                                   errorTolerance=1e-15,
-                                   # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                   invertY=choiceRegionCfg['invertY'])
+    if baseline:
+        model = Model.buildBaseline(motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    else:
+        model = Model.buildFromScratch(motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
-    model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
+    model.buildGrid(xMeshIndexes, yMeshIndexes)
     model.finalizeGrid(pixelDivisions)
     errorInX = model.finalizeCompute()
+    # TODO This invertY inverts the pyplot
     model.updateGrid(errorInX, showAirgapPlot=False, invertY=True, showUnknowns=False)
+    # This is done for computation considerations within the optimization loop
+    if optimize and model.errorDict.isEmpty():
+        return model
+    else:
+        model.errorDict.printErrorsByAttr('description')
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
     encodeModel.jsonStoreSolution()
 
-    # TODO The or True is here for convenience but should be removed
-    if encodeModel.rebuiltModel.errorDict.isEmpty() or True:
+    if encodeModel.rebuiltModel.errorDict.isEmpty():
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
         showModel(encodeModel, model, fieldType='B',
@@ -463,10 +331,27 @@ def profile_main():
 
 def main():
 
-    platypus(run=False)
-    baselineMotor(run=False)
+    # ___Baseline motor configurations___
+    buildMotor(run=False, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27},
+                  # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
+                  hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
+                    "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
+                    "mecRegions": {5: "mec"}},
+                  canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2])})
+
+    # ___Custom Configuration___
+    motorCfg = {"slots": 11, "poles": 6, "length": 0.27}
+    hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
+              "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
+              "mecRegions": {5: "mec"}}
+    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2])}
+
+    # ___Motor optimization___
+    platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+
+    # ___Custom motor model___
     # TODO You can see the winding pattern is different when using 21 slots, 6 poles. Need consistency
-    buildMotor(run=True)
+    buildMotor(run=True, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
 
 if __name__ == '__main__':

@@ -24,7 +24,7 @@ uo = (10 ** - 7)*4*pi
 
 
 class LimMotor(object):
-    def __init__(self, slots, poles, length, buildBaseline=False):
+    def __init__(self, motorCfg, buildBaseline=False):
 
         self.errorDict = TransformedDict.buildFromScratch()
 
@@ -45,10 +45,10 @@ class LimMotor(object):
 
         # Stator Dimension Variables
         self.m = 3
-        self.slots = slots
-        self.poles = poles
+        self.slots = motorCfg["slots"]
+        self.poles = motorCfg["poles"]
         self.q = self.slots/self.poles/self.m
-        self.L = length  # meters
+        self.L = motorCfg["length"]  # meters
         self.Tp = self.L/self.poles  # meters
 
         if buildBaseline:
@@ -124,8 +124,8 @@ class LimMotor(object):
         self.topSpeed = 2 * self.maxFreq * self.Tp * 3600 / 1000  # km/h
         # TODO Use the LIM_EquivalentCircuit paper to calculate this
         self.Res = self.getResistancePerPhase()
-        self.Zeq = self.getImpedancePerPhase()
-        self.Vin = self.getVoltagePerPhase()  # Volt
+        # self.Zeq = self.getImpedancePerPhase()
+        # self.Vin = self.getVoltagePerPhase()  # Volt
 
     def writeErrorToDict(self, key, error):
         if error.state:
@@ -141,10 +141,10 @@ class LimMotor(object):
         skin_depth = 1000 * np.sqrt(2 * resistivity / (omega * (1 * uo)))
         idxDecoupledList = np.where(skin_depth <= 1000 * self.dr)[0]
         if len(idxDecoupledList) == 0:
-            return max(frequency)
+            return int(max(frequency))
         else:
             decoupledStart = idxDecoupledList[0] - 1
-            return decoupledStart
+            return int(decoupledStart)
 
     def getInductancePerPhase(self):
         # TODO This is not correct and requires semi-analytical curve-fitting to approximate the inductance
@@ -246,7 +246,7 @@ class TransformedDict(MutableMapping):
             print(self.__getitem__(key).__dict__[attrString])
 
     def isEmpty(self):
-        return False if self.store else False
+        return False if self.store else True
 
 
 class Error(object):
