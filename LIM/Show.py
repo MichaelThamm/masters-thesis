@@ -232,7 +232,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
 
         # [row, col] - Make sure to put the rules in order of ascending rows or the list wont be sorted (shouldnt matter)
         # Rule 1
-        keepRowColsUnfiltered[0] = [jsonObject.rebuiltModel.yIndexesYoke, jsonObject.rebuiltModel.toothArray + jsonObject.rebuiltModel.coilArray]
+        keepRowColsUnfiltered[0] = [jsonObject.rebuiltModel.yIndexesYoke, jsonObject.rebuiltModel.toothArray + jsonObject.rebuiltModel.slotArray]
         # Rule 2
         keepRowColsUnfiltered[1] = [jsonObject.rebuiltModel.yIndexesLowerSlot + jsonObject.rebuiltModel.yIndexesUpperSlot, jsonObject.rebuiltModel.toothArray]
 
@@ -258,9 +258,9 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
 
             # All drawing is done at the bottom of the node
             def horCoreBoundary(tuple_in):
-                if tuple_in[0] == jsonObject.rebuiltModel.yIndexesYoke[0] and tuple_in[1] in jsonObject.rebuiltModel.toothArray + jsonObject.rebuiltModel.coilArray:
+                if tuple_in[0] == jsonObject.rebuiltModel.yIndexesYoke[0] and tuple_in[1] in jsonObject.rebuiltModel.toothArray + jsonObject.rebuiltModel.slotArray:
                     return True
-                elif tuple_in[0] == jsonObject.rebuiltModel.yIndexesUpperSlot[0] and tuple_in[1] in jsonObject.rebuiltModel.coilArray:
+                elif tuple_in[0] == jsonObject.rebuiltModel.yIndexesUpperSlot[0] and tuple_in[1] in jsonObject.rebuiltModel.slotArray:
                     return True
                 elif tuple_in[0] == jsonObject.rebuiltModel.yIndexesMEC[-1] + 1 and tuple_in[1] in jsonObject.rebuiltModel.toothArray:
                     return True
@@ -295,7 +295,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
 
             xEndTeethBounds = [jsonObject.rebuiltModel.toothArray[0],
                                jsonObject.rebuiltModel.toothArray[-1],
-                               jsonObject.rebuiltModel.coilArray[jsonObject.rebuiltModel.m*jsonObject.rebuiltModel.ppSlot-1]+1]
+                               jsonObject.rebuiltModel.slotArray[jsonObject.rebuiltModel.m * jsonObject.rebuiltModel.ppSlot - 1] + 1]
 
             # Assigns a colour to a node based on its relative position in the range of values and the range of available colours
             i, j, k = 0, 0, 0

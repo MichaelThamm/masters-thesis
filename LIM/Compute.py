@@ -692,7 +692,7 @@ class Model(Grid):
 
         # Background shading slots
         minY1, maxY1 = min(tempReal), max(tempReal)
-        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.coilArray[::self.ppSlot]]))
+        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.slotArray[::self.ppSlot]]))
         for cnt, each in enumerate(xPosLines):
             plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
         plt.legend()
@@ -708,7 +708,7 @@ class Model(Grid):
 
         # Background shading slots
         minY1, maxY1 = min(tempReal), max(tempReal)
-        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.coilArray[::self.ppSlot]]))
+        xPosLines = list(map(lambda x: x.x, self.matrix[0][self.slotArray[::self.ppSlot]]))
         for cnt, each in enumerate(xPosLines):
             plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
         plt.legend()
@@ -1165,7 +1165,7 @@ def complexFourierTransform(model_in, harmonics_in):
 
     # Background shading slots
     minY1, maxY1 = min(y2), max(y2)
-    xPosLines = list(map(lambda x: x.x, model.matrix[0][model.coilArray[::model.ppSlot]]))
+    xPosLines = list(map(lambda x: x.x, model.matrix[0][model.slotArray[::model.ppSlot]]))
     # for cnt, each in enumerate(xPosLines):
     #     plt.axvspan(each, each + model.ws, facecolor='b', alpha=0.15, label="_" * cnt + "slot regions")
     # plt.legend()

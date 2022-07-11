@@ -67,8 +67,10 @@ class LimMotor(object):
                                                            description='ERROR - The inner dimensions do not sum to the motor length',
                                                            cause=not self.validateLength()))
 
-        self.windingShift = 2
         self.windingLayers = 2
+        self.windingShift = motorCfg["windingShift"]
+        self.removeUpperCoils = [0] + list(range(self.slots-self.windingShift-1, self.slots-1)) + [self.slots-1]
+        self.removeLowerCoils = [0] + list(range(1, 1+self.windingShift)) + [self.slots-1]
 
         self.Airbuffer = (self.Tper - self.L)/2  # meters
         self.hy = 6.5/1000  # meters
@@ -96,9 +98,6 @@ class LimMotor(object):
             self.N = J * fillFactor * (self.ws * self.hs / self.windingLayers) / self.Ip  # turns per coil
         self.coilLength = self.m * self.slotpitch
         self.coilWidth = self.D + self.ws
-
-        self.removeUpperCoils = [0, self.slots-1, self.slots-2, self.slots-3]
-        self.removeLowerCoils = [0, 1, 2, self.slots-1]
 
         closestCurrent = np_find_nearest(currentTable, self.Ip/math.sqrt(2))
         indexClosest = np.where(currentTable == closestCurrent)[0][0]
@@ -242,8 +241,10 @@ class TransformedDict(MutableMapping):
         return (self.store[strName] for _ in range(self.store.__len__()))
 
     def printErrorsByAttr(self, attrString):
+        cnt = 1
         for key in self.store:
-            print(self.__getitem__(key).__dict__[attrString])
+            print(f'{cnt}) {self.__getitem__(key).__dict__[attrString]}')
+            cnt += 1
 
     def isEmpty(self):
         return False if self.store else True

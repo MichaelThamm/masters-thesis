@@ -41,9 +41,6 @@ class MotorOptProblem(Problem):
         # if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
         if slots > poles and slots > 6 and poles % 2 == 0:
 
-            # TODO A couple of interesting things to note on failing models is that the dimensions of matrix A is 1001x1001 which should not be possible
-            #  Also there is a spatial error with flag - iGrid spacing
-            #  I can take the inputs that give me a hard time and use them in the baselineMotor to test them ex) (30, 26), (27, 22), (49, 40)
             # Object for the model design, grid, and matrices
             model = buildMotor(run=True, baseline=False, optimize=True, motorCfg=self.motorCfg, hamCfg=self.hamCfg, canvasCfg=self.canvasCfg)
             mass_fitness = model.massTot
@@ -280,8 +277,6 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
     # This is done for computation considerations within the optimization loop
     if optimize and model.errorDict.isEmpty():
         return model
-    else:
-        model.errorDict.printErrorsByAttr('description')
 
     # After this point, the json implementations should be used to not branch code direction
     encodeModel = EncoderDecoder(model)
@@ -294,15 +289,35 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
                   showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
                   # TODO This invertY inverts the Tkinter Canvas plot
                   numColours=20, dims=[1080, 1920], invertY=False)
-        pass
-    else:
-        print('Resolve errors to show model')
-
-    print('\nBelow are a list of warnings and errors:')
-    if encodeModel.rebuiltModel.errorDict:
-        encodeModel.rebuiltModel.errorDict.printErrorsByAttr('description')
-    else:
         print('   - there are no errors')
+    else:
+        print('\nBelow are a list of warnings and errors:')
+        print('*) Resolve errors to show model')
+        encodeModel.rebuiltModel.errorDict.printErrorsByAttr('description')
+
+
+def plotSlottingTrend(run=False):
+    '''
+    This is a function that tests the correlation of slot count to the primary waveform
+    '''
+
+    if not run:
+        return
+
+    motorCfg = {"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2}
+    hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
+              "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
+              "mecRegions": {5: "mec"}}
+    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2])}
+
+    increment, iterations = 10, 5
+    for slots in np.arange(motorCfg["slots"], motorCfg["slots"] + iterations * increment, increment):
+        motorCfg["slots"] = int(slots)
+        model = buildMotor(run=True, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+        x = [node.xIndex for node in model.matrix[model.yIndexesAirgap[model.ppAirGap//2]]]
+        y = [node.MMF for node in model.matrix[model.yIndexesAirgap[model.ppAirGap//2]]]
+        plt.plot(x, y)
+        plt.show()
 
 
 def profile_main():
@@ -332,7 +347,7 @@ def profile_main():
 def main():
 
     # ___Baseline motor configurations___
-    buildMotor(run=False, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27},
+    buildMotor(run=False, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
                   # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
@@ -340,7 +355,10 @@ def main():
                   canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2])})
 
     # ___Custom Configuration___
-    motorCfg = {"slots": 11, "poles": 6, "length": 0.27}
+    # TODO (16, 6), (28, 6), () - A coil has to have 2 terminal so 2 * phase * coilSets + removed = Slots. E.g: 2 * 3 * 2 + 4 = 16
+    #  How do I keep it fair that I am shifting by the same amount as the basemodel or is this something that I want the solver to determine shift?
+    #  How do I keep it fair that the models have the same number of empty slots as baseline
+    motorCfg = {"slots": 28, "poles": 6, "length": 0.27, "windingShift": 2}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}
@@ -351,7 +369,10 @@ def main():
 
     # ___Custom motor model___
     # TODO You can see the winding pattern is different when using 21 slots, 6 poles. Need consistency
-    buildMotor(run=True, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    buildMotor(run=False, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+
+    # ___Slotting effect on primary waveform___
+    plotSlottingTrend(run=True)
 
 
 if __name__ == '__main__':

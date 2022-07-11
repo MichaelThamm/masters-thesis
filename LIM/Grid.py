@@ -108,8 +108,7 @@ class Grid(LimMotor):
         self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + 2 * self.ppEndTooth + 2 * self.ppAirBuffer
         self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppMEC + self.ppHM)])
 
-        self.toothArray, self.coilArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
-        self.removeLowerCoils, self.removeUpperCoils = np.zeros((2, 1), dtype=np.int16)
+        self.toothArray, self.slotArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
 
         self.xMeshSizes = np.zeros(len(xMeshIndexes), dtype=np.float64)
 
@@ -186,83 +185,74 @@ class Grid(LimMotor):
         leftEndTooth = list(range(self.ppAirBuffer, listOffset))
         rightEndTooth = list(range(fullToothArray[-1] + self.ppSlot + 1, fullToothArray[-1] + self.ppSlot + self.ppEndTooth + 1))
         self.toothArray = leftEndTooth + fullToothArray + rightEndTooth
-        self.coilArray = [x for x in range(self.ppAirBuffer, self.ppL - self.ppAirBuffer) if x not in self.toothArray]
-        self.bufferArray = [x for x in list(range(self.ppL)) if x not in self.coilArray and x not in self.toothArray]
-
-        offset = self.ppSlot*math.ceil(self.q)
-        intSlots = math.ceil(self.q)*self.poles*self.m
+        self.slotArray = [x for x in range(self.ppAirBuffer, self.ppL - self.ppAirBuffer) if x not in self.toothArray]
+        self.bufferArray = [x for x in list(range(self.ppL)) if x not in self.slotArray and x not in self.toothArray]
 
         # Split slots into respective phases
-        temp_upper_slotArray = self.coilArray
-        upper_slotArray = temp_upper_slotArray + [None] * self.ppSlot * (intSlots - self.slots)
-        lower_slotArray = deque(upper_slotArray)
-        lower_slotArray.rotate(-self.windingShift*offset)
-        lower_slotArray = list(lower_slotArray)
+        offset = self.ppSlot*math.ceil(self.q)
 
+        def consecutiveCount(numbers):
+            _idx = 0
+            while _idx < (len(numbers) - 2) and (numbers[_idx+1] - numbers[_idx] == 1):
+                _idx += 1
+            return _idx + 1
+
+        leftRemoveUpper = consecutiveCount(self.removeUpperCoils)
+        leftRemoveLower = consecutiveCount(self.removeLowerCoils)
+        upperSlotArray = self.slotArray[leftRemoveUpper:-(len(self.removeUpperCoils)-leftRemoveUpper)]
+        lowerSlotArray = self.slotArray[leftRemoveLower:-(len(self.removeLowerCoils)-leftRemoveLower)]
         upper_slotArrayA, upper_slotArrayB, upper_slotArrayC = [], [], []
         lower_slotArrayA, lower_slotArrayB, lower_slotArrayC = [], [], []
         for threeSlots in range(0, self.slots, 3):
-            upper_slotArrayA += upper_slotArray[(threeSlots+1)*offset:(threeSlots+2)*offset]
-            upper_slotArrayB += upper_slotArray[threeSlots*offset:(threeSlots+1)*offset]
-            upper_slotArrayC += upper_slotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
-
-            lower_slotArrayA += lower_slotArray[(threeSlots+1)*offset:(threeSlots+2)*offset]
-            lower_slotArrayB += lower_slotArray[threeSlots*offset:(threeSlots+1)*offset]
-            lower_slotArrayC += lower_slotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
-
-        for idx in self.removeLowerCoils:
-            coilOffset = idx*self.ppSlot
-            self.removeLowerCoilIdxs += self.coilArray[coilOffset:coilOffset+self.ppSlot]
-
-        for idx in self.removeUpperCoils:
-            coilOffset = idx*self.ppSlot
-            self.removeUpperCoilIdxs += self.coilArray[coilOffset:coilOffset+self.ppSlot]
-
-        upper_slotArrayA = [x for x in upper_slotArrayA if x not in self.removeUpperCoilIdxs]
-        upper_slotArrayB = [x for x in upper_slotArrayB if x not in self.removeUpperCoilIdxs]
-        upper_slotArrayC = [x for x in upper_slotArrayC if x not in self.removeUpperCoilIdxs]
-        lower_slotArrayA = [x for x in lower_slotArrayA if x not in self.removeLowerCoilIdxs]
-        lower_slotArrayB = [x for x in lower_slotArrayB if x not in self.removeLowerCoilIdxs]
-        lower_slotArrayC = [x for x in lower_slotArrayC if x not in self.removeLowerCoilIdxs]
+            upper_slotArrayA += upperSlotArray[threeSlots*offset:(threeSlots+1)*offset]
+            upper_slotArrayB += upperSlotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
+            upper_slotArrayC += upperSlotArray[(threeSlots+1)*offset:(threeSlots+2)*offset]
+            lower_slotArrayA += lowerSlotArray[threeSlots*offset:(threeSlots+1)*offset]
+            lower_slotArrayB += lowerSlotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
+            lower_slotArrayC += lowerSlotArray[(threeSlots+1)*offset:(threeSlots+2)*offset]
 
         self.upper_slotsA = np.array(upper_slotArrayA)
         self.lower_slotsA = np.array(lower_slotArrayA)
-
         self.upper_slotsB = np.array(upper_slotArrayB)
         self.lower_slotsB = np.array(lower_slotArrayB)
-
-        self.lower_slotsC = np.array(lower_slotArrayC)
         self.upper_slotsC = np.array(upper_slotArrayC)
-
-        # Remove None from
-        lowerCoilsA_NoneRemoved = list(filter(None, self.lower_slotsA))
-        lowerCoilsA = np.split(np.array(lowerCoilsA_NoneRemoved), len(lowerCoilsA_NoneRemoved)//self.ppSlot, axis=0)
-        upperCoilsA_NoneRemoved = list(filter(None, self.upper_slotsA))
-        upperCoilsA = np.split(np.array(upperCoilsA_NoneRemoved), len(upperCoilsA_NoneRemoved)//self.ppSlot, axis=0)
-
-        lowerCoilsB_NoneRemoved = list(filter(None, self.lower_slotsB))
-        lowerCoilsB = np.split(np.array(lowerCoilsB_NoneRemoved), len(lowerCoilsB_NoneRemoved)//self.ppSlot, axis=0)
-        upperCoilsB_NoneRemoved = list(filter(None, self.upper_slotsB))
-        upperCoilsB = np.split(np.array(upperCoilsB_NoneRemoved), len(upperCoilsB_NoneRemoved)//self.ppSlot, axis=0)
-
-        lowerCoilsC_NoneRemoved = list(filter(None, self.lower_slotsC))
-        lowerCoilsC = np.split(np.array(lowerCoilsC_NoneRemoved), len(lowerCoilsC_NoneRemoved)//self.ppSlot, axis=0)
-        upperCoilsC_NoneRemoved = list(filter(None, self.upper_slotsC))
-        upperCoilsC = np.split(np.array(upperCoilsC_NoneRemoved), len(upperCoilsC_NoneRemoved)//self.ppSlot, axis=0)
+        self.lower_slotsC = np.array(lower_slotArrayC)
 
         # Sort coils into direction of current (ex, in and out of page)
-        self.inLower_slotsA = np.array(lowerCoilsA[1::2])
-        self.outLower_slotsA = np.array(lowerCoilsA[::2])
-        self.inUpper_slotsA = np.array(upperCoilsA[1::2])
-        self.outUpper_slotsA = np.array(upperCoilsA[::2])
-        self.inLower_slotsB = np.array(lowerCoilsB[1::2])
-        self.outLower_slotsB = np.array(lowerCoilsB[::2])
-        self.inUpper_slotsB = np.array(upperCoilsB[1::2])
-        self.outUpper_slotsB = np.array(upperCoilsB[::2])
-        self.inLower_slotsC = np.array(lowerCoilsC[::2])
-        self.outLower_slotsC = np.array(lowerCoilsC[1::2])
-        self.inUpper_slotsC = np.array(upperCoilsC[::2])
-        self.outUpper_slotsC = np.array(upperCoilsC[1::2])
+        def phaseToInOut(_array, _offset):
+            storeArray = np.empty(0, dtype=int)
+            for phase in np.array_split(_array, len(_array) // 2)[_offset::2]:
+                storeArray = np.concatenate((storeArray, phase))
+            return storeArray
+
+        # TODO I need to make this winding shifting more robust. I need to find out how much I should shift by and then look into plotting multiple aigrap plots of stator sine wave
+        if not all(list(map(lambda x: len(x) == len(self.upper_slotsA), [self.lower_slotsA, self.upper_slotsB, self.lower_slotsB, self.upper_slotsC, self.lower_slotsC]))):
+            self.writeErrorToDict(key='name',
+                                  error=Error.buildFromScratch(name='windingError',
+                                                               description='Validate that there are no monopoles and that each phase has the same number of terminals\n' +
+                                                                           f'phases terminals: {list(map(lambda x: len(x), [self.upper_slotsA, self.lower_slotsA, self.upper_slotsB, self.lower_slotsB, self.upper_slotsC, self.lower_slotsC]))}',
+                                                               cause=True))
+
+        self.inUpper_slotsA = phaseToInOut(self.upper_slotsA, 1)
+        self.outUpper_slotsA = phaseToInOut(self.upper_slotsA, 0)
+        self.inLower_slotsA = phaseToInOut(self.lower_slotsA, 1)
+        self.outLower_slotsA = phaseToInOut(self.lower_slotsA, 0)
+        self.inUpper_slotsB = phaseToInOut(self.upper_slotsB, 1)
+        self.outUpper_slotsB = phaseToInOut(self.upper_slotsB, 0)
+        self.inLower_slotsB = phaseToInOut(self.lower_slotsB, 1)
+        self.outLower_slotsB = phaseToInOut(self.lower_slotsB, 0)
+        self.inUpper_slotsC = phaseToInOut(self.upper_slotsC, 1)
+        self.outUpper_slotsC = phaseToInOut(self.upper_slotsC, 0)
+        self.inLower_slotsC = phaseToInOut(self.lower_slotsC, 1)
+        self.outLower_slotsC = phaseToInOut(self.lower_slotsC, 0)
+
+        for idx in self.removeUpperCoils:
+            coilOffset = idx*self.ppSlot
+            self.removeUpperCoilIdxs += self.slotArray[coilOffset:coilOffset + self.ppSlot]
+
+        for idx in self.removeLowerCoils:
+            coilOffset = idx*self.ppSlot
+            self.removeLowerCoilIdxs += self.slotArray[coilOffset:coilOffset + self.ppSlot]
 
         # MeshIndexes is a list of 1s and 0s for each boundary for each region to say whether or not
         #  dense meshing is required at the boundary
@@ -312,9 +302,9 @@ class Grid(LimMotor):
             Cnt += 1
 
         self.xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1],
-                              self.toothArray[self.ppEndTooth - 1]] + self.coilArray[self.ppSlot - 1::self.ppSlot]\
-                              + self.toothArray[self.ppEndTooth + self.ppTooth - 1:-self.ppEndTooth:self.ppTooth] + [self.toothArray[-1],
-                              self.bufferArray[-1]]
+                              self.toothArray[self.ppEndTooth - 1]] + self.slotArray[self.ppSlot - 1::self.ppSlot] \
+                             + self.toothArray[self.ppEndTooth + self.ppTooth - 1:-self.ppEndTooth:self.ppTooth] + [self.toothArray[-1],
+                                                                                                                    self.bufferArray[-1]]
 
         a, b = 0, 0
         c, d = 0, 0
@@ -325,6 +315,7 @@ class Grid(LimMotor):
             xCnt = 0
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
+                # TODO Why is this not initialized?
                 delY = self.pixelSpacing / self.meshDensity[0]
             elif a in self.ySecondEdgeNodes:
                 delY = self.pixelSpacing / self.meshDensity[1]
@@ -475,7 +466,7 @@ class Grid(LimMotor):
                 self.matrix[i][j].Rx, self.matrix[i][j].Ry = self.matrix[i][j].getReluctance(self)
 
                 isCurrentCu = self.matrix[i][j].material[:-1] == 'copper'
-                if i in self.yIndexesLowerSlot and j in self.coilArray:
+                if i in self.yIndexesLowerSlot and j in self.slotArray:
                     if j in self.lower_slotsA:
                         angle_plex = cmath.exp(0)
                     elif j in self.lower_slotsB:
@@ -494,7 +485,7 @@ class Grid(LimMotor):
                     else:
                         scalingLower = 0.0
 
-                elif i in self.yIndexesUpperSlot and j in self.coilArray:
+                elif i in self.yIndexesUpperSlot and j in self.slotArray:
                     if j in self.upper_slotsA:
                         angle_plex = cmath.exp(0)
                     elif j in self.upper_slotsB:
@@ -530,7 +521,7 @@ class Grid(LimMotor):
                 self.matrix[i][j].Iph = self.Ip * angle_plex * time_plex
 
                 # Lower slots only
-                if i in self.yIndexesLowerSlot and j in self.coilArray:
+                if i in self.yIndexesLowerSlot and j in self.slotArray:
                     if j in self.inLower_slotsA or j in self.inLower_slotsB or j in self.inLower_slotsC:
                         inOutCoeffMMF = -1
                     elif j in self.outLower_slotsA or j in self.outLower_slotsB or j in self.outLower_slotsC:
@@ -543,7 +534,7 @@ class Grid(LimMotor):
                     self.matrix[i][j].MMF = inOutCoeffMMF * scalingLower * self.N * self.matrix[i][j].Iph / (2 * turnAreaRatio)
 
                 # Upper slots only
-                elif i in self.yIndexesUpperSlot and j in self.coilArray:
+                elif i in self.yIndexesUpperSlot and j in self.slotArray:
                     if j in self.inUpper_slotsA or j in self.inUpper_slotsB or j in self.inUpper_slotsC:
                         inOutCoeffMMF = -1
                     elif j in self.outUpper_slotsA or j in self.outUpper_slotsB or j in self.outUpper_slotsC:
