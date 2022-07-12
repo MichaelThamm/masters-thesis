@@ -100,29 +100,31 @@ class Model(Grid):
             # Compare items between objects
             selfItems = list(filter(lambda x: True if x[0] not in removedAtts else False, self.__dict__.items()))
             otherItems = list(otherObject.__dict__.items())
-            for cnt, entry in enumerate(selfItems):
+            for cnt, (entryKey, entryVal) in enumerate(selfItems):
+                otherKey = otherItems[cnt][0]
+                otherVal = otherItems[cnt][1]
                 # Check keys are equal
-                if entry[0] == otherItems[cnt][0]:
+                if entryKey == otherKey:
                     # np.ndarray were converted to lists to dump data to json object, now compare against those lists
-                    if type(entry[1]) == np.ndarray:
+                    if type(entryVal) == np.ndarray:
                         # Greater than 1D array
-                        if len(entry[1].shape) > 1:
+                        if len(entryVal.shape) > 1:
                             # Check that 2D array are equal
-                            if np.all(np.all(entry[1] != otherItems[cnt][1], axis=1)):
+                            if np.all(np.all(entryVal != otherVal, axis=1)):
                                 equality = False
                         # 1D array
                         else:
-                            if entry[1].tolist() != otherItems[cnt][1]:
+                            if entryVal.tolist() != otherVal:
                                 # The contents of the array or list may be a deconstructed complex type
-                                if np.all(list(map(lambda val: val[1] == rebuildPlex(otherItems[cnt][1][val[0]]), enumerate(entry[1])))):
+                                if np.all(list(map(lambda val: val[1] == rebuildPlex(otherVal[val[0]]), enumerate(entryVal)))):
                                     pass
                                 else:
                                     equality = False
                     else:
-                        if entry[1] != otherItems[cnt][1]:
+                        if entryVal != otherVal:
                             # Check to see if keys of the value are equal to string versions of otherItems keys
                             try:
-                                if list(map(lambda x: str(x), entry[1].keys())) != list(otherItems[cnt][1].keys()):
+                                if list(map(lambda x: str(x), entryVal.keys())) != list(otherVal.keys()):
                                     equality = False
                             except AttributeError:
                                 pass
