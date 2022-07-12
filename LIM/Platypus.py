@@ -273,7 +273,7 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
     model.finalizeGrid(pixelDivisions)
     errorInX = model.finalizeCompute()
     # TODO This invertY inverts the pyplot
-    model.updateGrid(errorInX, showAirgapPlot=False, invertY=True, showUnknowns=False)
+    model.updateGrid(errorInX, canvasCfg=canvasCfg, invertY=True)
     # This is done for computation considerations within the optimization loop
     if optimize and model.errorDict.isEmpty():
         return model
@@ -285,11 +285,10 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
     if encodeModel.rebuiltModel.errorDict.isEmpty():
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        showModel(encodeModel, model, fieldType='B',
-                  showGrid=True, showFields=True, showFilter=False, showMatrix=False, showZeros=True,
-                  # TODO This invertY inverts the Tkinter Canvas plot
-                  numColours=20, dims=[1080, 1920], invertY=False)
+        # TODO This invertY inverts the Tkinter Canvas plot
+        showModel(encodeModel, model, canvasCfg, fieldType='B', numColours=20, dims=[1080, 1920], invertY=False)
         print('   - there are no errors')
+        return model
     else:
         print('\nBelow are a list of warnings and errors:')
         print('*) Resolve errors to show model')
@@ -301,21 +300,39 @@ def plotSlottingTrend(run=False):
     This is a function that tests the correlation of slot count to the primary waveform
     '''
 
+    # TODO I dont think this is worth it since I can just reference Swissloop about slot counts but I cannot comment on the shifting
     if not run:
         return
+
+    from functools import reduce
 
     motorCfg = {"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}
-    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2])}
+    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]),
+                 "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": False,
+                 "showFilter": False, "showMatrix": False, "showZeros": True}
 
-    increment, iterations = 10, 5
-    for slots in np.arange(motorCfg["slots"], motorCfg["slots"] + iterations * increment, increment):
+    def reduce_MMF(a, b):
+        if isinstance(a, Node):
+            return a.MMF + b.MMF
+        else:
+            return a + b.MMF
+
+    for slots in [16, 28, 40]:
         motorCfg["slots"] = int(slots)
         model = buildMotor(run=True, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
-        x = [node.xIndex for node in model.matrix[model.yIndexesAirgap[model.ppAirGap//2]]]
-        y = [node.MMF for node in model.matrix[model.yIndexesAirgap[model.ppAirGap//2]]]
+        transposedMatrix = np.transpose(model.matrix)
+        x, y = [], []
+        for node in model.matrix[model.yIdxCenterAirGap]:
+            if node.xIndex in model.slotArray:
+                x.append(node.xIndex)
+        yIdxLower, yIdxUpper = model.yIndexesLowerSlot[0], model.yIndexesUpperSlot[-1]+1
+        for idx, column in enumerate(transposedMatrix):
+            if idx in model.slotArray:
+                # y.append(reduce(lambda a, b: a.MMF + b.MMF, column[yIdxLower:yIdxUpper]))
+                y.append(reduce(reduce_MMF, column[yIdxLower:yIdxUpper]))
         plt.plot(x, y)
         plt.show()
 
@@ -352,27 +369,27 @@ def main():
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                     "mecRegions": {5: "mec"}},
-                  canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2])})
+                  canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]),
+                             "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
+                             "showFilter": False, "showMatrix": False, "showZeros": True})
 
     # ___Custom Configuration___
-    # TODO (16, 6), (28, 6), () - A coil has to have 2 terminal so 2 * phase * coilSets + removed = Slots. E.g: 2 * 3 * 2 + 4 = 16
-    #  How do I keep it fair that I am shifting by the same amount as the basemodel or is this something that I want the solver to determine shift?
-    #  How do I keep it fair that the models have the same number of empty slots as baseline
     motorCfg = {"slots": 28, "poles": 6, "length": 0.27, "windingShift": 2}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}
-    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2])}
+    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]),
+                 "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
+                 "showFilter": False, "showMatrix": False, "showZeros": True}
 
     # ___Motor optimization___
     platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Custom motor model___
-    # TODO You can see the winding pattern is different when using 21 slots, 6 poles. Need consistency
-    buildMotor(run=False, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    buildMotor(run=True, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Slotting effect on primary waveform___
-    plotSlottingTrend(run=True)
+    plotSlottingTrend(run=False)
 
 
 if __name__ == '__main__':

@@ -60,7 +60,7 @@ class Grid(LimMotor):
         self.lenUnknowns = 0
 
         self.yIndexesVacLower, self.yIndexesVacUpper = [], []
-        self.yIndexesBackIron, self.yIndexesBladeRotor, self.yIndexesAirgap = [], [], []
+        self.yIndexesBackIron, self.yIndexesBladeRotor, self.yIndexesAirGap = [], [], []
         self.yIndexesLowerSlot, self.yIndexesUpperSlot, self.yIndexesYoke = [], [], []
 
         self.removeLowerCoilIdxs, self.removeUpperCoilIdxs = [], []
@@ -164,6 +164,8 @@ class Grid(LimMotor):
                     elif region in self.mecRegions.values():
                         self.yIndexesMEC.extend(self.__dict__[idx])
                     innerCnt += 1
+
+        self.yIdxCenterAirGap = self.yIndexesAirGap[0] + self.ppAirGap // 2
 
         # Thrust of the entire integration region
         self.Fx = 0.0
@@ -315,10 +317,9 @@ class Grid(LimMotor):
             xCnt = 0
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
-                # TODO Why is this not initialized?
-                delY = self.pixelSpacing / self.meshDensity[0]
+                delY = self.Spacing / self.meshDensity[0]
             elif a in self.ySecondEdgeNodes:
-                delY = self.pixelSpacing / self.meshDensity[1]
+                delY = self.Spacing / self.meshDensity[1]
             else:
                 delY = self.yMeshSizes[c]
 
@@ -326,9 +327,9 @@ class Grid(LimMotor):
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
-                    delX = self.pixelSpacing / self.meshDensity[0]
+                    delX = self.Spacing / self.meshDensity[0]
                 elif b in self.xSecondEdgeNodes:
-                    delX = self.pixelSpacing / self.meshDensity[1]
+                    delX = self.Spacing / self.meshDensity[1]
                 else:
                     delX = self.xMeshSizes[d]
 
@@ -337,9 +338,9 @@ class Grid(LimMotor):
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
-                    xCnt += self.pixelSpacing / self.meshDensity[0]
+                    xCnt += self.Spacing / self.meshDensity[0]
                 elif b in self.xSecondEdgeNodes:
-                    xCnt += self.pixelSpacing / self.meshDensity[1]
+                    xCnt += self.Spacing / self.meshDensity[1]
                 else:
                     xCnt += delX
 
@@ -352,9 +353,9 @@ class Grid(LimMotor):
 
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
-                yCnt += self.pixelSpacing / self.meshDensity[0]
+                yCnt += self.Spacing / self.meshDensity[0]
             elif a in self.ySecondEdgeNodes:
-                yCnt += self.pixelSpacing / self.meshDensity[1]
+                yCnt += self.Spacing / self.meshDensity[1]
             else:
                 yCnt += delY
 
@@ -377,7 +378,7 @@ class Grid(LimMotor):
                     self.matrix[a][b].material = 'iron'
                     self.matrix[a][b].ur = self.iron.ur
                     self.matrix[a][b].sigma = self.iron.sigma
-                elif a in self.yIndexesAirgap:
+                elif a in self.yIndexesAirGap:
                     self.matrix[a][b].material = 'vacuum'
                     self.matrix[a][b].ur = self.air.ur
                     self.matrix[a][b].sigma = self.air.sigma
@@ -444,9 +445,7 @@ class Grid(LimMotor):
         idxRightEndTooth = self.ppL - self.ppAirBuffer - self.ppEndTooth
         idxRightAirBuffer = idxRightEndTooth + self.ppEndTooth
 
-        self.checkSpatialMapping(pixelDivisions, spatialDomainFlag,
-                                 [idxLeftAirBuffer, idxLeftEndTooth, idxSlot, idxTooth, idxRightEndTooth,
-                                  idxRightAirBuffer])
+        self.checkSpatialMapping(spatialDomainFlag, [idxLeftAirBuffer, idxLeftEndTooth, idxSlot, idxTooth, idxRightEndTooth, idxRightAirBuffer])
 
         # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
         fraction = 0.5
@@ -627,7 +626,7 @@ class Grid(LimMotor):
         return previous, next_
 
     # This function is written to catch any errors in the mapping between canvas and space for both x and y coordinates
-    def checkSpatialMapping(self, pixelDivision, spatialDomainFlag, iIdxs):
+    def checkSpatialMapping(self, spatialDomainFlag, iIdxs):
 
         iIdxLeftAirBuffer, iIdxLeftEndTooth, iIdxSlot, iIdxTooth, iIdxRightEndTooth, iIdxRightAirBuffer = iIdxs
 
@@ -678,7 +677,7 @@ class Grid(LimMotor):
             print(f'flag - blade rotor: {diffBladeRotorDims}')
             spatialDomainFlag = True
         # Check Air Gap
-        diffAirGapDims = self.g - (yUpperPos(self.yIndexesAirgap) - self.matrix[self.yIndexesAirgap[0]][xIdx].y)
+        diffAirGapDims = self.g - (yUpperPos(self.yIndexesAirGap) - self.matrix[self.yIndexesAirGap[0]][xIdx].y)
         if round(diffAirGapDims, 12) != 0:
             print(f'flag - air gap: {diffAirGapDims}')
             spatialDomainFlag = True

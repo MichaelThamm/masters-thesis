@@ -188,12 +188,12 @@ def visualizeMatrix(dims, model, ogModel, bShowA=False, bShowB=False):
     cMat.mainloop()
 
 
-def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, showMatrix, showZeros, numColours, dims, invertY):
+def showModel(jsonObject, ogModel, canvasCfg, fieldType, numColours, dims, invertY):
 
     invertCoeff = -1 if invertY else 1
 
     # Create the grid canvas to display the grid mesh
-    if showGrid:
+    if canvasCfg["showGrid"]:
 
         cGrid = CanvasInFrame(height=dims[0], width=dims[1], bg='gray30')
         i, j = 0, 0
@@ -210,7 +210,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
         cGrid.root.mainloop()
 
     # Color nodes based on node values
-    if showFields or showFilter:
+    if canvasCfg["showFields"] or canvasCfg["showFilter"]:
 
         cFields = CanvasInFrame(height=dims[0], width=dims[1], bg='gray30')
 
@@ -228,7 +228,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
 
         # [row]
         # Rule 1
-        keepRows[0] = jsonObject.rebuiltModel.yIndexesAirgap
+        keepRows[0] = jsonObject.rebuiltModel.yIndexesAirGap
 
         # [row, col] - Make sure to put the rules in order of ascending rows or the list wont be sorted (shouldnt matter)
         # Rule 1
@@ -238,7 +238,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
 
         filteredRows, filteredRowCols = combineFilterList([jsonObject.rebuiltModel.ppH, jsonObject.rebuiltModel.ppL], keepRows, keepRowColsUnfiltered)
 
-        minScale, maxScale = minMaxField(jsonObject, fieldType, [filteredRows, filteredRowCols], showFilter)
+        minScale, maxScale = minMaxField(jsonObject, fieldType, [filteredRows, filteredRowCols], canvasCfg["showFilter"])
         normScale = (maxScale - minScale) / (numColours - 1)
 
         if [minScale, maxScale, normScale] == [0, 0, 0]:
@@ -301,18 +301,18 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
             i, j, k = 0, 0, 0
             while i < jsonObject.rebuiltModel.matrix.shape[0]:
                 while j < jsonObject.rebuiltModel.matrix.shape[1]:
-                    if showFilter:
+                    if canvasCfg["showFilter"]:
                         if i in filteredRows or (i, j) in filteredRowCols:
                             overRideColour = determineColour(jsonObject, i, j,
                                                              [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
-                                                             highlightZeroValsInField=showZeros)
+                                                             highlightZeroValsInField=canvasCfg["showZeros"])
 
                         else:
                             overRideColour = '#000000'
                     else:
                         overRideColour = determineColour(jsonObject, i, j,
                                                          [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
-                                                         highlightZeroValsInField=showZeros)
+                                                         highlightZeroValsInField=canvasCfg["showZeros"])
 
                     jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing,
                                                                   overRideColour=overRideColour, c=cFields.canvas,
@@ -327,7 +327,7 @@ def showModel(jsonObject, ogModel, fieldType, showGrid, showFields, showFilter, 
         cFields.canvas.configure(scrollregion=cFields.canvas.bbox("all"))
         cFields.root.mainloop()
 
-    if showMatrix:
+    if canvasCfg["showMatrix"]:
         visualizeMatrix(dims, jsonObject.rebuiltModel, ogModel, bShowA=True)
         visualizeMatrix(dims, jsonObject.rebuiltModel, ogModel, bShowB=True)
 

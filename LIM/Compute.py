@@ -862,7 +862,7 @@ class Model(Grid):
 
         return preProcessError_matX
 
-    def updateGrid(self, iErrorInX, showAirgapPlot=False, invertY=False, showUnknowns=False):
+    def updateGrid(self, iErrorInX, canvasCfg, invertY=False):
 
         # Unknowns in HM regions
         matIdx = 0
@@ -1047,11 +1047,10 @@ class Model(Grid):
                                                                cause=True))
 
         # Thrust Calculation
-        centerAirgapIdx_y = self.yIndexesAirgap[0] + self.ppAirGap // 2
-        centerAirgap_y = self.matrix[centerAirgapIdx_y][0].yCenter
+        centerAirgap_y = self.matrix[self.yIdxCenterAirGap][0].yCenter
 
-        ur = self.matrix[centerAirgapIdx_y, 0].ur
-        sigma = self.matrix[centerAirgapIdx_y, 0].sigma
+        ur = self.matrix[self.yIdxCenterAirGap, 0].ur
+        sigma = self.matrix[self.yIdxCenterAirGap, 0].sigma
 
         resFx, resFy = np.cdouble(0), np.cdouble(0)
         thrustGenerator = self.__genForces(ur * sigma, centerAirgap_y)
@@ -1065,10 +1064,10 @@ class Model(Grid):
         self.Fy = resFy
         print(f'Fx: {round(self.Fx.real, 2)}N,', f'Fy: {round(self.Fy.real, 2)}N')
 
-        if showAirgapPlot:
-            self.__plotPointsAlongX(centerAirgapIdx_y, invertY=invertY)
-        if showUnknowns:
-            self.__plotPointsAlongHM(centerAirgapIdx_y)
+        if canvasCfg["showAirGapPlot"]:
+            self.__plotPointsAlongX(self.yIdxCenterAirGap, invertY=invertY)
+        if canvasCfg["showUnknowns"]:
+            self.__plotPointsAlongHM(self.yIdxCenterAirGap)
 
 
 # noinspection PyGlobalUndefined
