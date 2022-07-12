@@ -364,7 +364,7 @@ def profile_main():
 def main():
 
     # ___Baseline motor configurations___
-    buildMotor(run=False, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
+    buildMotor(run=True, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
                   # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
@@ -386,7 +386,7 @@ def main():
     platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Custom motor model___
-    buildMotor(run=True, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    buildMotor(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Slotting effect on primary waveform___
     plotSlottingTrend(run=False)
