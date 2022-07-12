@@ -260,9 +260,6 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
     canvasCfg['xMeshIndexes'] = xMeshIndexes
     canvasCfg['yMeshIndexes'] = yMeshIndexes
 
-    # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = canvasCfg['pixDiv']
-
     # Object for the model design, grid, and matrices
     if baseline:
         model = Model.buildBaseline(motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
@@ -270,7 +267,7 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
         model = Model.buildFromScratch(motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     model.buildGrid(xMeshIndexes, yMeshIndexes)
-    model.finalizeGrid(pixelDivisions)
+    model.finalizeGrid()
     errorInX = model.finalizeCompute()
     # TODO This invertY inverts the pyplot
     model.updateGrid(errorInX, canvasCfg=canvasCfg, invertY=True)

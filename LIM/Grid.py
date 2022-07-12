@@ -434,7 +434,7 @@ class Grid(LimMotor):
             b = 0
             a += 1
 
-    def finalizeGrid(self, pixelDivisions):
+    def finalizeGrid(self):
         spatialDomainFlag = False
 
         # Define Indexes
