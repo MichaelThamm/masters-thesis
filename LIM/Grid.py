@@ -191,6 +191,7 @@ class Grid(LimMotor):
         self.bufferArray = [x for x in list(range(self.ppL)) if x not in self.slotArray and x not in self.toothArray]
 
         # Split slots into respective phases
+        # TODO Is this good math?
         offset = self.ppSlot*math.ceil(self.q)
 
         def consecutiveCount(numbers):
@@ -201,8 +202,8 @@ class Grid(LimMotor):
 
         leftRemoveUpper = consecutiveCount(self.removeUpperCoils)
         leftRemoveLower = consecutiveCount(self.removeLowerCoils)
-        upperSlotArray = self.slotArray[leftRemoveUpper:-(len(self.removeUpperCoils)-leftRemoveUpper)]
-        lowerSlotArray = self.slotArray[leftRemoveLower:-(len(self.removeLowerCoils)-leftRemoveLower)]
+        upperSlotArray = self.slotArray[leftRemoveUpper*offset:-(len(self.removeUpperCoils)-leftRemoveUpper)*offset]
+        lowerSlotArray = self.slotArray[leftRemoveLower*offset:-(len(self.removeLowerCoils)-leftRemoveLower)*offset]
         upper_slotArrayA, upper_slotArrayB, upper_slotArrayC = [], [], []
         lower_slotArrayA, lower_slotArrayB, lower_slotArrayC = [], [], []
         for threeSlots in range(0, self.slots, 3):
