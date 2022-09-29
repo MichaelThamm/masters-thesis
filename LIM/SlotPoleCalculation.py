@@ -26,6 +26,7 @@ uo = (10 ** - 7)*4*pi
 class LimMotor(object):
     def __init__(self, motorCfg, buildBaseline=False):
 
+        self.isBaseline = buildBaseline
         self.errorDict = TransformedDict.buildFromScratch()
 
         self.copper = Material(1, 8.96, 5.96 * 10 ** 7, 1.72 * 10 ** (-8))
@@ -51,7 +52,7 @@ class LimMotor(object):
         self.L = motorCfg["length"]  # meters
         self.Tp = self.L/self.poles  # meters
 
-        if buildBaseline:
+        if self.isBaseline:
             self.ws = 10 / 1000  # meters
             self.wt = 6 / 1000  # meters
             self.Tper = 0.525  # meters
@@ -107,7 +108,7 @@ class LimMotor(object):
         self.diamConductor = diamTable[indexClosest] / (10 ** 3)  # m
         self.currentConductor = currentTable[indexClosest]  # A
 
-        self.loops = 4
+        self.loops = 4  # TODO This needs to be updated for platypus
         # Convert the square coil into a circular one to simplify inductance calculation
         self.diamLoop = (self.coilWidth + self.coilLength)
         self.perimeterCoil = pi * self.diamLoop

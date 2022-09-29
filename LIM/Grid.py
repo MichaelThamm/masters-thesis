@@ -172,6 +172,8 @@ class Grid(LimMotor):
         self.Fy = 0.0
 
     def buildGrid(self, xMeshIndexes, yMeshIndexes):
+        # TODO The best way to do this is to make the class work for integral mainly and then create a new instance of the class which has double layer
+        #  I need to be careful not to mess up my basline motor so I should keep only integral windings for platypus. Start tracing variables like removed slots ...
 
         #  Initialize grid with Nodes
         listOffset = self.ppAirBuffer + self.ppEndTooth
