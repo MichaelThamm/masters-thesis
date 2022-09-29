@@ -35,15 +35,6 @@ class LimMotor(object):
         self.iron = Material(1000, 7.8, 4.5 * 10 ** 6, None)
         self.insul = Material(None, 1.4, None, None)
 
-        # Kinematic Variables
-        mass = 250
-        max_vel = 500*(1000/3600)
-        acc_time = 12.5
-        acceleration = max_vel/acc_time
-        thrust = mass*acceleration
-        power = thrust*max_vel
-        synch_vel = max_vel
-
         # Stator Dimension Variables
         self.m = 3
         self.slots = motorCfg["slots"]
@@ -56,10 +47,16 @@ class LimMotor(object):
             self.ws = 10 / 1000  # meters
             self.wt = 6 / 1000  # meters
             self.Tper = 0.525  # meters
+            self.windingLayers = 2
+            self.windingShift = motorCfg["windingShift"]
+            self.removeUpperCoils = [0] + list(range(self.slots - self.windingShift - 1, self.slots - 1)) + [self.slots - 1]
+            self.removeLowerCoils = [0] + list(range(1, 1 + self.windingShift)) + [self.slots - 1]
         else:
             self.ws = self.reverseWs(endTooth2SlotWidthRatio=1)  # meters
             self.wt = (3/5) * self.ws  # meters
             self.Tper = 1.25 * self.L  # meters  # TODO I should check with the baseline that a change to the Airbuffer does not make much difference to the result
+            self.windingLayers = 1
+            self.windingShift, self.removeUpperCoils, self.removeLowerCoils = [], [], []
 
         self.slotpitch = self.ws + self.wt  # meters
         self.endTooth = self.getLenEndTooth()  # meters
@@ -67,11 +64,6 @@ class LimMotor(object):
                               error=Error.buildFromScratch(name='MotorLength',
                                                            description='ERROR - The inner dimensions do not sum to the motor length',
                                                            cause=not self.validateLength()))
-
-        self.windingLayers = 2
-        self.windingShift = motorCfg["windingShift"]
-        self.removeUpperCoils = [0] + list(range(self.slots-self.windingShift-1, self.slots-1)) + [self.slots-1]
-        self.removeLowerCoils = [0] + list(range(1, 1+self.windingShift)) + [self.slots-1]
 
         self.Airbuffer = (self.Tper - self.L)/2  # meters
         self.hy = 6.5/1000  # meters

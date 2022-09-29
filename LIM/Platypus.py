@@ -36,10 +36,12 @@ class MotorOptProblem(Problem):
 
         self.motorCfg['slots'] = slots
         self.motorCfg['poles'] = poles
+        m = 3
+        q = self.motorCfg['slots'] / self.motorCfg['poles'] / m
 
-        print(slots, poles)
+        print("outside", slots, poles)
         # if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
-        if slots > poles and slots > 6 and poles % 2 == 0:
+        if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0:
 
             # Object for the model design, grid, and matrices
             model = buildMotor(run=True, baseline=False, optimize=True, motorCfg=self.motorCfg, hamCfg=self.hamCfg, canvasCfg=self.canvasCfg)
@@ -361,7 +363,7 @@ def profile_main():
 def main():
 
     # ___Baseline motor configurations___
-    buildMotor(run=True, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
+    buildMotor(run=False, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
                   # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
@@ -371,7 +373,7 @@ def main():
                              "showFilter": False, "showMatrix": False, "showZeros": True})
 
     # ___Custom Configuration___
-    motorCfg = {"slots": 28, "poles": 6, "length": 0.27, "windingShift": 2}
+    motorCfg = {"slots": 18, "poles": 2, "length": 0.27, "windingShift": 2}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}
@@ -380,7 +382,7 @@ def main():
                  "showFilter": False, "showMatrix": False, "showZeros": True}
 
     # ___Motor optimization___
-    platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    platypus(run=True, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Custom motor model___
     buildMotor(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)

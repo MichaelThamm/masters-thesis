@@ -202,10 +202,17 @@ class Grid(LimMotor):
                 _idx += 1
             return _idx + 1
 
-        leftRemoveUpper = consecutiveCount(self.removeUpperCoils)
-        leftRemoveLower = consecutiveCount(self.removeLowerCoils)
-        upperSlotArray = self.slotArray[leftRemoveUpper*offset:-(len(self.removeUpperCoils)-leftRemoveUpper)*offset]
-        lowerSlotArray = self.slotArray[leftRemoveLower*offset:-(len(self.removeLowerCoils)-leftRemoveLower)*offset]
+        if len(self.removeUpperCoils) == 0:
+            upperSlotArray = self.slotArray
+        else:
+            leftRemoveUpper = consecutiveCount(self.removeUpperCoils)
+            upperSlotArray = self.slotArray[leftRemoveUpper*offset:-(len(self.removeUpperCoils)-leftRemoveUpper)*offset]
+        if len(self.removeLowerCoils) == 0:
+            lowerSlotArray = self.slotArray
+        else:
+            leftRemoveLower = consecutiveCount(self.removeLowerCoils)
+            lowerSlotArray = self.slotArray[leftRemoveLower*offset:-(len(self.removeLowerCoils)-leftRemoveLower)*offset]
+
         upper_slotArrayA, upper_slotArrayB, upper_slotArrayC = [], [], []
         lower_slotArrayA, lower_slotArrayB, lower_slotArrayC = [], [], []
         for threeSlots in range(0, self.slots, 3):
