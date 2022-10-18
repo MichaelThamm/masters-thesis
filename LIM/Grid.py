@@ -817,12 +817,10 @@ class Node(object):
 
     def getReluctance(self, model, isVac=False):
 
-        vacHeight = model.vac/model.ppVac
         ResX = self.lx / (2 * uo * self.ur * self.Szy)
-        if model.allMecRegions and self.yIndex in [0, model.ppH - 1]:  #  MEC non-continuous boundary
-            ResY = np.inf
-        elif isVac:  # Create a fake vac node
-            ResY = vacHeight / (2 * uo * self.ur * self.Sxz)
+        if isVac:  # Create a fake vac node
+            vacHeight = model.vac / model.ppVac
+            ResY = vacHeight / (2 * uo * model.air.ur * self.Sxz)
         else:
             ResY = self.ly / (2 * uo * self.ur * self.Sxz)
 
