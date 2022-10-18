@@ -80,7 +80,7 @@ class Grid(LimMotor):
         self.ppSlot = self.ppSlotpitch - self.ppTooth
         self.ppEndTooth = self.setPixelsPerLength(length=self.endTooth, minimum=1)
         # Y-direction
-        self.ppVac = self.setPixelsPerLength(length=self.vac, minimum=1)
+        self.ppVac = self.setPixelsPerLength(length=self.vac, override=1)
         self.ppYoke = self.setPixelsPerLength(length=self.hy, minimum=1)
         self.ppAirGap = self.setPixelsPerLength(length=self.g, minimum=1)
         self.ppBladeRotor = self.setPixelsPerLength(length=self.dr, minimum=1)
@@ -565,10 +565,13 @@ class Grid(LimMotor):
             j = 0
             i += 1
 
-    def setPixelsPerLength(self, length, minimum):
+    def setPixelsPerLength(self, length, minimum=1, override=0):
 
         pixels = round(length / self.Spacing)
-        return minimum if pixels < minimum else pixels
+        if override >= 1:
+            return override
+        else:
+            return minimum if pixels < minimum else pixels
 
     def setRegionIndices(self):
 
