@@ -42,7 +42,8 @@ class Grid(LimMotor):
         self.invertY = kwargs['hamCfg']['invertY']
         xMeshIndexes = kwargs['canvasCfg']['xMeshIndexes']
         yMeshIndexes = kwargs['canvasCfg']['yMeshIndexes']
-        self.Spacing = kwargs['motorCfg']['length'] / kwargs['motorCfg']['slots'] / kwargs['canvasCfg']['pixDiv']
+        self.SpacingX = self.L / kwargs['motorCfg']['slots'] / kwargs['canvasCfg']['pixDiv'][0]
+        self.SpacingY = self.H / kwargs['canvasCfg']['pixDiv'][1]
         self.Cspacing = kwargs['canvasCfg']['canvasSpacing'] / self.H
         self.meshDensity = kwargs['canvasCfg']['meshDensity']
         self.hmRegions = kwargs['hamCfg']['hmRegions']
@@ -74,18 +75,18 @@ class Grid(LimMotor):
         self.yMeshSizes = []
 
         # X-direction
-        self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2)
-        self.ppAirBuffer = self.setPixelsPerLength(length=self.Airbuffer, minimum=1)
-        self.ppTooth = self.setPixelsPerLength(length=self.wt, minimum=1)
+        self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2, direction="x")
+        self.ppAirBuffer = self.setPixelsPerLength(length=self.Airbuffer, minimum=1, direction="x")
+        self.ppTooth = self.setPixelsPerLength(length=self.wt, minimum=1, direction="x")
         self.ppSlot = self.ppSlotpitch - self.ppTooth
-        self.ppEndTooth = self.setPixelsPerLength(length=self.endTooth, minimum=1)
+        self.ppEndTooth = self.setPixelsPerLength(length=self.endTooth, minimum=1, direction="x")
         # Y-direction
-        self.ppVac = self.setPixelsPerLength(length=self.vac, override=1)
-        self.ppYoke = self.setPixelsPerLength(length=self.hy, minimum=1)
-        self.ppAirGap = self.setPixelsPerLength(length=self.g, minimum=1)
-        self.ppBladeRotor = self.setPixelsPerLength(length=self.dr, minimum=1)
-        self.ppBackIron = self.setPixelsPerLength(length=self.bi, minimum=1)
-        self.ppSlotHeight = self.setPixelsPerLength(length=self.hs, minimum=2)
+        self.ppVac = self.setPixelsPerLength(length=self.vac, override=1, direction="y")
+        self.ppYoke = self.setPixelsPerLength(length=self.hy, minimum=1, direction="y")
+        self.ppAirGap = self.setPixelsPerLength(length=self.g, minimum=1, direction="y")
+        self.ppBladeRotor = self.setPixelsPerLength(length=self.dr, minimum=1, direction="y")
+        self.ppBackIron = self.setPixelsPerLength(length=self.bi, minimum=1, direction="y")
+        self.ppSlotHeight = self.setPixelsPerLength(length=self.hs, minimum=2, direction="y")
 
         # Keeping the airgap odd allows for a center airgap thrust calculation
         if self.ppAirGap % 2 == 0:
@@ -128,7 +129,7 @@ class Grid(LimMotor):
         self.xListSpatialDatum = [self.Airbuffer, self.endTooth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTooth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppEndTooth, self.ppAirBuffer]
         for Cnt in range(len(self.xMeshSizes)):
-            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
+            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.SpacingX, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
             if self.xMeshSizes[Cnt] < 0:
                 print('negative x mesh sizes', Cnt)
                 return
@@ -147,7 +148,7 @@ class Grid(LimMotor):
                     pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[pixelKey]
                     spatialVal = self.__dict__[spatial] / 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[spatial]
                     self.yListPixelsPerRegion.append(pixelVal)
-                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal, self.Spacing, self.fractionSize,
+                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal, self.SpacingY, self.fractionSize,
                                                         sum(yMeshIndexes[cnt]), self.meshDensity))
                     cnt += 1
 
@@ -327,9 +328,9 @@ class Grid(LimMotor):
             xCnt = 0
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
-                delY = self.Spacing / self.meshDensity[0]
+                delY = self.SpacingY / self.meshDensity[0]
             elif a in self.ySecondEdgeNodes:
-                delY = self.Spacing / self.meshDensity[1]
+                delY = self.SpacingY / self.meshDensity[1]
             else:
                 delY = self.yMeshSizes[c]
 
@@ -337,9 +338,9 @@ class Grid(LimMotor):
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
-                    delX = self.Spacing / self.meshDensity[0]
+                    delX = self.SpacingX / self.meshDensity[0]
                 elif b in self.xSecondEdgeNodes:
-                    delX = self.Spacing / self.meshDensity[1]
+                    delX = self.SpacingX / self.meshDensity[1]
                 else:
                     delX = self.xMeshSizes[d]
 
@@ -348,9 +349,9 @@ class Grid(LimMotor):
 
                 # Keep track of the x coordinate for each node
                 if b in self.xFirstEdgeNodes:
-                    xCnt += self.Spacing / self.meshDensity[0]
+                    xCnt += self.SpacingX / self.meshDensity[0]
                 elif b in self.xSecondEdgeNodes:
-                    xCnt += self.Spacing / self.meshDensity[1]
+                    xCnt += self.SpacingX / self.meshDensity[1]
                 else:
                     xCnt += delX
 
@@ -363,9 +364,9 @@ class Grid(LimMotor):
 
             # Keep track of the y coordinate for each node
             if a in self.yFirstEdgeNodes:
-                yCnt += self.Spacing / self.meshDensity[0]
+                yCnt += self.SpacingY / self.meshDensity[0]
             elif a in self.ySecondEdgeNodes:
-                yCnt += self.Spacing / self.meshDensity[1]
+                yCnt += self.SpacingY / self.meshDensity[1]
             else:
                 yCnt += delY
 
@@ -565,9 +566,16 @@ class Grid(LimMotor):
             j = 0
             i += 1
 
-    def setPixelsPerLength(self, length, minimum=1, override=0):
+    def setPixelsPerLength(self, length, minimum=1, override=0, direction=None):
 
-        pixels = round(length / self.Spacing)
+        if direction == "x":
+            pixels = round(length / self.SpacingX)
+        elif direction == "y":
+            pixels = round(length / self.SpacingY)
+        else:
+            print("Direction parameter options: x, y")
+            return
+
         if override >= 1:
             return override
         else:

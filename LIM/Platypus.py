@@ -363,12 +363,12 @@ def profile_main():
 def main():
 
     # ___Baseline motor configurations___
-    buildMotor(run=False, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
+    buildMotor(run=True, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
                   # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                     "mecRegions": {5: "mec"}},
-                  canvasCfg={"pixDiv": 5, "canvasSpacing": 80, "meshDensity": np.array([4, 2]), "fieldType": "B",
+                  canvasCfg={"pixDiv": [5, 5], "canvasSpacing": 80, "meshDensity": np.array([4, 2]), "fieldType": "B",
                              "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
                              "showFilter": False, "showMatrix": False, "showZeros": True})
 
@@ -382,7 +382,7 @@ def main():
                  "showFilter": False, "showMatrix": False, "showZeros": True}
 
     # ___Motor optimization___
-    platypus(run=True, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Custom motor model___
     buildMotor(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
