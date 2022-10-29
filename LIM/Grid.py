@@ -254,10 +254,11 @@ class Grid(LimMotor):
         self.outUpper_slotsB = phaseToInOut(self.upper_slotsB, 0)
         self.inLower_slotsB = phaseToInOut(self.lower_slotsB, 1)
         self.outLower_slotsB = phaseToInOut(self.lower_slotsB, 0)
-        self.inUpper_slotsC = phaseToInOut(self.upper_slotsC, 1)
-        self.outUpper_slotsC = phaseToInOut(self.upper_slotsC, 0)
-        self.inLower_slotsC = phaseToInOut(self.lower_slotsC, 1)
-        self.outLower_slotsC = phaseToInOut(self.lower_slotsC, 0)
+        # The first coil of phase C is negative unlike phases A and B
+        self.inUpper_slotsC = phaseToInOut(self.ppSlot, self.upper_slotsC, 0)
+        self.outUpper_slotsC = phaseToInOut(self.ppSlot, self.upper_slotsC, 1)
+        self.inLower_slotsC = phaseToInOut(self.ppSlot, self.lower_slotsC, 0)
+        self.outLower_slotsC = phaseToInOut(self.ppSlot, self.lower_slotsC, 1)
 
         for idx in self.removeUpperCoils:
             coilOffset = idx*self.ppSlot
