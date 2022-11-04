@@ -40,12 +40,9 @@ class Grid(LimMotor):
 
         # Turn inputs into attributes
         self.invertY = kwargs['hamCfg']['invertY']
-        xMeshIndexes = kwargs['canvasCfg']['xMeshIndexes']
-        yMeshIndexes = kwargs['canvasCfg']['yMeshIndexes']
         self.SpacingX = self.L / kwargs['motorCfg']['slots'] / kwargs['canvasCfg']['pixDiv'][0]
         self.SpacingY = self.H / kwargs['canvasCfg']['pixDiv'][1]
         self.Cspacing = kwargs['canvasCfg']['canvasSpacing'] / self.H
-        self.meshDensity = kwargs['canvasCfg']['meshDensity']
         self.hmRegions = kwargs['hamCfg']['hmRegions']
         self.mecRegions = kwargs['hamCfg']['mecRegions']
         self.allMecRegions = not self.hmRegions
@@ -65,14 +62,10 @@ class Grid(LimMotor):
         self.yIndexesLowerSlot, self.yIndexesUpperSlot, self.yIndexesYoke = [], [], []
 
         self.removeLowerCoilIdxs, self.removeUpperCoilIdxs = [], []
-        self.xFirstEdgeNodes, self.xSecondEdgeNodes = [], []
-        self.yFirstEdgeNodes, self.ySecondEdgeNodes = [], []
 
         self.yListPixelsPerRegion = []
         self.yIndexesHM, self.yIndexesMEC = [], []
         self.xBoundaryList, self.yBoundaryList = [], []
-
-        self.yMeshSizes = []
 
         # X-direction
         self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2, direction="x")
@@ -103,18 +96,13 @@ class Grid(LimMotor):
         self.ppMEC = 0
         for core in self.mecRegions.values():
             for pixel in self.getFullRegionDict()[core]['pp'].split(', '):
-                self.ppMEC += self.ppSlotHeight // 2 if pixel == 'ppSlotHeight' else self.__dict__[pixel]
+                self.ppMEC += self.ppSlotHeight // 2 if pixel == PP_SLOTHEIGHT else self.__dict__[pixel]
 
         self.ppH = self.ppMEC + self.ppHM
         self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + 2 * self.ppEndTooth + 2 * self.ppAirBuffer
         self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppMEC + self.ppHM)])
 
         self.toothArray, self.slotArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
-
-        self.xMeshSizes = np.zeros(len(xMeshIndexes), dtype=np.float64)
-
-        # Mesh sizing
-        self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
 
         self.mecRegionLength = self.ppMEC * self.ppL
         self.modelHeight = 0
@@ -128,12 +116,14 @@ class Grid(LimMotor):
 
         self.xListSpatialDatum = [self.Airbuffer, self.endTooth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTooth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppEndTooth, self.ppAirBuffer]
+        self.xMeshSizes = np.zeros(len(self.xListSpatialDatum), dtype=np.float64)
         for Cnt in range(len(self.xMeshSizes)):
-            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.SpacingX, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
+            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt])
             if self.xMeshSizes[Cnt] < 0:
                 print('negative x mesh sizes', Cnt)
                 return
 
+        self.yMeshSizes = []
         offsetList = []
         cnt, offsetLower, offsetUpper = 0, 0, 0
         for region in self.getFullRegionDict():
@@ -148,8 +138,7 @@ class Grid(LimMotor):
                     pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[pixelKey]
                     spatialVal = self.__dict__[spatial] / 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[spatial]
                     self.yListPixelsPerRegion.append(pixelVal)
-                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal, self.SpacingY, self.fractionSize,
-                                                        sum(yMeshIndexes[cnt]), self.meshDensity))
+                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal))
                     cnt += 1
 
         # Initialize the y-axis index attributes format: self.yIndexes___
@@ -168,11 +157,18 @@ class Grid(LimMotor):
 
         self.yIdxCenterAirGap = self.yIndexesAirGap[0] + self.ppAirGap // 2
 
+        # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
+        fraction = 0.5
+        doubleBias = self.ppSlotHeight - fraction
+        self.doubleCoilScaling = np.arange(fraction, doubleBias + fraction, 1)
+        if self.invertY:
+            self.doubleCoilScaling = np.flip(self.doubleCoilScaling)
+
         # Thrust of the entire integration region
         self.Fx = 0.0
         self.Fy = 0.0
 
-    def buildGrid(self, xMeshIndexes, yMeshIndexes):
+    def buildGrid(self):
         # TODO The best way to do this is to make the class work for integral mainly and then create a new instance of the class which has double layer
         #  I need to be careful not to mess up my basline motor so I should keep only integral windings for platypus. Start tracing variables like removed slots ...
 
@@ -194,7 +190,6 @@ class Grid(LimMotor):
         self.bufferArray = [x for x in list(range(self.ppL)) if x not in self.slotArray and x not in self.toothArray]
 
         # Split slots into respective phases
-        # TODO Is this good math?
         offset = self.ppSlot*math.ceil(self.q)
 
         def consecutiveCount(numbers):
@@ -232,9 +227,9 @@ class Grid(LimMotor):
         self.lower_slotsC = np.array(lower_slotArrayC)
 
         # Sort coils into direction of current (ex, in and out of page)
-        def phaseToInOut(_array, _offset):
+        def phaseToInOut(_ppSlot, _array, _offset):
             storeArray = np.empty(0, dtype=int)
-            for phase in np.array_split(_array, len(_array) // 2)[_offset::2]:
+            for phase in np.array_split(_array, len(_array) // _ppSlot)[_offset::2]:
                 storeArray = np.concatenate((storeArray, phase))
             return storeArray
 
@@ -246,15 +241,16 @@ class Grid(LimMotor):
                                                                            f'phases terminals: {list(map(lambda x: len(x), [self.upper_slotsA, self.lower_slotsA, self.upper_slotsB, self.lower_slotsB, self.upper_slotsC, self.lower_slotsC]))}',
                                                                cause=True))
 
-        self.inUpper_slotsA = phaseToInOut(self.upper_slotsA, 1)
-        self.outUpper_slotsA = phaseToInOut(self.upper_slotsA, 0)
-        self.inLower_slotsA = phaseToInOut(self.lower_slotsA, 1)
-        self.outLower_slotsA = phaseToInOut(self.lower_slotsA, 0)
-        self.inUpper_slotsB = phaseToInOut(self.upper_slotsB, 1)
-        self.outUpper_slotsB = phaseToInOut(self.upper_slotsB, 0)
-        self.inLower_slotsB = phaseToInOut(self.lower_slotsB, 1)
-        self.outLower_slotsB = phaseToInOut(self.lower_slotsB, 0)
-        # The first coil of phase C is negative unlike phases A and B
+        # The first coil of phases A and B are positive
+        self.inUpper_slotsA = phaseToInOut(self.ppSlot, self.upper_slotsA, 1)
+        self.outUpper_slotsA = phaseToInOut(self.ppSlot, self.upper_slotsA, 0)
+        self.inLower_slotsA = phaseToInOut(self.ppSlot, self.lower_slotsA, 1)
+        self.outLower_slotsA = phaseToInOut(self.ppSlot, self.lower_slotsA, 0)
+        self.inUpper_slotsB = phaseToInOut(self.ppSlot, self.upper_slotsB, 1)
+        self.outUpper_slotsB = phaseToInOut(self.ppSlot, self.upper_slotsB, 0)
+        self.inLower_slotsB = phaseToInOut(self.ppSlot, self.lower_slotsB, 1)
+        self.outLower_slotsB = phaseToInOut(self.ppSlot, self.lower_slotsB, 0)
+        # The first coil of phase C is negative
         self.inUpper_slotsC = phaseToInOut(self.ppSlot, self.upper_slotsC, 0)
         self.outUpper_slotsC = phaseToInOut(self.ppSlot, self.upper_slotsC, 1)
         self.inLower_slotsC = phaseToInOut(self.ppSlot, self.lower_slotsC, 0)
@@ -268,53 +264,6 @@ class Grid(LimMotor):
             coilOffset = idx*self.ppSlot
             self.removeLowerCoilIdxs += self.slotArray[coilOffset:coilOffset + self.ppSlot]
 
-        # MeshIndexes is a list of 1s and 0s for each boundary for each region to say whether or not
-        #  dense meshing is required at the boundary
-        # X Mesh Density
-        Cnt = 0
-        idxOffset = self.xListPixelsPerRegion[Cnt]
-        idxLeft, idxRight = 0, idxOffset
-        idxList = range(self.ppL)
-        for boundary in xMeshIndexes:
-            if boundary[0]:  # Left Boundary in the region
-                firstIndexes = idxList[idxLeft]
-                secondIndexes = idxList[idxLeft + 1]
-                self.xFirstEdgeNodes.append(firstIndexes)
-                self.xSecondEdgeNodes.append(secondIndexes)
-            if boundary[1]:  # Right Boundary in the region
-                firstIndexes = idxList[idxRight - 1]
-                secondIndexes = idxList[idxRight - 2]
-                self.xFirstEdgeNodes.append(firstIndexes)
-                self.xSecondEdgeNodes.append(secondIndexes)
-            idxLeft += idxOffset
-            if Cnt < len(self.xListPixelsPerRegion) - 1:
-                idxOffset = self.xListPixelsPerRegion[Cnt+1]
-            idxRight += idxOffset
-            Cnt += 1
-
-        # Y Mesh Density
-        Cnt = 0
-        idxOffset = self.yListPixelsPerRegion[Cnt]
-        idxLeft, idxRight = 0, idxOffset
-        # TODO Here - yMeshIndexes is not robust since removal of an and bn prior
-        idxList = range(self.ppH)
-        for boundary in yMeshIndexes:
-            if boundary[0]:  # Left Boundary in the region
-                firstIndexes = idxList[idxLeft]
-                secondIndexes = idxList[idxLeft + 1]
-                self.yFirstEdgeNodes.append(firstIndexes)
-                self.ySecondEdgeNodes.append(secondIndexes)
-            if boundary[1]:  # Right Boundary in the region
-                firstIndexes = idxList[idxRight - 1]
-                secondIndexes = idxList[idxRight - 2]
-                self.yFirstEdgeNodes.append(firstIndexes)
-                self.ySecondEdgeNodes.append(secondIndexes)
-            idxLeft += idxOffset
-            if Cnt < len(self.yListPixelsPerRegion) - 1:
-                idxOffset = self.yListPixelsPerRegion[Cnt+1]
-            idxRight += idxOffset
-            Cnt += 1
-
         self.xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1],
                               self.toothArray[self.ppEndTooth - 1]] + self.slotArray[self.ppSlot - 1::self.ppSlot] \
                              + self.toothArray[self.ppEndTooth + self.ppTooth - 1:-self.ppEndTooth:self.ppTooth] + [self.toothArray[-1],
@@ -322,250 +271,27 @@ class Grid(LimMotor):
 
         a, b = 0, 0
         c, d = 0, 0
-        Cnt, yCnt = 0, 0
+        yCnt = 0
         # Assign spatial data to the nodes
         while a < self.ppH:
-
             xCnt = 0
-            # Keep track of the y coordinate for each node
-            if a in self.yFirstEdgeNodes:
-                delY = self.SpacingY / self.meshDensity[0]
-            elif a in self.ySecondEdgeNodes:
-                delY = self.SpacingY / self.meshDensity[1]
-            else:
-                delY = self.yMeshSizes[c]
-
+            delY = self.yMeshSizes[c]
             while b < self.ppL:
-
+                delX = self.xMeshSizes[d]
+                self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY], model=self)
                 # Keep track of the x coordinate for each node
-                if b in self.xFirstEdgeNodes:
-                    delX = self.SpacingX / self.meshDensity[0]
-                elif b in self.xSecondEdgeNodes:
-                    delX = self.SpacingX / self.meshDensity[1]
-                else:
-                    delX = self.xMeshSizes[d]
-
-                self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY],
-                                                          modelDepth=self.D)
-
-                # Keep track of the x coordinate for each node
-                if b in self.xFirstEdgeNodes:
-                    xCnt += self.SpacingX / self.meshDensity[0]
-                elif b in self.xSecondEdgeNodes:
-                    xCnt += self.SpacingX / self.meshDensity[1]
-                else:
-                    xCnt += delX
-
+                xCnt += delX
                 if b in self.xBoundaryList:
                     d += 1
-
                 b += 1
-                Cnt += 1
             d = 0
-
             # Keep track of the y coordinate for each node
-            if a in self.yFirstEdgeNodes:
-                yCnt += self.SpacingY / self.meshDensity[0]
-            elif a in self.ySecondEdgeNodes:
-                yCnt += self.SpacingY / self.meshDensity[1]
-            else:
-                yCnt += delY
-
+            yCnt += delY
             # TODO We cannot have the last row in this list so it must be unwritten
             if a in self.yBoundaryList:
                 c += 1
-
             b = 0
             a += 1
-
-        # Assign property data to the nodes
-        a, b = 0, 0
-        while a < self.ppH:
-            while b < self.ppL:
-                if a in self.yIndexesVacLower or a in self.yIndexesVacUpper:
-                    self.matrix[a][b].material = 'vacuum'
-                    self.matrix[a][b].ur = self.air.ur
-                    self.matrix[a][b].sigma = self.air.sigma
-                elif a in self.yIndexesYoke and b not in self.bufferArray:
-                    self.matrix[a][b].material = 'iron'
-                    self.matrix[a][b].ur = self.iron.ur
-                    self.matrix[a][b].sigma = self.iron.sigma
-                elif a in self.yIndexesAirGap:
-                    self.matrix[a][b].material = 'vacuum'
-                    self.matrix[a][b].ur = self.air.ur
-                    self.matrix[a][b].sigma = self.air.sigma
-                elif a in self.yIndexesBladeRotor:
-                    self.matrix[a][b].material = 'aluminum'
-                    self.matrix[a][b].ur = self.alum.ur
-                    self.matrix[a][b].sigma = self.alum.sigma
-                elif a in self.yIndexesBackIron:
-                    self.matrix[a][b].material = 'iron'
-                    self.matrix[a][b].ur = self.iron.ur
-                    self.matrix[a][b].sigma = self.iron.sigma
-                else:
-                    if a in self.yIndexesUpperSlot:
-                        aIdx = self.upper_slotsA
-                        bIdx = self.upper_slotsB
-                        cIdx = self.upper_slotsC
-                    elif a in self.yIndexesLowerSlot:
-                        aIdx = self.lower_slotsA
-                        bIdx = self.lower_slotsB
-                        cIdx = self.lower_slotsC
-                    else:
-                        aIdx = []
-                        bIdx = []
-                        cIdx = []
-
-                    if b in self.toothArray:
-                        self.matrix[a][b].material = 'iron'
-                        self.matrix[a][b].ur = self.iron.ur
-                        self.matrix[a][b].sigma = self.iron.sigma
-                    elif b in self.bufferArray:
-                        self.matrix[a][b].material = 'vacuum'
-                        self.matrix[a][b].ur = self.air.ur
-                        self.matrix[a][b].sigma = self.air.sigma
-                    elif b in aIdx:
-                        self.matrix[a][b].material = 'copperA'
-                        self.matrix[a][b].ur = self.copper.ur
-                        self.matrix[a][b].sigma = self.copper.sigma
-                    elif b in bIdx:
-                        self.matrix[a][b].material = 'copperB'
-                        self.matrix[a][b].ur = self.copper.ur
-                        self.matrix[a][b].sigma = self.copper.sigma
-                    elif b in cIdx:
-                        self.matrix[a][b].material = 'copperC'
-                        self.matrix[a][b].ur = self.copper.ur
-                        self.matrix[a][b].sigma = self.copper.sigma
-                    elif b in self.removeLowerCoilIdxs + self.removeUpperCoilIdxs:
-                        self.matrix[a][b].material = 'vacuum'
-                        self.matrix[a][b].ur = self.air.ur
-                        self.matrix[a][b].sigma = self.air.sigma
-                    else:
-                        self.matrix[a][b].material = ''
-                b += 1
-            b = 0
-            a += 1
-
-    def finalizeGrid(self):
-        spatialDomainFlag = False
-
-        # Define Indexes
-        idxLeftAirBuffer = 0
-        idxLeftEndTooth = idxLeftAirBuffer + self.ppAirBuffer
-        idxSlot = idxLeftEndTooth + self.ppEndTooth
-        idxTooth = idxSlot + self.ppSlot
-        idxRightEndTooth = self.ppL - self.ppAirBuffer - self.ppEndTooth
-        idxRightAirBuffer = idxRightEndTooth + self.ppEndTooth
-
-        self.checkSpatialMapping(spatialDomainFlag, [idxLeftAirBuffer, idxLeftEndTooth, idxSlot, idxTooth, idxRightEndTooth, idxRightAirBuffer])
-
-        # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
-        fraction = 0.5
-        doubleBias = self.ppSlotHeight - fraction
-        doubleCoilScaling = np.arange(fraction, doubleBias + fraction, 1)
-        if self.invertY:
-            doubleCoilScaling = np.flip(doubleCoilScaling)
-
-        scalingLower, scalingUpper = 0.0, 0.0
-        time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-        turnAreaRatio = self.ppSlot
-        i, j = 0, 0
-        tempTesting = 1
-        while i < self.ppH:
-            while j < self.ppL:
-
-                self.matrix[i][j].Rx, self.matrix[i][j].Ry = self.matrix[i][j].getReluctance(self)
-
-                isCurrentCu = self.matrix[i][j].material[:-1] == 'copper'
-                if i in self.yIndexesLowerSlot and j in self.slotArray:
-                    if j in self.lower_slotsA:
-                        angle_plex = cmath.exp(0)
-                    elif j in self.lower_slotsB:
-                        angle_plex = cmath.exp(-j_plex * pi * 2 / 3)
-                    elif j in self.lower_slotsC:
-                        angle_plex = cmath.exp(j_plex * pi * 2 / 3)
-                    else:
-                        angle_plex = 0.0
-
-                    # Set the scaling factor for MMF in equation 18
-                    if isCurrentCu:
-                        index_ = self.yIndexesLowerSlot.index(i)
-                        if self.invertY:
-                            index_ += len(doubleCoilScaling) // 2
-                        scalingLower = doubleCoilScaling[index_]
-                    else:
-                        scalingLower = 0.0
-
-                elif i in self.yIndexesUpperSlot and j in self.slotArray:
-                    if j in self.upper_slotsA:
-                        angle_plex = cmath.exp(0)
-                    elif j in self.upper_slotsB:
-                        angle_plex = cmath.exp(-j_plex * pi * 2 / 3)
-                    elif j in self.upper_slotsC:
-                        angle_plex = cmath.exp(j_plex * pi * 2 / 3)
-                    else:
-                        angle_plex = 0.0
-
-                    # Set the scaling factor for MMF in equation 18
-                    # 2 coils in slot
-                    yLowerCoilIdx = i + self.ppSlotHeight // 2 if self.invertY else i - self.ppSlotHeight // 2
-                    isLowerCu = self.matrix[yLowerCoilIdx][j].material[:-1] == 'copper'
-                    if isCurrentCu and isLowerCu:
-                        index_ = self.yIndexesUpperSlot.index(i)
-                        if not self.invertY:
-                            index_ += len(doubleCoilScaling) // 2
-                        scalingUpper = doubleCoilScaling[index_]
-                    # coil in upper slot only
-                    elif isCurrentCu and not isLowerCu:
-                        index_ = self.yIndexesUpperSlot.index(i)
-                        if self.invertY:
-                            index_ -= len(doubleCoilScaling) // 2
-                        scalingUpper = doubleCoilScaling[index_]
-                    else:
-                        scalingUpper = 0.0
-
-                else:
-                    angle_plex = 0.0
-                    scalingLower = 0.0
-                    scalingUpper = 0.0
-
-                self.matrix[i][j].Iph = self.Ip * angle_plex * time_plex
-
-                # Lower slots only
-                if i in self.yIndexesLowerSlot and j in self.slotArray:
-                    if j in self.inLower_slotsA or j in self.inLower_slotsB or j in self.inLower_slotsC:
-                        inOutCoeffMMF = -1
-                    elif j in self.outLower_slotsA or j in self.outLower_slotsB or j in self.outLower_slotsC:
-                        inOutCoeffMMF = 1
-                    else:
-                        if j not in self.removeLowerCoilIdxs:
-                            print('Shouldnt happen')
-                        inOutCoeffMMF = 0
-
-                    self.matrix[i][j].MMF = inOutCoeffMMF * scalingLower * self.N * self.matrix[i][j].Iph / (2 * turnAreaRatio)
-
-                # Upper slots only
-                elif i in self.yIndexesUpperSlot and j in self.slotArray:
-                    if j in self.inUpper_slotsA or j in self.inUpper_slotsB or j in self.inUpper_slotsC:
-                        inOutCoeffMMF = -1
-                    elif j in self.outUpper_slotsA or j in self.outUpper_slotsB or j in self.outUpper_slotsC:
-                        inOutCoeffMMF = 1
-                    else:
-                        inOutCoeffMMF = 0
-
-                    self.matrix[i][j].MMF = inOutCoeffMMF * scalingUpper * self.N * self.matrix[i][j].Iph / (2 * turnAreaRatio)
-
-                # Stator teeth
-                else:
-                    self.matrix[i][j].MMF = 0.0
-
-                # # TODO - This is temp
-                # if j in self.outLower_slotsC[1]:
-                #     self.matrix[i][j].MMF *= 1
-
-                j += 1
-            j = 0
-            i += 1
 
     def setPixelsPerLength(self, length, minimum=1, override=0, direction=None):
 
@@ -648,9 +374,17 @@ class Grid(LimMotor):
         return previous, next_
 
     # This function is written to catch any errors in the mapping between canvas and space for both x and y coordinates
-    def checkSpatialMapping(self, spatialDomainFlag, iIdxs):
+    def checkSpatialMapping(self):
 
-        iIdxLeftAirBuffer, iIdxLeftEndTooth, iIdxSlot, iIdxTooth, iIdxRightEndTooth, iIdxRightAirBuffer = iIdxs
+        spatialDomainFlag = False
+
+        # Define Indexes
+        idxLeftAirBuffer = 0
+        idxLeftEndTooth = idxLeftAirBuffer + self.ppAirBuffer
+        idxSlot = idxLeftEndTooth + self.ppEndTooth
+        idxTooth = idxSlot + self.ppSlot
+        idxRightEndTooth = self.ppL - self.ppAirBuffer - self.ppEndTooth
+        idxRightAirBuffer = idxRightEndTooth + self.ppEndTooth
 
         # The difference between expected and actual is rounded due to quantization error
         #  in the 64 bit floating point arithmetic
@@ -659,32 +393,32 @@ class Grid(LimMotor):
 
         yIdx = 0
         # Check slotpitch
-        if round(self.slotpitch - (self.matrix[yIdx][iIdxTooth + self.ppTooth].x - self.matrix[yIdx][iIdxSlot].x), 12) != 0:
-            print(f'flag - slotpitch: {self.slotpitch - (self.matrix[yIdx][iIdxTooth + self.ppTooth].x - self.matrix[yIdx][iIdxSlot].x)}')
+        if round(self.slotpitch - (self.matrix[yIdx][idxTooth + self.ppTooth].x - self.matrix[yIdx][idxSlot].x), 12) != 0:
+            print(f'flag - slotpitch: {self.slotpitch - (self.matrix[yIdx][idxTooth + self.ppTooth].x - self.matrix[yIdx][idxSlot].x)}')
             spatialDomainFlag = True
         # Check slot width
-        if round(self.ws - (self.matrix[yIdx][iIdxTooth].x - self.matrix[yIdx][iIdxSlot].x), 12) != 0:
-            print(f'flag - slots: {self.ws - (self.matrix[yIdx][iIdxTooth].x - self.matrix[yIdx][iIdxSlot].x)}')
+        if round(self.ws - (self.matrix[yIdx][idxTooth].x - self.matrix[yIdx][idxSlot].x), 12) != 0:
+            print(f'flag - slots: {self.ws - (self.matrix[yIdx][idxTooth].x - self.matrix[yIdx][idxSlot].x)}')
             spatialDomainFlag = True
         # Check tooth width
-        if round(self.wt - (self.matrix[yIdx][iIdxTooth + self.ppTooth].x - self.matrix[yIdx][iIdxTooth].x), 12) != 0:
-            print(f'flag - teeth: {self.wt - (self.matrix[yIdx][iIdxTooth + self.ppTooth].x - self.matrix[yIdx][iIdxTooth].x)}')
+        if round(self.wt - (self.matrix[yIdx][idxTooth + self.ppTooth].x - self.matrix[yIdx][idxTooth].x), 12) != 0:
+            print(f'flag - teeth: {self.wt - (self.matrix[yIdx][idxTooth + self.ppTooth].x - self.matrix[yIdx][idxTooth].x)}')
             spatialDomainFlag = True
         # Check left end tooth
-        if round(self.endTooth - (self.matrix[yIdx][iIdxSlot].x - self.matrix[yIdx][iIdxLeftEndTooth].x), 12) != 0:
-            print(f'flag - left end tooth: {self.endTooth - (self.matrix[yIdx][iIdxSlot].x - self.matrix[yIdx][iIdxLeftEndTooth].x)}')
+        if round(self.endTooth - (self.matrix[yIdx][idxSlot].x - self.matrix[yIdx][idxLeftEndTooth].x), 12) != 0:
+            print(f'flag - left end tooth: {self.endTooth - (self.matrix[yIdx][idxSlot].x - self.matrix[yIdx][idxLeftEndTooth].x)}')
             spatialDomainFlag = True
         # Check right end tooth
-        if round(self.endTooth - (self.matrix[yIdx][iIdxRightAirBuffer].x - self.matrix[yIdx][iIdxRightEndTooth].x), 12) != 0:
-            print(f'flag - right end tooth: {self.endTooth - (self.matrix[yIdx][iIdxRightAirBuffer].x - self.matrix[yIdx][iIdxRightEndTooth].x)}')
+        if round(self.endTooth - (self.matrix[yIdx][idxRightAirBuffer].x - self.matrix[yIdx][idxRightEndTooth].x), 12) != 0:
+            print(f'flag - right end tooth: {self.endTooth - (self.matrix[yIdx][idxRightAirBuffer].x - self.matrix[yIdx][idxRightEndTooth].x)}')
             spatialDomainFlag = True
         # Check left air buffer
-        if round(self.Airbuffer - (self.matrix[yIdx][iIdxLeftEndTooth].x - self.matrix[yIdx][iIdxLeftAirBuffer].x), 12) != 0:
-            print(f'flag - left air buffer: {self.Airbuffer - (self.matrix[yIdx][iIdxLeftEndTooth].x - self.matrix[yIdx][iIdxLeftAirBuffer].x)}')
+        if round(self.Airbuffer - (self.matrix[yIdx][idxLeftEndTooth].x - self.matrix[yIdx][idxLeftAirBuffer].x), 12) != 0:
+            print(f'flag - left air buffer: {self.Airbuffer - (self.matrix[yIdx][idxLeftEndTooth].x - self.matrix[yIdx][idxLeftAirBuffer].x)}')
             spatialDomainFlag = True
         # Check right air buffer
-        if round(self.Airbuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][iIdxRightAirBuffer].x), 12) != 0:
-            print(f'flag - right air buffer: {self.Airbuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][iIdxRightAirBuffer].x)}')
+        if round(self.Airbuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][idxRightAirBuffer].x), 12) != 0:
+            print(f'flag - right air buffer: {self.Airbuffer - (self.matrix[yIdx][-1].x + self.matrix[yIdx][-1].lx - self.matrix[yIdx][idxRightAirBuffer].x)}')
             spatialDomainFlag = True
 
         # Y direction Checks
@@ -718,7 +452,6 @@ class Grid(LimMotor):
         if round(diffYokeDims, 12) != 0:
             print(f'flag - yoke: {diffYokeDims}')
             spatialDomainFlag = True
-
         # Check Back Iron
         diffBackIronDims = self.bi - (yUpperPos(self.yIndexesBackIron) - self.matrix[self.yIndexesBackIron[0]][xIdx].y)
         if round(diffBackIronDims, 12) != 0:
@@ -730,6 +463,18 @@ class Grid(LimMotor):
                                                            description='ERROR - The spatial domain does not match with the canvas domain',
                                                            cause=spatialDomainFlag))
 
+    def timePlex(self):
+        return cmath.exp(j_plex * 2 * pi * self.f * self.t)
+
+    def angleA(self):
+        return cmath.exp(0)
+
+    def angleB(self):
+        # TODO This could be an error since rotation is generally: A(0°), B(120°), C(240°)
+        return cmath.exp(-j_plex * pi * 2 / 3)
+
+    def angleC(self):
+        return cmath.exp(j_plex * pi * 2 / 3)
 
 class Node(object):
     def __init__(self, kwargs, buildFromJson=False):
@@ -742,47 +487,185 @@ class Node(object):
                     self.__dict__[attr_key] = kwargs[attr_key]
             return
 
+        model = kwargs['model']
+
         self.xIndex = kwargs['iIndex'][0]
         self.yIndex = kwargs['iIndex'][1]
 
-        # Initialize dense meshing near slot and teeth edges in x direction
+        # x-direction
         self.x = kwargs['iXinfo'][0]
         self.lx = kwargs['iXinfo'][1]
 
-        # Initialize dense meshing near slot and teeth edges in y direction
+        # y-direction
         self.y = kwargs['iYinfo'][0]
         self.ly = kwargs['iYinfo'][1]
 
         # Cross sectional area
-        self.Szy = self.ly*kwargs['modelDepth']
-        self.Sxz = self.lx*kwargs['modelDepth']
+        self.Szy = self.ly * model.D
+        self.Sxz = self.lx * model.D
 
         self.xCenter = self.x + self.lx / 2
         self.yCenter = self.y + self.ly / 2
 
         # Node properties
-        self.ur = 0.0
-        self.sigma = 0.0
-        self.material = ''
-        self.colour = ''
+        if self.yIndex in model.yIndexesVacLower or self.yIndex in model.yIndexesVacUpper:
+            self.material = 'vacuum'
+            self.ur = model.air.ur
+            self.sigma = model.air.sigma
+        elif self.yIndex in model.yIndexesYoke and self.xIndex not in model.bufferArray:
+            self.material = 'iron'
+            self.ur = model.iron.ur
+            self.sigma = model.iron.sigma
+        elif self.yIndex in model.yIndexesAirGap:
+            self.material = 'vacuum'
+            self.ur = model.air.ur
+            self.sigma = model.air.sigma
+        elif self.yIndex in model.yIndexesBladeRotor:
+            self.material = 'aluminum'
+            self.ur = model.alum.ur
+            self.sigma = model.alum.sigma
+        elif self.yIndex in model.yIndexesBackIron:
+            self.material = 'iron'
+            self.ur = model.iron.ur
+            self.sigma = model.iron.sigma
+        else:
+            if self.yIndex in model.yIndexesUpperSlot:
+                aIdx = model.upper_slotsA
+                bIdx = model.upper_slotsB
+                cIdx = model.upper_slotsC
+            elif self.yIndex in model.yIndexesLowerSlot:
+                aIdx = model.lower_slotsA
+                bIdx = model.lower_slotsB
+                cIdx = model.lower_slotsC
+            else:
+                aIdx = []
+                bIdx = []
+                cIdx = []
+
+            if self.xIndex in model.toothArray:
+                self.material = 'iron'
+                self.ur = model.iron.ur
+                self.sigma = model.iron.sigma
+            elif self.xIndex in model.bufferArray:
+                self.material = 'vacuum'
+                self.ur = model.air.ur
+                self.sigma = model.air.sigma
+            elif self.xIndex in aIdx:
+                self.material = 'copperA'
+                self.ur = model.copper.ur
+                self.sigma = model.copper.sigma
+            elif self.xIndex in bIdx:
+                self.material = 'copperB'
+                self.ur = model.copper.ur
+                self.sigma = model.copper.sigma
+            elif self.xIndex in cIdx:
+                self.material = 'copperC'
+                self.ur = model.copper.ur
+                self.sigma = model.copper.sigma
+            elif self.xIndex in model.removeLowerCoilIdxs + model.removeUpperCoilIdxs:
+                self.material = 'vacuum'
+                self.ur = model.air.ur
+                self.sigma = model.air.sigma
+            else:
+                self.material = ''
+
+        # Define colour
+        idx = np.where(matList == self.material)
+        if len(idx[0] == 1):
+            matIdx = idx[0][0]
+            self.colour = matList[matIdx][1]
+        else:
+            self.colour = 'orange'
+
+        self.Rx, self.Ry = self.getReluctance(model)
+
+        scalingLower, scalingUpper = 0.0, 0.0
+        isCurrentCu = self.material[:-1] == 'copper'
+        if self.yIndex in model.yIndexesLowerSlot and self.xIndex in model.slotArray:
+            if self.xIndex in model.lower_slotsA:
+                angle_plex = model.angleA()
+            elif self.xIndex in model.lower_slotsB:
+                angle_plex = model.angleB()
+            elif self.xIndex in model.lower_slotsC:
+                angle_plex = model.angleC()
+            else:
+                angle_plex = 0.0
+
+            # Set the scaling factor for MMF in equation 18
+            if isCurrentCu:
+                index_ = model.yIndexesLowerSlot.index(self.yIndex)
+                if model.invertY:
+                    index_ += len(model.doubleCoilScaling) // 2
+                scalingLower = model.doubleCoilScaling[index_]
+            else:
+                scalingLower = 0.0
+
+            # Determine coil terminal direction
+            if self.xIndex in model.inLower_slotsA or self.xIndex in model.inLower_slotsB or self.xIndex in model.inLower_slotsC:
+                inOutCoeffMMF = -1
+            elif self.xIndex in model.outLower_slotsA or self.xIndex in model.outLower_slotsB or self.xIndex in model.outLower_slotsC:
+                inOutCoeffMMF = 1
+            else:
+                inOutCoeffMMF = 0
+
+        elif self.yIndex in model.yIndexesUpperSlot and self.xIndex in model.slotArray:
+            if self.xIndex in model.upper_slotsA:
+                angle_plex = model.angleA()
+            elif self.xIndex in model.upper_slotsB:
+                angle_plex = model.angleB()
+            elif self.xIndex in model.upper_slotsC:
+                angle_plex = model.angleC()
+            else:
+                angle_plex = 0.0
+
+            # Set the scaling factor for MMF in equation 18
+            yLowerCoilIdx = self.yIndex + model.ppSlotHeight // 2 if model.invertY else self.yIndex - model.ppSlotHeight // 2
+            isLowerCu = model.matrix[yLowerCoilIdx][self.xIndex].material[:-1] == 'copper'
+            # 2 coils in slot
+            if isCurrentCu and isLowerCu:
+                index_ = model.yIndexesUpperSlot.index(self.yIndex)
+                if not model.invertY:
+                    index_ += len(model.doubleCoilScaling) // 2
+                scalingUpper = model.doubleCoilScaling[index_]
+            # coil in upper slot only
+            elif isCurrentCu and not isLowerCu:
+                index_ = model.yIndexesUpperSlot.index(self.yIndex)
+                if model.invertY:
+                    index_ -= len(model.doubleCoilScaling) // 2
+                scalingUpper = model.doubleCoilScaling[index_]
+            else:
+                scalingUpper = 0.0
+
+            # Determine coil terminal direction
+            if self.xIndex in model.inUpper_slotsA or self.xIndex in model.inUpper_slotsB or self.xIndex in model.inUpper_slotsC:
+                inOutCoeffMMF = -1
+            elif self.xIndex in model.outUpper_slotsA or self.xIndex in model.outUpper_slotsB or self.xIndex in model.outUpper_slotsC:
+                inOutCoeffMMF = 1
+            else:
+                inOutCoeffMMF = 0
+
+        else:
+            angle_plex = 0.0
+            scalingLower = 0.0
+            scalingUpper = 0.0
+            inOutCoeffMMF = 0
+
+        # Assign the current and MMF per node
+        self.Iph = model.Ip * angle_plex * model.timePlex()
+        self.MMF = inOutCoeffMMF * model.N * self.Iph / (2 * model.ppSlot)
+        if self.yIndex in model.yIndexesLowerSlot and self.xIndex in model.slotArray:
+            self.MMF *= scalingLower
+        elif self.yIndex in model.yIndexesUpperSlot and self.xIndex in model.slotArray:
+            self.MMF *= scalingUpper
+        else:
+            self.MMF = 0.0
 
         # Potential
         self.Yk = np.cdouble(0.0)
-
         # B field
         self.Bx, self.By, self.B = np.zeros(3, dtype=np.cdouble)
-
         # Flux
         self.phiXp, self.phiXn, self.phiYp, self.phiYn, self.phiError = np.zeros(5, dtype=np.cdouble)
-
-        # Current
-        self.Iph = np.cdouble(0.0)  # phase
-
-        # MMF
-        self.MMF = np.cdouble(0.0)  # AmpereTurns
-
-        # Reluctance
-        self.Rx, self.Ry = np.zeros(2, dtype=np.float64)
 
     @classmethod
     def buildFromScratch(cls, **kwargs):
@@ -865,8 +748,6 @@ class Region(object):
         return cls(kwargs=jsonObject, buildFromJson=True)
 
 
-def meshBoundary(spatial, pixels, spacing, fraction, numBoundaries, meshDensity):
+def meshBoundary(spatial, pixels):
 
-    meshSize = (spatial - numBoundaries*fraction*spacing) / (pixels - len(meshDensity)*numBoundaries)
-
-    return meshSize
+    return spatial / pixels
