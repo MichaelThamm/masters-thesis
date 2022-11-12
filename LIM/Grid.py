@@ -8,26 +8,6 @@ PP_SLOTHEIGHT = 'ppSlotHeight'
 
 class Grid(LimMotor):
 
-    lower_slotsA: ndarray
-    upper_slotsA: ndarray
-    lower_slotsB: ndarray
-    upper_slotsB: ndarray
-    lower_slotsC: ndarray
-    upper_slotsC: ndarray
-
-    inLower_slotsA: ndarray
-    outLower_slotsA: ndarray
-    inUpper_slotsA: ndarray
-    outUpper_slotsA: ndarray
-    inLower_slotsB: ndarray
-    outLower_slotsB: ndarray
-    inUpper_slotsB: ndarray
-    outUpper_slotsB: ndarray
-    inLower_slotsC: ndarray
-    outLower_slotsC: ndarray
-    inUpper_slotsC: ndarray
-    outUpper_slotsC: ndarray
-
     def __init__(self, kwargs, buildBaseline=False):
 
         super().__init__(kwargs['motorCfg'], buildBaseline)
@@ -168,9 +148,8 @@ class Grid(LimMotor):
         self.Fx = 0.0
         self.Fy = 0.0
 
+
     def buildGrid(self):
-        # TODO The best way to do this is to make the class work for integral mainly and then create a new instance of the class which has double layer
-        #  I need to be careful not to mess up my basline motor so I should keep only integral windings for platypus. Start tracing variables like removed slots ...
 
         #  Initialize grid with Nodes
         listOffset = self.ppAirBuffer + self.ppEndTooth
@@ -189,80 +168,7 @@ class Grid(LimMotor):
         self.slotArray = [x for x in range(self.ppAirBuffer, self.ppL - self.ppAirBuffer) if x not in self.toothArray]
         self.bufferArray = [x for x in list(range(self.ppL)) if x not in self.slotArray and x not in self.toothArray]
 
-        # Split slots into respective phases
-        offset = self.ppSlot*math.ceil(self.q)
-
-        def consecutiveCount(numbers):
-            _idx = 0
-            while _idx < (len(numbers) - 2) and (numbers[_idx+1] - numbers[_idx] == 1):
-                _idx += 1
-            return _idx + 1
-
-        if len(self.removeUpperCoils) == 0:
-            upperSlotArray = self.slotArray
-        else:
-            leftRemoveUpper = consecutiveCount(self.removeUpperCoils)
-            upperSlotArray = self.slotArray[leftRemoveUpper*offset:-(len(self.removeUpperCoils)-leftRemoveUpper)*offset]
-        if len(self.removeLowerCoils) == 0:
-            lowerSlotArray = self.slotArray
-        else:
-            leftRemoveLower = consecutiveCount(self.removeLowerCoils)
-            lowerSlotArray = self.slotArray[leftRemoveLower*offset:-(len(self.removeLowerCoils)-leftRemoveLower)*offset]
-
-        upper_slotArrayA, upper_slotArrayB, upper_slotArrayC = [], [], []
-        lower_slotArrayA, lower_slotArrayB, lower_slotArrayC = [], [], []
-        for threeSlots in range(0, self.slots, 3):
-            upper_slotArrayA += upperSlotArray[threeSlots*offset:(threeSlots+1)*offset]
-            upper_slotArrayB += upperSlotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
-            upper_slotArrayC += upperSlotArray[(threeSlots+1)*offset:(threeSlots+2)*offset]
-            lower_slotArrayA += lowerSlotArray[threeSlots*offset:(threeSlots+1)*offset]
-            lower_slotArrayB += lowerSlotArray[(threeSlots+2)*offset:(threeSlots+3)*offset]
-            lower_slotArrayC += lowerSlotArray[(threeSlots+1)*offset:(threeSlots+2)*offset]
-
-        self.upper_slotsA = np.array(upper_slotArrayA)
-        self.lower_slotsA = np.array(lower_slotArrayA)
-        self.upper_slotsB = np.array(upper_slotArrayB)
-        self.lower_slotsB = np.array(lower_slotArrayB)
-        self.upper_slotsC = np.array(upper_slotArrayC)
-        self.lower_slotsC = np.array(lower_slotArrayC)
-
-        # Sort coils into direction of current (ex, in and out of page)
-        def phaseToInOut(_ppSlot, _array, _offset):
-            storeArray = np.empty(0, dtype=int)
-            for phase in np.array_split(_array, len(_array) // _ppSlot)[_offset::2]:
-                storeArray = np.concatenate((storeArray, phase))
-            return storeArray
-
-        # TODO I need to make this winding shifting more robust. I need to find out how much I should shift by and then look into plotting multiple aigrap plots of stator sine wave
-        if not all(list(map(lambda x: len(x) == len(self.upper_slotsA), [self.lower_slotsA, self.upper_slotsB, self.lower_slotsB, self.upper_slotsC, self.lower_slotsC]))):
-            self.writeErrorToDict(key='name',
-                                  error=Error.buildFromScratch(name='windingError',
-                                                               description='Validate that there are no monopoles and that each phase has the same number of terminals\n' +
-                                                                           f'phases terminals: {list(map(lambda x: len(x), [self.upper_slotsA, self.lower_slotsA, self.upper_slotsB, self.lower_slotsB, self.upper_slotsC, self.lower_slotsC]))}',
-                                                               cause=True))
-
-        # The first coil of phases A and B are positive
-        self.inUpper_slotsA = phaseToInOut(self.ppSlot, self.upper_slotsA, 1)
-        self.outUpper_slotsA = phaseToInOut(self.ppSlot, self.upper_slotsA, 0)
-        self.inLower_slotsA = phaseToInOut(self.ppSlot, self.lower_slotsA, 1)
-        self.outLower_slotsA = phaseToInOut(self.ppSlot, self.lower_slotsA, 0)
-        self.inUpper_slotsB = phaseToInOut(self.ppSlot, self.upper_slotsB, 1)
-        self.outUpper_slotsB = phaseToInOut(self.ppSlot, self.upper_slotsB, 0)
-        self.inLower_slotsB = phaseToInOut(self.ppSlot, self.lower_slotsB, 1)
-        self.outLower_slotsB = phaseToInOut(self.ppSlot, self.lower_slotsB, 0)
-        # The first coil of phase C is negative
-        self.inUpper_slotsC = phaseToInOut(self.ppSlot, self.upper_slotsC, 0)
-        self.outUpper_slotsC = phaseToInOut(self.ppSlot, self.upper_slotsC, 1)
-        self.inLower_slotsC = phaseToInOut(self.ppSlot, self.lower_slotsC, 0)
-        self.outLower_slotsC = phaseToInOut(self.ppSlot, self.lower_slotsC, 1)
-
-        for idx in self.removeUpperCoils:
-            coilOffset = idx*self.ppSlot
-            self.removeUpperCoilIdxs += self.slotArray[coilOffset:coilOffset + self.ppSlot]
-
-        for idx in self.removeLowerCoils:
-            coilOffset = idx*self.ppSlot
-            self.removeLowerCoilIdxs += self.slotArray[coilOffset:coilOffset + self.ppSlot]
+        self.setTerminalNodeIdxs()
 
         self.xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1],
                               self.toothArray[self.ppEndTooth - 1]] + self.slotArray[self.ppSlot - 1::self.ppSlot] \
@@ -287,7 +193,6 @@ class Grid(LimMotor):
             d = 0
             # Keep track of the y coordinate for each node
             yCnt += delY
-            # TODO We cannot have the last row in this list so it must be unwritten
             if a in self.yBoundaryList:
                 c += 1
             b = 0
@@ -476,6 +381,18 @@ class Grid(LimMotor):
     def angleC(self):
         return cmath.exp(j_plex * pi * 2 / 3)
 
+    def setTerminalNodeIdxs(self):
+        # Terminals are in slot indexes and need to convert them into node indexes
+        offset = self.ppSlot * math.ceil(self.q)
+        self.terminalIdxs = copy.deepcopy(TERMINAL_STRUCTURE)
+        for layer in self.terminalSlots.keys():
+            for phase in self.terminalSlots[layer].keys():
+                for direction, idxs in self.terminalSlots[layer][phase].items():
+                    self.terminalIdxs[layer][phase][direction] = []
+                    for idx in idxs:
+                        self.terminalIdxs[layer][phase][direction] += self.slotArray[idx*offset:(idx+1)*offset]
+
+
 class Node(object):
     def __init__(self, kwargs, buildFromJson=False):
 
@@ -507,6 +424,9 @@ class Node(object):
         self.xCenter = self.x + self.lx / 2
         self.yCenter = self.y + self.ly / 2
 
+        upper = model.terminalIdxs["upper"]
+        lower = model.terminalIdxs["lower"]
+
         # Node properties
         if self.yIndex in model.yIndexesVacLower or self.yIndex in model.yIndexesVacUpper:
             self.material = 'vacuum'
@@ -530,17 +450,17 @@ class Node(object):
             self.sigma = model.iron.sigma
         else:
             if self.yIndex in model.yIndexesUpperSlot:
-                aIdx = model.upper_slotsA
-                bIdx = model.upper_slotsB
-                cIdx = model.upper_slotsC
+                aIdx = upper["A"]
+                bIdx = upper["B"]
+                cIdx = upper["C"]
             elif self.yIndex in model.yIndexesLowerSlot:
-                aIdx = model.lower_slotsA
-                bIdx = model.lower_slotsB
-                cIdx = model.lower_slotsC
+                aIdx = lower["A"]
+                bIdx = lower["B"]
+                cIdx = lower["C"]
             else:
-                aIdx = []
-                bIdx = []
-                cIdx = []
+                aIdx = {"pos": [], "neg": []}
+                bIdx = {"pos": [], "neg": []}
+                cIdx = {"pos": [], "neg": []}
 
             if self.xIndex in model.toothArray:
                 self.material = 'iron'
@@ -550,24 +470,22 @@ class Node(object):
                 self.material = 'vacuum'
                 self.ur = model.air.ur
                 self.sigma = model.air.sigma
-            elif self.xIndex in aIdx:
+            elif self.xIndex in aIdx["pos"] + aIdx["neg"]:
                 self.material = 'copperA'
                 self.ur = model.copper.ur
                 self.sigma = model.copper.sigma
-            elif self.xIndex in bIdx:
+            elif self.xIndex in bIdx["pos"] + bIdx["neg"]:
                 self.material = 'copperB'
                 self.ur = model.copper.ur
                 self.sigma = model.copper.sigma
-            elif self.xIndex in cIdx:
+            elif self.xIndex in cIdx["pos"] + cIdx["neg"]:
                 self.material = 'copperC'
                 self.ur = model.copper.ur
                 self.sigma = model.copper.sigma
-            elif self.xIndex in model.removeLowerCoilIdxs + model.removeUpperCoilIdxs:
+            else:
                 self.material = 'vacuum'
                 self.ur = model.air.ur
                 self.sigma = model.air.sigma
-            else:
-                self.material = ''
 
         # Define colour
         idx = np.where(matList == self.material)
@@ -582,11 +500,11 @@ class Node(object):
         scalingLower, scalingUpper = 0.0, 0.0
         isCurrentCu = self.material[:-1] == 'copper'
         if self.yIndex in model.yIndexesLowerSlot and self.xIndex in model.slotArray:
-            if self.xIndex in model.lower_slotsA:
+            if self.xIndex in lower["A"]:
                 angle_plex = model.angleA()
-            elif self.xIndex in model.lower_slotsB:
+            elif self.xIndex in lower["B"]:
                 angle_plex = model.angleB()
-            elif self.xIndex in model.lower_slotsC:
+            elif self.xIndex in lower["C"]:
                 angle_plex = model.angleC()
             else:
                 angle_plex = 0.0
@@ -601,19 +519,19 @@ class Node(object):
                 scalingLower = 0.0
 
             # Determine coil terminal direction
-            if self.xIndex in model.inLower_slotsA or self.xIndex in model.inLower_slotsB or self.xIndex in model.inLower_slotsC:
+            if self.xIndex in lower["A"]["neg"] + lower["B"]["neg"] + lower["C"]["neg"]:
                 inOutCoeffMMF = -1
-            elif self.xIndex in model.outLower_slotsA or self.xIndex in model.outLower_slotsB or self.xIndex in model.outLower_slotsC:
+            elif self.xIndex in lower["A"]["pos"] + lower["B"]["pos"] + lower["C"]["pos"]:
                 inOutCoeffMMF = 1
             else:
                 inOutCoeffMMF = 0
 
         elif self.yIndex in model.yIndexesUpperSlot and self.xIndex in model.slotArray:
-            if self.xIndex in model.upper_slotsA:
+            if self.xIndex in upper["A"]:
                 angle_plex = model.angleA()
-            elif self.xIndex in model.upper_slotsB:
+            elif self.xIndex in upper["B"]:
                 angle_plex = model.angleB()
-            elif self.xIndex in model.upper_slotsC:
+            elif self.xIndex in upper["C"]:
                 angle_plex = model.angleC()
             else:
                 angle_plex = 0.0
@@ -637,9 +555,9 @@ class Node(object):
                 scalingUpper = 0.0
 
             # Determine coil terminal direction
-            if self.xIndex in model.inUpper_slotsA or self.xIndex in model.inUpper_slotsB or self.xIndex in model.inUpper_slotsC:
+            if self.xIndex in upper["A"]["neg"] + upper["B"]["neg"] + upper["C"]["neg"]:
                 inOutCoeffMMF = -1
-            elif self.xIndex in model.outUpper_slotsA or self.xIndex in model.outUpper_slotsB or self.xIndex in model.outUpper_slotsC:
+            elif self.xIndex in upper["A"]["pos"] + upper["B"]["pos"] + upper["C"]["pos"]:
                 inOutCoeffMMF = 1
             else:
                 inOutCoeffMMF = 0

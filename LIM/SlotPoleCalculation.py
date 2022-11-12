@@ -1,5 +1,5 @@
 """IMPORT LIBRARIES"""
-
+import copy
 import math
 import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
@@ -21,6 +21,7 @@ PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 pi = math.pi
 j_plex = complex(0, 1)
 uo = (10 ** - 7)*4*pi
+TERMINAL_STRUCTURE = {"upper": {"A": {}, "B": {}, "C": {}}, "lower": {"A": {}, "B": {}, "C": {}}}
 
 
 class LimMotor(object):
@@ -38,10 +39,10 @@ class LimMotor(object):
         # Stator Dimension Variables
         self.m = 3
         self.slots = motorCfg["slots"]
-        self.poles = motorCfg["poles"]
-        self.q = self.slots/self.poles/self.m
+        self.polePairs = motorCfg["pole_pairs"]
+        self.q = self.slots / (2 * self.polePairs * self.m)
         self.L = motorCfg["length"]  # meters
-        self.Tp = self.L/self.poles  # meters
+        self.Tp = self.L / (2 * self.polePairs)  # meters
 
         if self.isBaseline:
             self.ws = 10 / 1000  # meters
@@ -54,10 +55,11 @@ class LimMotor(object):
         else:
             self.ws = self.reverseWs(endTooth2SlotWidthRatio=1)  # meters
             self.wt = (3/5) * self.ws  # meters
-            self.Tper = 1.25 * self.L  # meters  # TODO I should check with the baseline that a change to the Airbuffer does not make much difference to the result
-            self.windingLayers = 1
-            self.windingShift, self.removeUpperCoils, self.removeLowerCoils = [], [], []
+            self.Tper = 1.25 * self.L  # meters
+            self.windingLayers, self.windingShift = 1, 2
+            self.removeUpperCoils, self.removeLowerCoils = [], []
 
+        self.terminalSlots = self.wdt()
         self.slotpitch = self.ws + self.wt  # meters
         self.endTooth = self.getLenEndTooth()  # meters
         self.writeErrorToDict(key='name',
@@ -170,6 +172,100 @@ class LimMotor(object):
 
     def validateLength(self):
         return round(self.L - (self.slotpitch*(self.slots-1)+self.ws+2*self.endTooth), 12) == 0
+
+    def shiftWindings(self, array):
+        start = array[0] + self.windingShift
+        if start >= 2 * self.m:
+            start -= 2 * self.m
+        idxs = len(range(start, self.slots, 2 * self.m))
+        return np.array([start + i * 2 * self.m for i in range(idxs)])
+
+    def getLowerTerminals(self, dict):
+        lowerTerminals = {}
+        if self.windingShift == 0:
+            lowerTerminals["pos"] = dict["pos"]
+            lowerTerminals["neg"] = dict["neg"]
+        else:
+            lowerTerminals["pos"] = self.shiftWindings(dict["neg"])
+            lowerTerminals["neg"] = self.shiftWindings(dict["pos"])
+
+        return lowerTerminals
+
+    def wdt(self):
+        terminals = copy.deepcopy(TERMINAL_STRUCTURE)
+
+        if self.isBaseline:
+            aOffset, bOffset, cOffset = 1, 0, 2
+            terminals["upper"]["A"] = {"pos": np.array(range(aOffset, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(aOffset + self.m, self.slots, 2 * self.m))}
+            terminals["upper"]["B"] = {"pos": np.array(range(bOffset + self.m, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(bOffset, self.slots, 2 * self.m))}
+            terminals["upper"]["C"] = {"pos": np.array(range(cOffset + self.m, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(cOffset, self.slots, 2 * self.m))}
+            for key, val in terminals["upper"].items():
+                terminals["lower"][key]["pos"] = self.shiftWindings(val["pos"])
+                terminals["lower"][key]["neg"] = self.shiftWindings(val["neg"])
+
+        else:
+            q = self.slots / (2 * self.polePairs * self.m)
+            a = math.floor(q)
+            z = self.windingLayers * self.polePairs * (q - a)
+            nc = self.slots / self.m
+            # TODO Consider moving this to the platypus check
+            if z % 1 != 0 or nc % 1 != 0:
+                return
+            else:
+                z = int(z)
+                nc = int(nc)
+            t_prime = math.gcd(z, self.polePairs)
+
+            pos, neg = np.empty(shape=(self.m, 0)), np.empty(shape=(self.m, 0))
+            fillVal = None
+            shift = int((self.m - 1) / 2)
+            negIdx = np.roll(np.arange(0, self.m), -shift)
+            slotArray = np.full(self.m * nc, fillVal)
+            if t_prime > 1:
+                slotArray = np.array_split(slotArray, t_prime)
+                cnt = 0
+                for each in slotArray:
+                    for i in range(len(each)):
+                        each[i] = cnt
+                        cnt += 1
+                    each = each.reshape((self.m, int(len(each) / self.m)))
+                    each_split = np.array_split(each, 2, axis=1)
+                    pos = np.concatenate((pos, each_split[0]), axis=1)
+                    neg = np.concatenate((neg, each_split[1]), axis=1)
+            else:
+                idx, cnt = 0, 0
+                while(any([slotArray[i] == fillVal for i in range(len(slotArray))])):
+                    slotArray[idx] = cnt
+                    if idx + self.polePairs <= len(slotArray) - 1:
+                        idx += self.polePairs
+                    else:
+                        idx = idx + self.polePairs - len(slotArray) + 1
+                    cnt += 1
+                slotArray = slotArray.reshape((self.m, nc))
+                slotArray_split = np.array_split(slotArray, 2, axis=1)
+                pos = slotArray_split[0]
+                neg = slotArray_split[1]
+            terminals["upper"]["A"] = {"pos": pos[0], "neg": neg[negIdx[0]]}
+            terminals["upper"]["B"] = {"pos": pos[1], "neg": neg[negIdx[1]]}
+            terminals["upper"]["C"] = {"pos": pos[2], "neg": neg[negIdx[2]]}
+
+            for key, val in terminals["upper"].items():
+                terminals["lower"][key] = self.getLowerTerminals(val)
+
+        # TODO Consider the case where the number of terminals to split is odd and we need double layer to even the MMFs
+        return self.removeCoils(terminals)
+
+    def removeCoils(self, terminals):
+        for layer in terminals.keys():
+            removeList = self.removeUpperCoils if layer == "upper" else self.removeLowerCoils
+            for phase, dict in terminals[layer].items():
+                for direction, idxs in terminals[layer][phase].items():
+                    for val in removeList:
+                        dict[direction] = dict[direction][dict[direction] != val]
+        return terminals
 
 
 class Material(object):
@@ -349,21 +445,6 @@ areaTable = getCurrDensityTable('WireSpecs')['Area in mm.sq']
 matList = np.array([('iron', 'gray10'), ('copperA', 'red'), ('copperB', 'green'), ('copperC', 'DodgerBlue2'),
                     ('aluminum', '#717676'), ('vacuum', '#E4EEEE')])
 
-# table.sort(reverse=True)
-# Sort(table)
-
-'''
-# If file already exists in the current directory
-if os.path.isfile('BuildTable.csv'):
-    os.unlink('BuildTable.csv')
-
-# Write to the file
-with open('BuildTable.csv', 'w', newline='') as csvFile:
-    writer = csv.writer(csvFile)
-    writer.writerow(['kw', 'slots', 'poles', 'q'])
-    for value in table:
-        writer.writerow(value)
-'''
 
 if __name__ == '__main__':
     plotSkinDepthSwiss()

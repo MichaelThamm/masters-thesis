@@ -15,47 +15,52 @@ https://platypus.readthedocs.io/en/latest/getting-started.html
 
 
 class MotorOptProblem(Problem):
-
-    def __init__(self, slots, poles, motorCfg, hamCfg, canvasCfg):
+    # TODO figure out why I am getting a list of Trues and Falses in the solution in Platypus
+    def __init__(self, slots, pole_pairs, motorCfg, hamCfg, canvasCfg):
         # The numbers indicate: #inputs, #objectives, #constraints
         super(MotorOptProblem, self).__init__(2, 2, 1)
         # Constrain the range and type for each input
-        self.types[:] = [Integer(slots[0], slots[1]), Integer(poles[0], poles[1])]
+        self.types[:] = [Integer(slots[0], slots[1]), Integer(pole_pairs[0], pole_pairs[1])]
         # Constrain every input. This works in unison with with constraints in the evaluate method
-        # Ex) Slots >= Poles becomes Slots - Poles >= 0 so init constraint becomes ">=0" and evaluate constraint becomes Slots - Poles
-        self.constraints[:] = ">=0"
+        self.constraints[:] = "==0"
         # Choose which objective to maximize and minimize
         self.directions[:] = [self.MINIMIZE, self.MAXIMIZE]
         self.motorCfg = motorCfg
         self.hamCfg = hamCfg
         self.canvasCfg = canvasCfg
 
+    def __call__(self, solution):
+        super(MotorOptProblem, self).__call__(solution)
+
     def evaluate(self, solution):
         slots = solution.variables[0]
-        poles = solution.variables[1]
+        polePairs = solution.variables[1]
 
         self.motorCfg['slots'] = slots
-        self.motorCfg['poles'] = poles
-        m = 3
-        q = self.motorCfg['slots'] / self.motorCfg['poles'] / m
+        self.motorCfg['pole_pairs'] = polePairs
 
-        print("outside", slots, poles)
-        # if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
-        if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0:
-
+        print("outside", slots, polePairs)
+        if self.constraintMath(m=3) == 0:
             # Object for the model design, grid, and matrices
             model = buildMotor(run=True, baseline=False, optimize=True, motorCfg=self.motorCfg, hamCfg=self.hamCfg, canvasCfg=self.canvasCfg)
             mass_fitness = model.massTot
-            thrust_fitness = model.Fx
-
+            thrust_fitness = model.Fx.real
         else:
             mass_fitness = math.inf
             thrust_fitness = 0
 
-        # print('solution: ', slots, poles, mass_fitness, thrust_fitness)
+        # print('solution: ', slots, polePairs, mass_fitness, thrust_fitness)
 
         solution.objectives[:] = [mass_fitness, thrust_fitness]
-        solution.constraints[:] = [slots - poles]
+        solution.constraints[:] = [self.constraintMath(m=3)]
+
+    def constraintMath(self, m):
+        slots, polePairs = self.motorCfg['slots'], self.motorCfg['pole_pairs']
+        q = slots / (2 * polePairs * m)
+        if slots > (2 * polePairs) and slots % 3 == 0 and q % 1 == 0:
+            return 0
+        else:
+            return 1
 
 
 # Break apart the grid.matrix array
@@ -231,7 +236,7 @@ def platypus(motorCfg, hamCfg, canvasCfg, run=False):
     timeout = 3000000  # seconds
     parent_size = 200
     tournament_size = 2
-    constraint_params = {'slots': [10, 24], 'poles': [4, 9], 'motorCfg': motorCfg, 'hamCfg': hamCfg, 'canvasCfg': canvasCfg}
+    constraint_params = {'slots': [10, 24], 'pole_pairs': [1, 9], 'motorCfg': motorCfg, 'hamCfg': hamCfg, 'canvasCfg': canvasCfg}
     termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
                           'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
                           'timeout': timeout}
@@ -296,7 +301,7 @@ def plotSlottingTrend(run=False):
 
     from functools import reduce
 
-    motorCfg = {"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2}
+    motorCfg = {"slots": 16, "pole_pairs": 3, "length": 0.27, "windingShift": 2}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}
@@ -354,17 +359,17 @@ def profile_main():
 def main():
 
     # ___Baseline motor configurations___
-    buildMotor(run=True, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
+    buildMotor(run=True, baseline=True, motorCfg={"slots": 16, "pole_pairs": 3, "length": 0.27, "windingShift": 2},
                   # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                     "mecRegions": {5: "mec"}},
                   canvasCfg={"pixDiv": [5, 5], "canvasSpacing": 80, "fieldType": "B",
-                             "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
+                             "showAirGapPlot": True, "showUnknowns": False, "showGrid": True, "showFields": True,
                              "showFilter": False, "showMatrix": False, "showZeros": True})
 
     # ___Custom Configuration___
-    motorCfg = {"slots": 18, "poles": 2, "length": 0.27, "windingShift": 2}
+    motorCfg = {"slots": 14, "pole_pairs": 2, "length": 0.27, "windingShift": 2}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}

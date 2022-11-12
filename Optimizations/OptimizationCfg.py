@@ -74,11 +74,12 @@ class _SingleSolution:
 
 
 class _TerminationCondition(TerminationCondition):
-    def __init__(self, max_evals, tolerance, stall_tolerance, max_stalls, timeout):
+    def __init__(self, problem, max_evals, tolerance, stall_tolerance, max_stalls, timeout):
         super(TerminationCondition, self).__init__()
 
         self.log_frequency = LOG_EVERY_X_ITERATIONS
         self.store = GenerationalSolution()
+        self.problem = problem
 
         self.iteration = 0
         self.stall_iteration = 0
@@ -88,11 +89,8 @@ class _TerminationCondition(TerminationCondition):
         self.max_stalls = max_stalls
         self.start_time = time.time()
         self.timeout = timeout
-        self.old_fittest = np.inf
+        self.old_fittest = self.initFitness()
         self.reason = None
-
-    def __call__(self, algorithm):
-        return self.shouldTerminate(algorithm)
 
     def initialize(self, algorithm):
         pass
@@ -100,20 +98,15 @@ class _TerminationCondition(TerminationCondition):
     def shouldTerminate(self, algorithm):
         self.iteration += 1
 
-        # Store the solution
-        if isinstance(algorithm, ParticleSwarm):
-            solution = algorithm.particles if hasattr(algorithm, 'particles') else []
-        elif isinstance(algorithm, AbstractGeneticAlgorithm):
-            solution = algorithm.population if hasattr(algorithm, 'population') else []
-        else:
-            solution = None
-        self.store.addIterationResults(self.iteration, solution)
+        solution = self.getSolution(algorithm)
 
-        # Determine the fittest based on the algorithm type
-        fittest = getFittest(algorithm)
-
+        if len(solution) != 0:
+            self.store.addIterationResults(self.iteration, solution)
+            # Determine the fittest based on the algorithm type
+            fittest = getFittest(algorithm)
+            self.decodeSolution(algorithm, fittest)
         # First iteration
-        if fittest is None:
+        else:
             return False
 
         # Max evaluations
@@ -124,7 +117,7 @@ class _TerminationCondition(TerminationCondition):
             return True
 
         # Timeout exceeded
-        if (time.time()-self.start_time) >= self.timeout:
+        if (time.time() - self.start_time) >= self.timeout:
             self.reason = ExitReason.TIMEOUT
             logTermination(self, fittest)
             logGeneration(self)
@@ -135,7 +128,8 @@ class _TerminationCondition(TerminationCondition):
             return True
 
         # Objective plateau
-        if self.old_fittest - fittest.objectives[0] <= self.stall_tolerance:
+        isSame = all([fittest.objectives[cnt] - each <= self.stall_tolerance for cnt, each in enumerate(self.old_fittest)])
+        if isSame:
             self.stall_iteration += 1
             if self.stall_iteration >= self.max_stalls:
                 self.reason = ExitReason.STALL
@@ -144,10 +138,31 @@ class _TerminationCondition(TerminationCondition):
                 return True
         else:
             self.stall_iteration = 0
-            self.old_fittest = fittest.objectives[0]
+            self.old_fittest = fittest.objectives
             return False
 
         return False
+
+    def initFitness(self):
+        return [np.inf if direction == -1 else 0 for direction in self.problem.directions]
+
+    @staticmethod
+    def getSolution(algorithm):
+        PARTICLES = 'particles'
+        POPULATION = 'population'
+        if isinstance(algorithm, ParticleSwarm) and hasattr(algorithm, PARTICLES):
+            return algorithm.__dict__[PARTICLES]
+        elif isinstance(algorithm, AbstractGeneticAlgorithm) and hasattr(algorithm, POPULATION):
+            return algorithm.__dict__[POPULATION]
+        # First iteration or algorithm is not implemented
+        else:
+            return []
+
+    @staticmethod
+    def decodeSolution(algorithm, fittest):
+        if all([isinstance(fittest.variables[i], list) for i in range(algorithm.problem.__dict__["nvars"])]):
+            for i in range(algorithm.problem.__dict__["nvars"]):
+                fittest.__dict__["variables"][i] = algorithm.problem.types[i].decode(fittest.__dict__["variables"][i])
 
 
 class _RandomIntGenerator(Generator):
@@ -202,15 +217,20 @@ class _ParticlSwarm(ParticleSwarm):
 
 
 def logTermination(objTermination, fittest):
-    message = f'Termination after {objTermination.iteration} iterations due to {objTermination.reason}\n' \
-              f'Solution: {fittest.variables} Objective: {fittest.objectives}\n' \
-              f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}'
+    mReason = f'Termination after {objTermination.iteration} iterations due to {objTermination.reason}\n'
+    mSolution = f'Solution: {fittest.variables} Objective: {fittest.objectives}\n'
+    if isinstance(type(fittest.variables[0]), type(SCHWEFEL_SOLUTION[0])):
+        mError = f'Error: {np.subtract(np.array(fittest.variables), SCHWEFEL_SOLUTION)}'
+    else:
+        mError = ''
+    message = mReason + mSolution + mError
     logging.getLogger("Platypus").log(logging.INFO, message)
 
 
 def logGeneration(optimization):
     for iteration, generation in optimization.store.solution.items():
-        if iteration % optimization.log_frequency == 0 or iteration in [2, list(optimization.store.solution.keys())[-1]]:
+        if iteration % optimization.log_frequency == 0 or iteration in [2,
+                                                                        list(optimization.store.solution.keys())[-1]]:
             message = f'{LogHeader.ITERATION.value}: {iteration}, ' \
                       f'{LogHeader.BEST.value}: {sorted(generation, key=functools.cmp_to_key(ParetoDominance()))[0]}, ' \
                       f'{LogHeader.GENERATION.value}: {generation}'
@@ -322,8 +342,9 @@ def getFittest(algorithm):
 def solveOptimization(algorithm, problem, solverList, constraint, termination, solver, run=False):
     if not run:
         return solverList
-    optimization = algorithm(problem(**constraint), **solver)
-    optimization.run(_TerminationCondition(**termination))
+    prob = problem(**constraint)
+    optimization = algorithm(prob, **solver)
+    optimization.run(_TerminationCondition(prob, **termination))
     if hasattr(algorithm, '__name__'):
         return addAlgoName(solverList, algorithm.__name__)
     else:
@@ -370,12 +391,14 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
             if solutionName == LogHeader.GENERATION.value:
                 for iteration, solution in solutionType.items():
                     plt.contour(x1, x2, space, 15, colors='grey', zorder=-1)
-                    plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.get_cmap('jet'), alpha=0.5)
+                    plt.imshow(space, extent=[lower, upper, lower, upper], origin='lower', cmap=cm.get_cmap('jet'),
+                               alpha=0.5)
                     plt.colorbar()
                     xVariables = [value.variables[0] for value in solution[LogHeader.GENERATION.value].values()]
                     yVariables = [value.variables[1] for value in solution[LogHeader.GENERATION.value].values()]
                     plt.scatter(xVariables, yVariables, marker='*', color='green')
-                    plt.scatter(solution[LogHeader.BEST.value].variables[0], solution[LogHeader.BEST.value].variables[1],
+                    plt.scatter(solution[LogHeader.BEST.value].variables[0],
+                                solution[LogHeader.BEST.value].variables[1],
                                 marker='*', color='red')
                     plt.plot(SCHWEFEL_SOLUTION[0], SCHWEFEL_SOLUTION[1], marker='+', color='red', markersize=12)
                     plt.xlabel('x1')
@@ -387,12 +410,15 @@ def plottingConvergence(x1, x2, lower, upper, solutions, run=False):
 
 
 def plottingPerformance(solvers, data, plot=False):
-
     plotDict = {}
     for name in solvers:
         plotDict[name] = {'iterations': np.array([iteration for iteration in data[name]['generation']]),
-                          'best_objectives': np.array([generation[LogHeader.BEST.value].objective for iteration, generation in data[name]['generation'].items()]),
-                          'best_variables': np.array([generation[LogHeader.BEST.value].variables for iteration, generation in data[name]['generation'].items()]),
+                          'best_objectives': np.array(
+                              [generation[LogHeader.BEST.value].objective for iteration, generation in
+                               data[name]['generation'].items()]),
+                          'best_variables': np.array(
+                              [generation[LogHeader.BEST.value].variables for iteration, generation in
+                               data[name]['generation'].items()]),
                           'nfe': data[name]['summary']['nfe'],
                           'time': data[name]['summary']['time']}
 
@@ -428,7 +454,6 @@ def addAlgoName(solverList, name):
 
 
 def main():
-
     # TODO
     #   Decide the layout for thesis chapters
     #       *) AT THE END OF EVERY CHAPTER TIE THE MOST IMPORTANT THING BACK TO THE OVERALL OBJECTIVE
@@ -477,24 +502,29 @@ def main():
     ga_params = {'population_size': parent_size, 'offspring_size': offspring_size, 'generator': RandomGenerator(),
                  'selector': TournamentSelector(tournament_size), 'comparator': ParetoDominance(),
                  'variator': GAOperator(SBX(0.3), PM(0.1))}
-    solverList = solveOptimization(GeneticAlgorithm, SchwefelProblem, solverList, constraint_params, termination_params, ga_params, run=True)
+    solverList = solveOptimization(GeneticAlgorithm, SchwefelProblem, solverList, constraint_params, termination_params,
+                                   ga_params, run=True)
 
     # TODO NSGA doesnt have offspring parameter because it clips to population size instead
     #  -> if pop = 200 then offspring + pop = 400 which is fitness sorted and clipped to 200 again
     nsga_params = {'population_size': parent_size, 'generator': RandomGenerator(),
                    'selector': TournamentSelector(tournament_size), 'variator': GAOperator(SBX(0.3), PM(0.1)),
                    'archive': FitnessArchive(nondominated_sort)}
-    solverList = solveOptimization(NSGAII, SchwefelProblem, solverList, constraint_params, termination_params, nsga_params, run=True)
+    solverList = solveOptimization(NSGAII, SchwefelProblem, solverList, constraint_params, termination_params,
+                                   nsga_params, run=True)
 
     pso_params = {'swarm_size': parent_size, 'leader_size': leader_size, 'generator': RandomGenerator(),
                   'mutate': PM(0.1), 'leader_comparator': AttributeDominance(objective_key),
                   'larger_preferred': True, 'fitness': crowding_distance, 'fitness_getter': objective_key}
-    solverList = solveOptimization(_ParticlSwarm, SchwefelProblem, solverList, constraint_params, termination_params, pso_params, run=True)
+    solverList = solveOptimization(_ParticlSwarm, SchwefelProblem, solverList, constraint_params, termination_params,
+                                   pso_params, run=True)
 
     omopso_params = {'epsilons': [0.05], 'swarm_size': parent_size, 'leader_size': leader_size,
                      'mutation_probability': 0.1, 'mutation_perturbation': 0.5, 'max_iterations': 100,
-                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size), 'variator': SBX(0.3)}
-    solverList = solveOptimization(OMOPSO, SchwefelProblem, solverList, constraint_params, termination_params, omopso_params, run=True)
+                     'generator': RandomGenerator(), 'selector': TournamentSelector(tournament_size),
+                     'variator': SBX(0.3)}
+    solverList = solveOptimization(OMOPSO, SchwefelProblem, solverList, constraint_params, termination_params,
+                                   omopso_params, run=True)
 
     solutions = getSolutionFromLog(solverList)
 

@@ -1153,7 +1153,7 @@ def plotFourierError():
     n = range(-lowDiscrete, lowDiscrete + 1)
     n = np.delete(n, len(n) // 2, 0)
     slots = 16
-    poles = 6
+    polePairs = 3
     wt, ws = 6 / 1000, 10 / 1000
     slotpitch = wt + ws
     endTeeth = 2 * (5/3 * wt)
@@ -1168,7 +1168,7 @@ def plotFourierError():
                       'invertY': False}
         choiceRegionCfg = regionCfg1
 
-        loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
+        loopedModel = Model.buildFromScratch(slots=slots, polePairs=polePairs, length=length, n=n,
                                              pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                              hmRegions=choiceRegionCfg['hmRegions'],
                                              mecRegions=choiceRegionCfg['mecRegions'],
