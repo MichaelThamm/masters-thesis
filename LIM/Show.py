@@ -2,7 +2,6 @@ from LIM.Compute import *
 from LIM.CanvasModel import CanvasInFrame
 from tkinter import *
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 
 
 # noinspection PyUnresolvedReferences

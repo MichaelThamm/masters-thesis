@@ -231,7 +231,6 @@ class Grid(LimMotor):
                 if index == list(self.hmRegions)[-1]:
                     self.hmRegionsIndex[-1] = regionIndex
 
-        # TODO the for loop excluded += self.mecRegionLength
             if index in self.mecRegions:
                 self.mecRegionsIndex[mecCount] = regionIndex
                 regionIndex += self.mecRegionLength
@@ -499,12 +498,12 @@ class Node(object):
 
         scalingLower, scalingUpper = 0.0, 0.0
         isCurrentCu = self.material[:-1] == 'copper'
-        if self.yIndex in model.yIndexesLowerSlot and self.xIndex in model.slotArray:
-            if self.xIndex in lower["A"]:
+        if self.yIndex in model.yIndexesLowerSlot:
+            if self.xIndex in lower["A"]["pos"] + lower["A"]["neg"]:
                 angle_plex = model.angleA()
-            elif self.xIndex in lower["B"]:
+            elif self.xIndex in lower["B"]["pos"] + lower["B"]["neg"]:
                 angle_plex = model.angleB()
-            elif self.xIndex in lower["C"]:
+            elif self.xIndex in lower["C"]["pos"] + lower["C"]["neg"]:
                 angle_plex = model.angleC()
             else:
                 angle_plex = 0.0
@@ -526,12 +525,12 @@ class Node(object):
             else:
                 inOutCoeffMMF = 0
 
-        elif self.yIndex in model.yIndexesUpperSlot and self.xIndex in model.slotArray:
-            if self.xIndex in upper["A"]:
+        elif self.yIndex in model.yIndexesUpperSlot:
+            if self.xIndex in upper["A"]["pos"] + upper["A"]["neg"]:
                 angle_plex = model.angleA()
-            elif self.xIndex in upper["B"]:
+            elif self.xIndex in upper["B"]["pos"] + upper["B"]["neg"]:
                 angle_plex = model.angleB()
-            elif self.xIndex in upper["C"]:
+            elif self.xIndex in upper["C"]["pos"] + upper["C"]["neg"]:
                 angle_plex = model.angleC()
             else:
                 angle_plex = 0.0

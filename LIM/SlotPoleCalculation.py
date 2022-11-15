@@ -210,13 +210,8 @@ class LimMotor(object):
             q = self.slots / (2 * self.polePairs * self.m)
             a = math.floor(q)
             z = self.windingLayers * self.polePairs * (q - a)
-            nc = self.slots / self.m
-            # TODO Consider moving this to the platypus check
-            if z % 1 != 0 or nc % 1 != 0:
-                return
-            else:
-                z = int(z)
-                nc = int(nc)
+            nc = self.slots // self.m
+            z = int(z)
             t_prime = math.gcd(z, self.polePairs)
 
             pos, neg = np.empty(shape=(self.m, 0)), np.empty(shape=(self.m, 0))

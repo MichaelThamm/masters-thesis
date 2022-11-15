@@ -1098,7 +1098,6 @@ def complexFourierTransform(model_in, harmonics_in):
         for nHM in harmonics:
             wn = 2 * nHM * pi / model.Tper
             # TODO *=2 if matching BC, correct without 2 though!
-            #  we should try to multipy * 100 factor without 2 to see if it is closer
             coeff = j_plex / (wn * model.Tper)
             sumK = 0.0
             for iX in range(len(row_FT)):
