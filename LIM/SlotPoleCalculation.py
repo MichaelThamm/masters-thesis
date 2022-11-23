@@ -195,16 +195,20 @@ class LimMotor(object):
         terminals = copy.deepcopy(TERMINAL_STRUCTURE)
 
         if self.isBaseline:
-            aOffset, bOffset, cOffset = 1, 0, 2
-            terminals["upper"]["A"] = {"pos": np.array(range(aOffset, self.slots, 2 * self.m)),
-                                       "neg": np.array(range(aOffset + self.m, self.slots, 2 * self.m))}
-            terminals["upper"]["B"] = {"pos": np.array(range(bOffset + self.m, self.slots, 2 * self.m)),
-                                       "neg": np.array(range(bOffset, self.slots, 2 * self.m))}
-            terminals["upper"]["C"] = {"pos": np.array(range(cOffset + self.m, self.slots, 2 * self.m)),
-                                       "neg": np.array(range(cOffset, self.slots, 2 * self.m))}
-            for key, val in terminals["upper"].items():
-                terminals["lower"][key]["pos"] = self.shiftWindings(val["pos"])
-                terminals["lower"][key]["neg"] = self.shiftWindings(val["neg"])
+            aOffsetUpper, bOffsetUpper, cOffsetUpper = 1, 0, 2
+            terminals["upper"]["A"] = {"pos": np.array(range(aOffsetUpper + self.m, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(aOffsetUpper, self.slots, 2 * self.m))}
+            terminals["upper"]["B"] = {"pos": np.array(range(bOffsetUpper, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(bOffsetUpper + self.m, self.slots, 2 * self.m))}
+            terminals["upper"]["C"] = {"pos": np.array(range(cOffsetUpper, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(cOffsetUpper + self.m, self.slots, 2 * self.m))}
+            aOffsetLower, bOffsetLower, cOffsetLower = 0, 2, 1
+            terminals["lower"]["A"] = {"pos": np.array(range(aOffsetLower + self.m, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(aOffsetLower, self.slots, 2 * self.m))}
+            terminals["lower"]["B"] = {"pos": np.array(range(bOffsetLower + self.m, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(bOffsetLower, self.slots, 2 * self.m))}
+            terminals["lower"]["C"] = {"pos": np.array(range(cOffsetLower, self.slots, 2 * self.m)),
+                                       "neg": np.array(range(cOffsetLower + self.m, self.slots, 2 * self.m))}
 
         else:
             q = self.slots / (2 * self.polePairs * self.m)
