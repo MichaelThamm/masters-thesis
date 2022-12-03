@@ -221,7 +221,7 @@ class MotorOptProblem(AbstractProblem):
         self.motorCfg['pole_pairs'] = polePairs
 
         print("outside", slots, polePairs)
-        if self.constraintMath(m=3) == 0:
+        if self.isFeasibleMotor(m=3) == 0:
             # Object for the model design, grid, and matrices
             model = buildMotor(run=True, baseline=False, optimize=True,
                                motorCfg=self.motorCfg, hamCfg=self.hamCfg, canvasCfg=self.canvasCfg)
@@ -235,7 +235,7 @@ class MotorOptProblem(AbstractProblem):
         # print('solution: ', slots, polePairs, mass_fitness, thrust_fitness)
 
         solution.objectives[:] = [mass_fitness, thrust_fitness]
-        solution.constraints[:] = [self.constraintMath(m=3)]
+        solution.constraints[:] = [self.isFeasibleMotor(m=3)]
 
     def logTermination(self, objTermination, fittest):
         mReason = f'Termination after {objTermination.iteration} iterations due to {objTermination.reason}\n'
@@ -246,7 +246,7 @@ class MotorOptProblem(AbstractProblem):
         message = mReason + mSolution + mValidMotors + mAllMotors
         LOGGER.log(logging.INFO, message)
 
-    def constraintMath(self, m):
+    def isFeasibleMotor(self, m):
         slots, polePairs = self.motorCfg['slots'], self.motorCfg['pole_pairs']
         q = slots / (2 * polePairs * m)
         if slots > (2 * polePairs) and slots % m == 0 and q % 1 == 0:
@@ -261,7 +261,7 @@ class MotorOptProblem(AbstractProblem):
         for slots, polePairs in itertools.product(slotsList, polesPairsList):
             self.motorCfg["slots"] = slots
             self.motorCfg['pole_pairs'] = polePairs
-            if self.constraintMath(m=3) == 0:
+            if self.isFeasibleMotor(m=3) == 0:
                 result.append((slots, polePairs))
         return result
 

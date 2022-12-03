@@ -48,17 +48,17 @@ class LimMotor(object):
             self.ws = 10 / 1000  # meters
             self.wt = 6 / 1000  # meters
             self.Tper = 0.525  # meters
-            self.windingLayers = 2
-            self.windingShift = motorCfg["windingShift"]
             self.removeUpperCoils = [0] + list(range(self.slots - self.windingShift - 1, self.slots - 1)) + [self.slots - 1]
             self.removeLowerCoils = [0] + list(range(1, 1 + self.windingShift)) + [self.slots - 1]
         else:
             self.ws = self.reverseWs(endTooth2SlotWidthRatio=1)  # meters
             self.wt = (3/5) * self.ws  # meters
             self.Tper = 1.25 * self.L  # meters
-            self.windingLayers, self.windingShift = 1, 2
             self.removeUpperCoils, self.removeLowerCoils = [], []
 
+        self.windingLayers = motorCfg["windingLayers"]
+        if motorCfg["windingShift"] == "auto":
+            self.windingShift = round((5/6) * self.slots / (2 * self.polePairs))
         self.terminalSlots = self.wdt()
         self.slotpitch = self.ws + self.wt  # meters
         self.endTooth = self.getLenEndTooth()  # meters
