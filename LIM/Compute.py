@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt
 from functools import lru_cache
 
 
-# This performs the lower-upper decomposition of A to solve for x in Ax = B
-# A must be a square matrix
-# @njit("float64[:](float64[:, :], float64[:])", cache=True)
 class Model(Grid):
 
     currColCount, currColCountUpper, rowCount = 0, 0, 0
@@ -1032,7 +1029,7 @@ class Model(Grid):
 
 
 # noinspection PyGlobalUndefined
-def complexFourierTransform(model_in, harmonics_in):
+def complexFourierTransform(model_in):
     """
     This function was written to plot the Bx field at the boundary between the coils and the airgap,
      described in equation 24 of the 2019 paper. The Bx field is piecewise-continuous and is plotted in Blue.
@@ -1048,13 +1045,13 @@ def complexFourierTransform(model_in, harmonics_in):
     model = model_in
 
     idx_FT = 0
-    harmonics = harmonics_in
+    harmonics = model.n
 
     yIdx_lower = model.yIndexesMEC[0]
     yIdx_upper = model.yIndexesMEC[-1]
     row_FT = model.matrix[yIdx_lower]
     leftNodeEdges = [node.x for node in row_FT]
-    slices = 5
+    slices = 2
     outerIdx, increment = 0, 0
     expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
     for idx in range(len(expandedLeftNodeEdges)):
@@ -1097,7 +1094,6 @@ def complexFourierTransform(model_in, harmonics_in):
         sumN = 0.0
         for nHM in harmonics:
             wn = 2 * nHM * pi / model.Tper
-            # TODO *=2 if matching BC, correct without 2 though!
             coeff = j_plex / (wn * model.Tper)
             sumK = 0.0
             for iX in range(len(row_FT)):
@@ -1122,67 +1118,45 @@ def complexFourierTransform(model_in, harmonics_in):
     vfun = np.vectorize(fourierSeries)
     y2 = vfun(x)
 
-    # Background shading slots
-    minY1, maxY1 = min(y2), max(y2)
-    xPosLines = list(map(lambda x: x.x, model.matrix[0][model.slotArray[::model.ppSlot]]))
-    # for cnt, each in enumerate(xPosLines):
-    #     plt.axvspan(each, each + model.ws, facecolor='b', alpha=0.15, label="_" * cnt + "slot regions")
-    # plt.legend()
-    # plt.savefig('demo.png', transparent=True)
-
-    plt.plot(x, y1, 'b-')
-    plt.plot(x, y2, 'r-')
-    plt.xlabel('Position [m]')
-    plt.ylabel('Bx [T]')
-    plt.title('Bx field at airgap Boundary')
-    # plt.show()
-
-    return x, y1
+    return x, y1, y2
 
 
 def plotFourierError():
 
-    iterations = 1
-    step = 2
-    start = 6
-    pixDivs = range(start, start + iterations * step, step)
-    modelList = np.empty(len(pixDivs), dtype=ndarray)
+    iterations = 2
+    step = 50
+    start = 20
+    rangeN = range(start, start + iterations * step, step)
+    modelList = np.empty(len(rangeN), dtype=ndarray)
 
-    lowDiscrete = 50
-    n = range(-lowDiscrete, lowDiscrete + 1)
-    n = np.delete(n, len(n) // 2, 0)
-    slots = 16
-    polePairs = 3
-    wt, ws = 6 / 1000, 10 / 1000
-    slotpitch = wt + ws
-    endTeeth = 2 * (5/3 * wt)
-    length = ((slots - 1) * slotpitch + ws) + endTeeth
-    canvasSpacing = 80
+    for idx, N in enumerate(rangeN):
 
-    for idx, pixelDivisions in enumerate(pixDivs):
+        motorCfg = {"slots": 18, "pole_pairs": 3, "length": 0.27, "windingLayers": 2, "windingShift": "auto"}
+        hamCfg = {"N": N, "errorTolerance": 1e-15, "invertY": False,
+                  "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
+                  "mecRegions": {5: "mec"}}
+        canvasCfg = {"pixDiv": [5, 5], "canvasSpacing": 80, "fieldType": "B",
+                     "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": False,
+                     "showFilter": False, "showMatrix": False, "showZeros": True}
 
-        pixelSpacing = slotpitch / pixelDivisions
-        regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                      'mecRegions': {5: 'mec'},
-                      'invertY': False}
-        choiceRegionCfg = regionCfg1
-
-        loopedModel = Model.buildFromScratch(slots=slots, polePairs=polePairs, length=length, n=n,
-                                             pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                                             hmRegions=choiceRegionCfg['hmRegions'],
-                                             mecRegions=choiceRegionCfg['mecRegions'],
-                                             errorTolerance=1e-15,
-                                             # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                             invertY=choiceRegionCfg['invertY'])
+        loopedModel = Model.buildFromScratch(motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
         loopedModel.buildGrid()
         loopedModel.checkSpatialMapping()
-        modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
+        modelList[idx] = ((N, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel))
 
-    for (pixelDivisions, ppL, ppH), (xSequence, ySequence) in modelList:
-        plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
+    for cnt, ((N, ppL, ppH), (xSequence, ySequence1, ySequence2)) in enumerate(modelList):
+        sliceIdx = int(0.2 * len(xSequence))
+        xSequence = xSequence[sliceIdx:-sliceIdx]
+        ySequence1 = ySequence1[sliceIdx:-sliceIdx]
+        ySequence2 = ySequence2[sliceIdx:-sliceIdx]
+        if cnt == 0:
+            plt.plot(xSequence, ySequence1, 'k', lw=2, label=f'Base plot')
+        plt.plot(xSequence, ySequence2, lw=1, label=f'Harmonics: {N}')
 
-    # plt.legend()
+    plt.legend()
+    plt.xlabel('Position [m]')
+    plt.ylabel('Bx [T]')
     plt.show()
 
 

@@ -1,7 +1,11 @@
+import matplotlib.pyplot as plt
+
 from LIM.Compute import *
 from LIM.CanvasModel import CanvasInFrame
 from tkinter import *
 import matplotlib as mpl
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.colors import LinearSegmentedColormap
 
 
 # noinspection PyUnresolvedReferences
@@ -211,8 +215,6 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
     # Color nodes based on node values
     if canvasCfg["showFields"] or canvasCfg["showFilter"]:
 
-        cFields = CanvasInFrame(height=dims[0], width=dims[1], bg='gray30')
-
         c1 = '#FFF888'  # Yellow Positive Limit
         c2 = '#700000'  # Dark Red Negative Limit
         cPosInf = '#00FFFF'  # BabyBlue Positive Infinity
@@ -243,16 +245,16 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
         if [minScale, maxScale, normScale] == [0, 0, 0]:
 
             jsonObject.rebuiltModel.writeErrorToDict(key='name',
-                                   error=Error.buildFromScratch(name='emptyField',
-                                                                description=f'Field Analysis Error. All values are zero! Type: {canvasCfg["fieldType"]}',
-                                                                cause=True))
-
+                                                     error=Error.buildFromScratch(name='emptyField',
+                                                                                  description=f'Field Analysis Error. All values are zero! Type: {canvasCfg["fieldType"]}',
+                                                                                  cause=True))
         # Create fields canvas to display the selected field result on the mesh
         else:
             fieldsScale = np.arange(minScale, maxScale + normScale, normScale)
             colorScaleIndex = np.where(fieldsScale == fieldsScale[0])
 
-            cFields.canvas.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {canvasCfg['fieldType']}")
+            cFields = CanvasInFrame(height=dims[0], width=dims[1], bg='gray30')
+            cFields.canvas.create_text(200, 500, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {canvasCfg['fieldType']}")
             print(f'Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {canvasCfg["fieldType"]}')
 
             # All drawing is done at the bottom of the node
@@ -322,9 +324,19 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
                 j = 0
                 i += 1
 
-        cFields.canvas.scale("all", 0, 0, 1, invertCoeff)
-        cFields.canvas.configure(scrollregion=cFields.canvas.bbox("all"))
-        cFields.root.mainloop()
+            cFields.canvas.scale("all", 0, 0, 1, invertCoeff)
+            cFields.canvas.configure(scrollregion=cFields.canvas.bbox("all"))
+            cFields.root.mainloop()
+
+        from numpy.random import randn
+        mpl.colors.to_rgb(c1)
+        fields_map = LinearSegmentedColormap.from_list('FieldsGradient', stoColours, N=len(stoColours))
+        fig, ax = plt.subplots()
+        data = np.clip(randn(250, 250), -1, 1)
+        cax = ax.imshow(data, cmap=fields_map)
+        cbar = fig.colorbar(cax, ticks=[-1, 0, 1])
+        cbar.ax.set_yticklabels(['-1.55 T', '0', '1.7 T'])  # horizontal colorbar
+        plt.show()
 
     if canvasCfg["showMatrix"]:
         visualizeMatrix(dims, jsonObject.rebuiltModel, ogModel, bShowA=True)

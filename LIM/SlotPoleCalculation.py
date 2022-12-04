@@ -13,9 +13,6 @@ import configparser
 import pandas as pd
 import os
 
-# from numba import cuda, njit, int32, float64
-# from numba.experimental import jitclass
-
 
 PROJECT_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 pi = math.pi
@@ -44,6 +41,13 @@ class LimMotor(object):
         self.L = motorCfg["length"]  # meters
         self.Tp = self.L / (2 * self.polePairs)  # meters
 
+        self.windingLayers = motorCfg["windingLayers"]
+        if motorCfg["windingShift"] == "auto":
+            self.windingShift = round((5/6) * self.slots / (2 * self.polePairs))
+        else:
+            self.windingShift = motorCfg["windingShift"]
+
+
         if self.isBaseline:
             self.ws = 10 / 1000  # meters
             self.wt = 6 / 1000  # meters
@@ -56,9 +60,6 @@ class LimMotor(object):
             self.Tper = 1.25 * self.L  # meters
             self.removeUpperCoils, self.removeLowerCoils = [], []
 
-        self.windingLayers = motorCfg["windingLayers"]
-        if motorCfg["windingShift"] == "auto":
-            self.windingShift = round((5/6) * self.slots / (2 * self.polePairs))
         self.terminalSlots = self.wdt()
         self.slotpitch = self.ws + self.wt  # meters
         self.endTooth = self.getLenEndTooth()  # meters
@@ -116,10 +117,6 @@ class LimMotor(object):
         self.maxFreq = self.getFreqRangeFromAluminumPlate()  # Hz
         # TODO This topspeed assumes that the voltage supplied can overcome the equivalent impedance to supply enough thrust
         self.topSpeed = 2 * self.maxFreq * self.Tp * 3600 / 1000  # km/h
-        # TODO Use the LIM_EquivalentCircuit paper to calculate this
-        self.Res = self.getResistancePerPhase()
-        # self.Zeq = self.getImpedancePerPhase()
-        # self.Vin = self.getVoltagePerPhase()  # Volt
 
     def writeErrorToDict(self, key, error):
         if error.state:
@@ -139,28 +136,6 @@ class LimMotor(object):
         else:
             decoupledStart = idxDecoupledList[0] - 1
             return int(decoupledStart)
-
-    def getInductancePerPhase(self):
-        # TODO This is not correct and requires semi-analytical curve-fitting to approximate the inductance
-        coilRadius = self.diamConductor / 2  # meters
-        areaCoilCircle = pi * coilRadius ** 2
-        return uo * self.N ** 2 * areaCoilCircle
-
-    def getResistancePerPhase(self):
-        phaseWindingLength = self.perimeterCoil * self.N * self.loops
-        return self.copper.resistivity * phaseWindingLength / self.areaConductor
-
-    def getImpedancePerPhase(self):
-        # TODO Figure out equivalent circuit model
-        impedancePrimary = None
-        # impedanceSecondary =
-        # resistanceSecondary =
-        return None
-
-    def getVoltagePerPhase(self):
-        pass
-        # self.Zeq = self.getResistance() + j_plex * 2 * pi * self.f * self.getInductance()
-        # self.V =
 
     def reverseWs(self, endTooth2SlotWidthRatio):
         # In general, endTooth2SlotWidthRatio should be 1 so the end teeth are the same size as slot width
