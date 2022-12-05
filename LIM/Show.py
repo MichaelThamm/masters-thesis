@@ -224,12 +224,12 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
             stoColours[x] = colorFader(c1, c2, x / numColours)
 
         # Max and Min values for normalizing the color scales for field analysis
-        keepRows = [[]]*1
+        keepRows = [[]]*0
         keepRowColsUnfiltered = [[]]*2
 
         # [row]
-        # Rule 1
-        keepRows[0] = jsonObject.rebuiltModel.yIndexesAirGap
+        # Rule 0
+        # keepRows[0] = jsonObject.rebuiltModel.yIndexesAirGap
 
         # [row, col] - Make sure to put the rules in order of ascending rows or the list wont be sorted (shouldnt matter)
         # Rule 1
@@ -237,6 +237,7 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
         # Rule 2
         keepRowColsUnfiltered[1] = [jsonObject.rebuiltModel.yIndexesLowerSlot + jsonObject.rebuiltModel.yIndexesUpperSlot, jsonObject.rebuiltModel.toothArray]
 
+        # TODO What are these params and where are filterRows and RowCols used
         filteredRows, filteredRowCols = combineFilterList([jsonObject.rebuiltModel.ppH, jsonObject.rebuiltModel.ppL], keepRows, keepRowColsUnfiltered)
 
         minScale, maxScale = minMaxField(jsonObject, canvasCfg["fieldType"], [filteredRows, filteredRowCols], canvasCfg["showFilter"])
@@ -309,7 +310,7 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
                                                              highlightZeroValsInField=canvasCfg["showZeros"])
 
                         else:
-                            overRideColour = '#000000'
+                            overRideColour = '#2596be'
                     else:
                         overRideColour = determineColour(jsonObject, i, j,
                                                          [canvasCfg["fieldType"], fieldsScale, stoColours, cPosInf, cNegInf],
@@ -318,7 +319,7 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
                     jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing,
                                                                   overRideColour=overRideColour, c=cFields.canvas,
                                                                   nodeWidth=1,
-                                                                  outline='blue' if j in xEndTeethBounds else 'black')
+                                                                  outline='black' if j in xEndTeethBounds else 'black')
                     j += 1
                     k += 1
                 j = 0
@@ -335,6 +336,7 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
         data = np.clip(randn(250, 250), -1, 1)
         cax = ax.imshow(data, cmap=fields_map)
         cbar = fig.colorbar(cax, ticks=[-1, 0, 1])
+        cbar.ax.tick_params(labelsize=15)
         cbar.ax.set_yticklabels(['-1.55 T', '0', '1.7 T'])  # horizontal colorbar
         plt.show()
 

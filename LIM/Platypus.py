@@ -62,15 +62,15 @@ def profile_main():
 def main():
 
     # ___Baseline motor configurations___
-    buildMotor(run=False, baseline=True,
+    buildMotor(run=True, baseline=True,
                motorCfg={"slots": 16, "pole_pairs": 3, "length": 0.27, "windingLayers": 2, "windingShift": 2},
                # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
                hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                        "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                        "mecRegions": {5: "mec"}},
-               canvasCfg={"pixDiv": [10, 10], "canvasSpacing": 80, "fieldType": "B",
-                          "showAirGapPlot": False, "showUnknowns": False, "showGrid": False, "showFields": True,
-                          "showFilter": False, "showMatrix": False, "showZeros": True})
+               canvasCfg={"pixDiv": [15, 15], "canvasSpacing": 80, "fieldType": "B",
+                          "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
+                          "showFilter": True, "showMatrix": False, "showZeros": True})
 
     # ___Custom Configuration___
     motorCfg = {"slots": 18, "pole_pairs": 3, "length": 0.27, "windingLayers": 2, "windingShift": "auto"}
@@ -79,7 +79,7 @@ def main():
               "mecRegions": {5: "mec"}}
     canvasCfg = {"pixDiv": [5, 5], "canvasSpacing": 80, "fieldType": "B",
                  "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
-                 "showFilter": False, "showMatrix": False, "showZeros": True}
+                 "showFilter": True, "showMatrix": False, "showZeros": True}
 
     # ___Motor optimization___
     platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
