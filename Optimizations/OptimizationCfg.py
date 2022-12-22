@@ -249,7 +249,7 @@ class MotorOptProblem(AbstractProblem):
     def isFeasibleMotor(self, m):
         slots, polePairs = self.motorCfg['slots'], self.motorCfg['pole_pairs']
         q = slots / (2 * polePairs * m)
-        if slots > (2 * polePairs) and slots % m == 0 and q % 1 == 0:
+        if slots > (2 * polePairs) and slots % m == 0 and q % 1 == 0 and polePairs >= 2:
             return 0
         else:
             return 1

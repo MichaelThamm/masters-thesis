@@ -337,7 +337,7 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
         cax = ax.imshow(data, cmap=fields_map)
         cbar = fig.colorbar(cax, ticks=[-1, 0, 1])
         cbar.ax.tick_params(labelsize=15)
-        cbar.ax.set_yticklabels(['-1.55 T', '0', '1.7 T'])  # horizontal colorbar
+        cbar.ax.set_yticklabels(['1.171 T', '0', '1.173 T'])  # horizontal colorbar
         plt.show()
 
     if canvasCfg["showMatrix"]:
