@@ -262,7 +262,8 @@ class MotorOptProblem(AbstractProblem):
             self.motorCfg["slots"] = slots
             self.motorCfg['pole_pairs'] = polePairs
             if self.isFeasibleMotor(m=3) == 0:
-                result.append((slots, polePairs))
+                m = LimMotor(self.motorCfg, buildBaseline=False)
+                result.append((slots, polePairs, m.massTot))
         return result
 
 

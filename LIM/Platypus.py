@@ -62,7 +62,7 @@ def profile_main():
 def main():
 
     # ___Baseline motor configurations___
-    buildMotor(run=True, baseline=True,
+    buildMotor(run=False, baseline=True,
                motorCfg={"slots": 16, "pole_pairs": 3, "length": 0.27, "windingLayers": 2, "windingShift": 2},
                # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
                hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
@@ -86,6 +86,10 @@ def main():
 
     # ___Custom motor model___
     buildMotor(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+
+    slots, pole_pairs = [12, 50], [2, 8]
+    p = MotorOptProblem(slots, pole_pairs, motorCfg, hamCfg, canvasCfg)
+    print(p.uniqueCombinations())
 
 
 if __name__ == '__main__':
