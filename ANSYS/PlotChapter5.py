@@ -1,13 +1,15 @@
-import copy
+from LIM.SlotPoleCalculation import LimMotor
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.patches as patches
+import matplotlib.markers as markers
 import pandas as pd
 import numpy as np
 import random
 import scipy
+import copy
 import os
 
 random.seed(10)
@@ -93,10 +95,11 @@ def plotForceFromFile(df_file):
     last_slash_index = df_file.rfind('\\')
     # Use string slicing to extract the string after the last '\' character
     motorFromFileName = df_file[last_slash_index + 1:].replace(".csv", "").split("_")
-    Name = motorFromFileName[0]
-    slots = int(motorFromFileName[1])
-    pole_pairs = int(motorFromFileName[2])
-    mass = float(motorFromFileName[3])
+    slots = int(motorFromFileName[0])
+    pole_pairs = int(motorFromFileName[1])
+    motorCfg = {"slots": slots, "pole_pairs": pole_pairs, "length": 0.27, "windingLayers": 2, "windingShift": "auto"}
+    motor = LimMotor(motorCfg, buildBaseline=False)
+    mass = motor.massTot
 
     TIME = 0
     FX = 1
@@ -105,20 +108,21 @@ def plotForceFromFile(df_file):
     fxArray = df.iloc[newLen:, FX]
     fyArray = df.iloc[newLen:, FY]
     timeArray = df.iloc[newLen:, TIME]
-    xSSA = round(sum(fxArray)/len(fxArray), 2)
-    ySSA = round(sum(fyArray)/len(fyArray), 2)
+
+    motor.Fx = round(sum(fxArray)/len(fxArray), 2)
+    motor.Fy = round(sum(fyArray)/len(fyArray), 2)
 
     plt.plot(df.iloc[:, TIME], df.iloc[:, FX],
-             label=f'{df.columns[FX]} = {xSSA} N @ (Ns={slots}, Np={2*pole_pairs})')
+             label=f'{df.columns[FX]} = {motor.Fx} N @ (Ns={slots}, Np={2*pole_pairs})')
     plt.plot(df.iloc[:, TIME], df.iloc[:, FY],
-             label=f'{df.columns[FY]} = {ySSA} N @ (Ns={slots}, Np={2*pole_pairs})')
+             label=f'{df.columns[FY]} = {motor.Fy} N @ (Ns={slots}, Np={2*pole_pairs})')
 
     plt.xlabel(df.columns[TIME])
     plt.ylabel("Force [N]")
-    plt.legend(title=f"Steady state average [{timeArray.iloc[0]}, {timeArray.iloc[-1]}] ms")
+    plt.legend(loc="center right", title=f"Steady state average [{timeArray.iloc[0]}, {timeArray.iloc[-1]}] ms")
     plt.grid()
 
-    return plt, {"params": {"Ns": slots, "Np": 2*pole_pairs}, "ssa": {"x": xSSA, "y": ySSA}, "mass": mass}
+    return plt, motor
 
 
 def plotMotorThrusts():
@@ -135,41 +139,52 @@ def plotMotorThrusts():
 
     pareto_plot = []
     phases = 3
-    legend_items = []
-    q_values = list({m["params"]["Ns"]/m["params"]["Np"]/phases for m in motors})
+    q_values = list({m.slots/(2 * m.polePairs)/phases for m in motors})
     cmap = plt.get_cmap('plasma')
     color_map = [colors.to_hex(cmap(i)) for i in range(0, len(cmap.colors), len(cmap.colors)//len(q_values))][:len(q_values)]
     track_q_cmap = copy.deepcopy(color_map)
+    copyCmap1 = copy.deepcopy(track_q_cmap)
+    copyCmap2 = copy.deepcopy(track_q_cmap)
     fig1, ax1 = plt.subplots()
     for cnt, m in enumerate(motors):
-        Fx, Fy = m["ssa"]["x"], m["ssa"]["y"]
-        slots, poles = m["params"]["Ns"], m["params"]["Np"]
+        Fx, Fy = m.Fx, m.Fy
+        slots, poles = m.slots, 2 * m.polePairs
         q = slots/poles/phases
         color_index = q_values.index(q)
         color = color_map[color_index]
-        ax1.scatter(q, Fx, color=color, marker='x')
+        if color in copyCmap1:
+            ax1.scatter(q, Fx, color=color, marker='x', label=f"Fx, q={q}")
+            ax1.scatter(q, Fy, color=color, marker='o', label=f"Fy, q={q}")
+            copyCmap1.remove(color)
+        else:
+            ax1.scatter(q, Fx, color=color, marker='x')
+            ax1.scatter(q, Fy, color=color, marker='o')
         ax1.text(q, Fx, f" ({slots},{poles})", ha='left', va='bottom', fontsize="small")
-        ax1.scatter(q, Fy, color=color, marker='o')
         ax1.text(q, Fy, f" ({slots},{poles})", ha='left', va='bottom', fontsize="small")
-        if color in track_q_cmap:
-            legend_items.append(patches.Patch(color=color, label=f"q={q}"))
-            track_q_cmap.remove(color)
-
-        pareto_plot.append((cnt, m["mass"], m["ssa"]["x"]))
 
     plt.xticks(q_values, q_values)
     plt.xlabel("q [-]")
     plt.ylabel("Force [N]")
-    ax1.legend(loc="center left", handles=list(legend_items))
+    ax1.legend(loc="center right")
     plt.show()
 
     # Plot thrust and mass per motor
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
-    for front in pareto_plot:
-        ax2.scatter(front[1], front[2])
+    for cnt, m in enumerate(motors):
+        q = m.slots/(2 * m.polePairs)/phases
+        color_index = q_values.index(q)
+        color = color_map[color_index]
+        if color in copyCmap2:
+            ax2.scatter(m.massTot, m.Fx, color=color, marker='o', label=f"q={q}")
+            copyCmap2.remove(color)
+        else:
+            ax2.scatter(m.massTot, m.Fx, color=color, marker='o')
+        ax2.text(m.massTot, m.Fx, f" ({m.slots},{2 * m.polePairs})", ha='left', va='bottom', fontsize="small")
+
     plt.xlabel("mass [kg]")
     plt.ylabel("Fx [N]")
+    ax2.legend(loc="center right")
     plt.show()
 
 

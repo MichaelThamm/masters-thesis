@@ -73,7 +73,7 @@ def main():
                           "showFilter": True, "showMatrix": False, "showZeros": True})
 
     # ___Custom Configuration___
-    motorCfg = {"slots": 18, "pole_pairs": 3, "length": 0.27, "windingLayers": 2, "windingShift": "auto"}
+    motorCfg = {"slots": 54, "pole_pairs": 3, "length": 0.27, "windingLayers": 2, "windingShift": "auto"}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}
@@ -85,11 +85,12 @@ def main():
     platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Custom motor model___
-    buildMotor(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    buildMotor(run=True, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
-    slots, pole_pairs = [12, 50], [2, 8]
+    slots, pole_pairs = [12, 55], [2, 8]
     p = MotorOptProblem(slots, pole_pairs, motorCfg, hamCfg, canvasCfg)
-    print(p.uniqueCombinations())
+    motorList = p.uniqueCombinations()
+    print("All possible motors: ", motorList)
 
 
 if __name__ == '__main__':

@@ -118,6 +118,10 @@ class LimMotor(object):
         # TODO This topspeed assumes that the voltage supplied can overcome the equivalent impedance to supply enough thrust
         self.topSpeed = 2 * self.maxFreq * self.Tp * 3600 / 1000  # km/h
 
+        # Thrust of the motor
+        self.Fx = 0.0
+        self.Fy = 0.0
+
     def writeErrorToDict(self, key, error):
         if error.state:
             self.errorDict.__setitem__(error.__dict__[key], error)

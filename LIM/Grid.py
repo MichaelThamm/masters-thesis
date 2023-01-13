@@ -144,10 +144,6 @@ class Grid(LimMotor):
         if self.invertY:
             self.doubleCoilScaling = np.flip(self.doubleCoilScaling)
 
-        # Thrust of the entire integration region
-        self.Fx = 0.0
-        self.Fy = 0.0
-
 
     def buildGrid(self):
 
