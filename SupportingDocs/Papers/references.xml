@@ -1,0 +1,612 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<b:Sources xmlns:b="http://schemas.openxmlformats.org/officeDocument/2006/bibliography" xmlns="http://schemas.openxmlformats.org/officeDocument/2006/bibliography">
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>Comparison of Different Winding Configurations for Dual Three-Phase Interior PM Machines in Electric Vehicles</b:Title>
+    <b:Year>2022</b:Year>
+    <b:Month>3</b:Month>
+    <b:StandardNumber>20326653</b:StandardNumber>
+    <b:Publisher>MDPI</b:Publisher>
+    <b:JournalName>World Electric Vehicle Journal</b:JournalName>
+    <b:Volume>13</b:Volume>
+    <b:Issue>3</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Shensheng</b:First>
+            <b:Last>Wang</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Ziqiang</b:First>
+            <b:Last>Zhu</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Adam</b:First>
+            <b:Last>Pride</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Juntao</b:First>
+            <b:Last>Shi</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Rajesh</b:First>
+            <b:Last>Deodhar</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Chiaki</b:First>
+            <b:Last>Umemura</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>comparison-of-different-winding-configurations-for-dual-three-phase-interior-pm-machines-in-electric-vehicles</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>Linear Induction Motor (LIM) for Hyperloop Pod Prototypes</b:Title>
+    <b:Year>2018</b:Year>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Christopher</b:First>
+            <b:Last>Timperio</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:URL>https:&#x2F;&#x2F;doi.org&#x2F;10.3929&#x2F;ethz-b-000379531</b:URL>
+    <b:Tag>linear-induction-motor-(lim)-for-hyperloop-pod-prototypes</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Pioneering the Application of High Speed Rail Express Trainsets in the United States</b:Title>
+    <b:Year>2012</b:Year>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>pioneering-the-application-of-high-speed-rail-express-trainsets-in-the-united-states</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>A Scaled Mesh&#x2F;Nodal Formulation of Magnetic Equivalent Circuits with Motion</b:Title>
+    <b:Year>2019</b:Year>
+    <b:Month>3</b:Month>
+    <b:StandardNumber>08858969</b:StandardNumber>
+    <b:Publisher>Institute of Electrical and Electronics Engineers Inc.</b:Publisher>
+    <b:Pages>58-69</b:Pages>
+    <b:JournalName>IEEE Transactions on Energy Conversion</b:JournalName>
+    <b:Volume>34</b:Volume>
+    <b:Issue>1</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Daniel Christopher</b:First>
+            <b:Last>Horvath</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Steven D.</b:First>
+            <b:Last>Pekarek</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Scott D.</b:First>
+            <b:Last>Sudhoff</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>a-scaled-mesh&#x2F;nodal-formulation-of-magnetic-equivalent-circuits-with-motion</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>Finite Elements coding with python: Electromagnetics</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:URL>https:&#x2F;&#x2F;www.researchgate.net&#x2F;publication&#x2F;360931761</b:URL>
+    <b:Tag>finite-elements-coding-with-python:-electromagnetics</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>Hybrid Analytical Modeling: Fourier Modeling Combined With Mesh-Based Magnetic Equivalent Circuits</b:Title>
+    <b:Year>2015</b:Year>
+    <b:Month>8</b:Month>
+    <b:StandardNumber>00189464</b:StandardNumber>
+    <b:Publisher>Institute of Electrical and Electronics Engineers Inc.</b:Publisher>
+    <b:JournalName>IEEE Transactions on Magnetics</b:JournalName>
+    <b:Volume>51</b:Volume>
+    <b:Issue>8</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>K. J.W.</b:First>
+            <b:Last>Pluk</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>J. W.</b:First>
+            <b:Last>Jansen</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>E. A.</b:First>
+            <b:Last>Lomonova</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>hybrid-analytical-modeling:-fourier-modeling-combined-with-mesh-based-magnetic-equivalent-circuits</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>2D Hybrid Steady-State Magnetic Field Model for Linear Induction Motors</b:Title>
+    <b:Year>2019</b:Year>
+    <b:Month>7</b:Month>
+    <b:Publisher>MDPI AG</b:Publisher>
+    <b:Pages>74</b:Pages>
+    <b:JournalName>Mathematical and Computational Applications</b:JournalName>
+    <b:Volume>24</b:Volume>
+    <b:Issue>3</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Samuil R.</b:First>
+            <b:Last>Aleksandrov</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Timo T.</b:First>
+            <b:Last>Overboom</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Elena A.</b:First>
+            <b:Last>Lomonova</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>2d-hybrid-steady-state-magnetic-field-model-for-linear-induction-motors</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Design Optimization of Linear Induction Motor for Improved Efficiency and Power Factor</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>A</b:First>
+            <b:Last>Hassanpour Isfahani</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>H</b:First>
+            <b:Last>Lesani</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>B M</b:First>
+            <b:Last>Ebrahimi</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>North</b:First>
+            <b:Last>Kargar Ave</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>design-optimization-of-linear-induction-motor-for-improved-efficiency-and-power-factor</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Dedicated to my parents</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Bhagya</b:First>
+            <b:Last>Lakshmi</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Venkata Ramana</b:First>
+            <b:Last>Rao</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>dedicated-to-my-parents</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Module 03: Mesh Operations for Rotating Machines ANSYS Maxwell Advanced Motor Training</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>module-03:-mesh-operations-for-rotating-machines-ansys-maxwell-advanced-motor-training</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>A general mathematical formulation for winding layout arrangement of electrical machines</b:Title>
+    <b:Year>2018</b:Year>
+    <b:Month>2</b:Month>
+    <b:StandardNumber>19961073</b:StandardNumber>
+    <b:Publisher>MDPI AG</b:Publisher>
+    <b:JournalName>Energies</b:JournalName>
+    <b:Volume>11</b:Volume>
+    <b:Issue>2</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Massimo</b:First>
+            <b:Last>Caruso</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Antonino Oscar</b:First>
+            <b:Last>Di Tommaso</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Fabrizio</b:First>
+            <b:Last>Marignetti</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Rosario</b:First>
+            <b:Last>Miceli</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Giuseppe Ricco</b:First>
+            <b:Last>Galluzzo</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>a-general-mathematical-formulation-for-winding-layout-arrangement-of-electrical-machines</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>General formulation of the electromagnetic field distribution in machines and devices using fourier analysis</b:Title>
+    <b:Year>2010</b:Year>
+    <b:Month>1</b:Month>
+    <b:StandardNumber>00189464</b:StandardNumber>
+    <b:Pages>39-52</b:Pages>
+    <b:JournalName>IEEE Transactions on Magnetics</b:JournalName>
+    <b:Volume>46</b:Volume>
+    <b:Issue>1</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>B. L.J.</b:First>
+            <b:Last>Gysen</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>K. J.</b:First>
+            <b:Last>Meessen</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>J. J.H.</b:First>
+            <b:Last>Paulides</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>E. A.</b:First>
+            <b:Last>Lomonova</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>general-formulation-of-the-electromagnetic-field-distribution-in-machines-and-devices-using-fourier-analysis</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Simulation Based Development of the Hyperloop Innovation Award Winning Linear Motor</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Jasmin</b:First>
+            <b:Last>Smajic</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>simulation-based-development-of-the-hyperloop-innovation-award-winning-linear-motor</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>Design Optimization and Performance Comparison of Two Linear Motor Topologies with PM-Less Tracks</b:Title>
+    <b:Year>2018</b:Year>
+    <b:Month>11</b:Month>
+    <b:StandardNumber>00189464</b:StandardNumber>
+    <b:Publisher>Institute of Electrical and Electronics Engineers Inc.</b:Publisher>
+    <b:JournalName>IEEE Transactions on Magnetics</b:JournalName>
+    <b:Volume>54</b:Volume>
+    <b:Issue>11</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>S. R.</b:First>
+            <b:Last>Aleksandrov</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>T. T.</b:First>
+            <b:Last>Overboom</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>E. A.</b:First>
+            <b:Last>Lomonova</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>design-optimization-and-performance-comparison-of-two-linear-motor-topologies-with-pm-less-tracks</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Equivalent Circuit Model of Linear Induction Motor with Parameters Depending on Secondary Speed for Urban Transportation System</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Yuichiro</b:First>
+            <b:Last>Nozaki</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Terufumi</b:First>
+            <b:Last>Yamaguchi</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Takafumi</b:First>
+            <b:Last>Koseki</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>equivalent-circuit-model-of-linear-induction-motor-with-parameters-depending-on-secondary-speed-for-urban-transportation-system</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>Modeling of flux switching permanent magnet machines with fourier analysis</b:Title>
+    <b:Year>2010</b:Year>
+    <b:StandardNumber>00189464</b:StandardNumber>
+    <b:Publisher>Institute of Electrical and Electronics Engineers Inc.</b:Publisher>
+    <b:Pages>1499-1502</b:Pages>
+    <b:JournalName>IEEE Transactions on Magnetics</b:JournalName>
+    <b:Volume>46</b:Volume>
+    <b:Issue>6</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Bart L.J.</b:First>
+            <b:Last>Gysen</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Esin</b:First>
+            <b:Last>Ilhan</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Koen J.</b:First>
+            <b:Last>Meessen</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Johannes J.H.</b:First>
+            <b:Last>Paulides</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Elena A.</b:First>
+            <b:Last>Lomonova</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>modeling-of-flux-switching-permanent-magnet-machines-with-fourier-analysis</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>PoleNumberOptimization</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>polenumberoptimization</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>The Linear Induction Motor(LIM) Power Factor, Efficiency and Finite Element Considerations</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Eb</b:First>
+            <b:Last>dos Santos</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>JR</b:First>
+            <b:Last>Camacho</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Aa</b:First>
+            <b:Last>de Paula</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>CH</b:First>
+            <b:Last>Salerno</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>the-linear-induction-motor(lim)-power-factor,-efficiency-and-finite-element-considerations</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>Force calculation in 3-D magnetic equivalent circuit networks with a Maxwell stress tensor</b:Title>
+    <b:Year>2009</b:Year>
+    <b:StandardNumber>08858969</b:StandardNumber>
+    <b:Pages>587-593</b:Pages>
+    <b:JournalName>IEEE Transactions on Energy Conversion</b:JournalName>
+    <b:Volume>24</b:Volume>
+    <b:Issue>3</b:Issue>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Marco</b:First>
+            <b:Last>Amrhein</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Philip T.</b:First>
+            <b:Last>Krein</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>force-calculation-in-3-d-magnetic-equivalent-circuit-networks-with-a-maxwell-stress-tensor</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Journal Article</b:SourceType>
+    <b:Title>PRZEGLĄD ELEKTROTECHNICZNY (Electrical Review), Multi-objective optimal design of low-speed linear induction motor using genetic algorithm</b:Title>
+    <b:StandardNumber>0033-2097</b:StandardNumber>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Abbas</b:First>
+            <b:Last>Shiri</b:Last>
+          </b:Person>
+          <b:Person>
+            <b:First>Abbas</b:First>
+            <b:Last>Shoulaie</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>przegląd-elektrotechniczny-(electrical-review),-multi-objective-optimal-design-of-low-speed-linear-induction-motor-using-genetic-algorithm</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Plotting Radial and Tangential Flux Density: Application for Electric Machines</b:Title>
+    <b:Year>2015</b:Year>
+    <b:StandardNumber>001.866.267.9724</b:StandardNumber>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+          <b:Person>
+            <b:First>Mulder</b:First>
+            <b:Last>Mao</b:Last>
+          </b:Person>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:URL>www.ansys.com</b:URL>
+    <b:Tag>plotting-radial-and-tangential-flux-density:-application-for-electric-machines</b:Tag>
+  </b:Source>
+  <b:Source>
+    <b:SourceType>Report</b:SourceType>
+    <b:Title>Boundary Condition Problem Statement</b:Title>
+    <b:Author>
+      <b:Author>
+        <b:NameList>
+        </b:NameList>
+      </b:Author>
+      <b:Editor>
+        <b:NameList>
+        </b:NameList>
+      </b:Editor>
+    </b:Author>
+    <b:Tag>boundary-condition-problem-statement</b:Tag>
+  </b:Source>
+</b:Sources>
