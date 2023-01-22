@@ -73,19 +73,19 @@ def main():
                           "showFilter": True, "showMatrix": False, "showZeros": True})
 
     # ___Custom Configuration___
-    motorCfg = {"slots": 54, "pole_pairs": 3, "length": 0.27, "windingLayers": 2, "windingShift": "auto"}
+    motorCfg = {"slots": 36, "pole_pairs": 2, "length": 0.27, "windingLayers": 2, "windingShift": "auto"}
     hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
               "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
               "mecRegions": {5: "mec"}}
-    canvasCfg = {"pixDiv": [5, 5], "canvasSpacing": 80, "fieldType": "B",
+    canvasCfg = {"pixDiv": [10, 10], "canvasSpacing": 80, "fieldType": "B",
                  "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
                  "showFilter": True, "showMatrix": False, "showZeros": True}
 
     # ___Motor optimization___
-    platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    platypus(run=True, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     # ___Custom motor model___
-    buildMotor(run=True, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
+    buildMotor(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
     slots, pole_pairs = [12, 55], [2, 8]
     p = MotorOptProblem(slots, pole_pairs, motorCfg, hamCfg, canvasCfg)
