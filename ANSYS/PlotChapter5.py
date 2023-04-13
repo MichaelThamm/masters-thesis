@@ -57,6 +57,8 @@ def plotAirgapBfield(type_):
             ax.plot(data.iloc[:, POS], data.iloc[:, B], '-r', label=key)
         else:
             ax.plot(data.iloc[:, POS], data.iloc[:, B], label=key)
+    ax.plot(curve_difference_derivative(dfs[HAM].iloc[:, POS], dfs[ANSYS].iloc[:, B], dfs[HAM].iloc[:, B]), '-or', label="diff ansys ham")
+    ax.plot(curve_difference_derivative(dfs[HAM].iloc[:, POS], dfs[BASE].iloc[:, B], dfs[HAM].iloc[:, B]), '-og', label="diff baseline ham")
 
     digs = 3
     errAnsysBase = round(errorOfCurves(dfs, ANSYS, BASE), digs)
@@ -84,6 +86,19 @@ def plotAirgapBfield(type_):
           'AnsysElectronics to HAM: ', errAnsysHam,
           'Base to HAM: ', errBaseHam)
 
+
+def curve_difference_derivative(x, y1, y2):
+    """
+    Calculates the derivative of the difference between two curves.
+    """
+    # Check if the input arrays have the same length
+    if len(y1) != len(y2) or len(y1) != 101:
+        raise ValueError("Input arrays must have length 101.")
+    # Calculate the difference between the two curves
+    y_diff = y1 - y2
+    # Calculate the derivative of the difference using central differences
+    dy_diff = np.gradient(y_diff, x)
+    return dy_diff
 
 def errorOfCurves(dfs, key1, key2):
     return float(np.mean(np.abs(np.array(dfs[key1].iloc[:, B]) - np.array(dfs[key2].iloc[:, B]))))
