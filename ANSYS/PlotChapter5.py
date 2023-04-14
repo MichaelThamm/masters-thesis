@@ -1,6 +1,8 @@
 from LIM.SlotPoleCalculation import LimMotor
 
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.patches as patches
@@ -40,65 +42,102 @@ def plotAirgapBfield(type_):
     dfs[HAM].iloc[:, B] = dfs[HAM].iloc[:, B] * noiseY
     dfs[HAM].iloc[:, POS] = dfs[HAM].iloc[:, POS] * noiseX
     # Interpolate to make data set size equal
-    dfs[BASE] = scipy.interpolate.interp1d(dfs[BASE].iloc[:, POS], dfs[BASE].iloc[:, B], "linear")
-    dfs[HAM] = scipy.interpolate.interp1d(dfs[HAM].iloc[:, POS], dfs[HAM].iloc[:, B], "linear")
+    dfs[BASE] = interp1d(dfs[BASE].iloc[:, POS], dfs[BASE].iloc[:, B], "linear")
+    dfs[HAM] = interp1d(dfs[HAM].iloc[:, POS], dfs[HAM].iloc[:, B], "linear")
     # Turn interpolation back into DataFrame
     dfs[BASE] = pd.DataFrame({dfs[ANSYS].columns[POS]: dfs[ANSYS].iloc[:, POS],
                               dfs[ANSYS].columns[B]: dfs[BASE](dfs[ANSYS].iloc[:, POS])})
     dfs[HAM] = pd.DataFrame({dfs[ANSYS].columns[POS]: dfs[ANSYS].iloc[:, POS],
                              dfs[ANSYS].columns[B]: dfs[HAM](dfs[ANSYS].iloc[:, POS])})
 
-    # Plot airgap
-    fig, ax = plt.subplots()
-    for key, data in dfs.items():
-        if key == HAM:
-            ax.plot(data.iloc[:, POS], data.iloc[:, B], 'xb', lw=1, ms=2, label=key)
-        elif key == BASE:
-            ax.plot(data.iloc[:, POS], data.iloc[:, B], '-r', label=key)
-        else:
-            ax.plot(data.iloc[:, POS], data.iloc[:, B], label=key)
-    ax.plot(curve_difference_derivative(dfs[HAM].iloc[:, POS], dfs[ANSYS].iloc[:, B], dfs[HAM].iloc[:, B]), '-or', label="diff ansys ham")
-    ax.plot(curve_difference_derivative(dfs[HAM].iloc[:, POS], dfs[BASE].iloc[:, B], dfs[HAM].iloc[:, B]), '-og', label="diff baseline ham")
+    # HAM & ANSYS & BASELINE COMPARED
+    x_series = dfs[HAM].iloc[:, POS]
+    yHAM_series = dfs[HAM].iloc[:, B]
+    yANSYS_series = dfs[ANSYS].iloc[:, B]
+    yBASE_series = dfs[BASE].iloc[:, B]
 
-    digs = 3
-    errAnsysBase = round(errorOfCurves(dfs, ANSYS, BASE), digs)
-    errAnsysHam = round(errorOfCurves(dfs, ANSYS, HAM), digs)
-    errBaseHam = round(errorOfCurves(dfs, BASE, HAM), digs)
+    shiftPercent = 0.05
 
-    boxStr = f'Mean Error Between Curves:\n' \
-             f'{ANSYS}-{BASE}: {errAnsysBase}\n' \
-             f'{ANSYS}-{HAM}: {errAnsysHam}\n' \
-             f'{BASE}-{HAM}: {errBaseHam}'
+    """HAM to BASELINE"""
+    rangeBase = max(dfs[HAM].iloc[:, B]) - min(dfs[HAM].iloc[:, B])
+    uShiftedBase = shiftPlotYdirection(dfs[BASE].iloc[:, B], shiftPercent*rangeBase)
+    lShiftedBase = shiftPlotYdirection(dfs[BASE].iloc[:, B], -shiftPercent*rangeBase)
 
+    fig0, ax0 = plt.subplots()
+    # Shade in the area between the lines
+    ax0.fill_between(x_series, uShiftedBase, lShiftedBase, where=uShiftedBase >= lShiftedBase, interpolate=True, alpha=0.25, color='green')
+    # Plot the actual data
+    ax0.plot(x_series, yBASE_series, '-', color="green", lw=1, ms=2, label="Baseline")
+    ax0.plot(x_series, yHAM_series, 'x', color="#003f5c", lw=1, ms=2, label="HAM")
+
+    digits = 3
+    errBaseHam = round(errorOfCurves(dfs, BASE, HAM), digits)
+    biasErrAnsysHam = percentPointsBetweenCurves(lShiftedBase, uShiftedBase, yHAM_series)
+    boxStr = f'Mean Absolute Error:\n' \
+             f'{BASE}-{HAM}: {errBaseHam}' \
+             f'Regional Error:\n' \
+             f'{BASE}-{HAM}: {round(biasErrAnsysHam, 2)}%'
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
     # place a text box in upper left in axes coords
-    ax.text(0.05, 0.95, boxStr, transform=ax.transAxes, fontsize=10,
+    ax0.text(0.05, 0.95, boxStr, transform=ax0.transAxes, fontsize=10,
             verticalalignment='top', bbox=props)
 
-    plt.title("")
+    plt.title(type_)
     plt.xlabel(dfs[ANSYS].columns[POS])
     plt.ylabel(dfs[ANSYS].columns[B])
     plt.legend()
     plt.grid()
+
+    """HAM to ANSYS"""
+    rangeAnsys = max(dfs[HAM].iloc[:, B]) - min(dfs[HAM].iloc[:, B])
+    uShiftedAnsys = shiftPlotYdirection(dfs[ANSYS].iloc[:, B], shiftPercent*rangeAnsys)
+    lShiftedAnsys = shiftPlotYdirection(dfs[ANSYS].iloc[:, B], -shiftPercent*rangeAnsys)
+
+    fig1, ax1 = plt.subplots()
+    # Shade in the area between the lines
+    ax1.fill_between(x_series, uShiftedAnsys, lShiftedAnsys, where=uShiftedAnsys >= lShiftedAnsys, interpolate=True, alpha=0.25, color='green')
+    # Plot the actual data
+    ax1.plot(x_series, yANSYS_series, '-', color="green", lw=1, ms=2, label="ANSYS")
+    ax1.plot(x_series, yHAM_series, 'x', color="#003f5c", lw=1, ms=2, label="HAM")
+
+    digits = 3
+    meanErrAnsysHam = round(errorOfCurves(dfs, ANSYS, HAM), digits)
+    biasErrAnsysHam = percentPointsBetweenCurves(lShiftedAnsys, uShiftedAnsys, yHAM_series)
+    boxStr = f'Mean Absolute Error:\n' \
+             f'{ANSYS}-{HAM}: {meanErrAnsysHam}\n' \
+             f'Bias Error:\n' \
+             f'{ANSYS}-{HAM}: {round(biasErrAnsysHam, 2)}%\n'
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    # place a text box in upper left in axes coords
+    ax1.text(0.05, 0.95, boxStr, transform=ax1.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+
+    plt.title(type_)
+    plt.xlabel(dfs[ANSYS].columns[POS])
+    plt.ylabel(dfs[ANSYS].columns[B])
+    plt.legend()
+    plt.grid()
+    # Show the plot
     plt.show()
 
-    print('AnsysElectronics to Base: ', errAnsysBase,
-          'AnsysElectronics to HAM: ', errAnsysHam,
-          'Base to HAM: ', errBaseHam)
+    # Plot the histograms
+    plt.hist(yBASE_series-yHAM_series, bins=60, density=True, alpha=0.5, color='blue', label="HAM")
+    plt.hist(yANSYS_series-yHAM_series, bins=60, density=True, alpha=0.5, color='#003f5c', label="ANSYS")
+    # Add labels and title
+    plt.title(type_)
+    plt.xlabel('Error [T]')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
 
 
-def curve_difference_derivative(x, y1, y2):
-    """
-    Calculates the derivative of the difference between two curves.
-    """
-    # Check if the input arrays have the same length
-    if len(y1) != len(y2) or len(y1) != 101:
-        raise ValueError("Input arrays must have length 101.")
-    # Calculate the difference between the two curves
-    y_diff = y1 - y2
-    # Calculate the derivative of the difference using central differences
-    dy_diff = np.gradient(y_diff, x)
-    return dy_diff
+def shiftPlotYdirection(y0, bias):
+    return np.array([x + bias for x in y0])
+
+
+def percentPointsBetweenCurves(lBound, uBound, measured):
+    return len([measured[x] for x in range(len(measured)) if lBound[x] < measured[x] < uBound[x]]) / len(measured) * 100
+
 
 def errorOfCurves(dfs, key1, key2):
     return float(np.mean(np.abs(np.array(dfs[key1].iloc[:, B]) - np.array(dfs[key2].iloc[:, B]))))
@@ -203,6 +242,6 @@ def plotMotorThrusts():
     plt.show()
 
 
-# plotAirgapBfield('Bx')
-# plotAirgapBfield('By')
-plotMotorThrusts()
+plotAirgapBfield('Bx')
+plotAirgapBfield('By')
+# plotMotorThrusts()
