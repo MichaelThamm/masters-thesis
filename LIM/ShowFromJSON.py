@@ -66,8 +66,6 @@ def main():
     plotPointsAlongX(gridInfo, rebuilt__Grid_matrix, centerAirgapIndex_Y)
 
     # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
-    # TODO This will not work since the gridMatrix A and some of the results from UpdateGrid are not stored in the JSON object. The solution is to either store them in the JSON object (annoying, but good for future expansion)
-    # TODO Or we can add a switch statement in LIM_Show to signify if we are using it in ShowFromJSON or in Platypus
     errorList = LIM_Show(gridInfo, rebuilt__Grid_matrix, iFieldType='MMF', iShowGrid=True, iShowFields=True, iShowFilter=False, iNumColours=350, errorList=errorList, iDims=[1440, 2560])
 
     if errorList:
