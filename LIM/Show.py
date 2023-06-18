@@ -237,7 +237,6 @@ def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
         # Rule 2
         keepRowColsUnfiltered[1] = [jsonObject.rebuiltModel.yIndexesLowerSlot + jsonObject.rebuiltModel.yIndexesUpperSlot, jsonObject.rebuiltModel.toothArray]
 
-        # TODO What are these params and where are filterRows and RowCols used
         filteredRows, filteredRowCols = combineFilterList([jsonObject.rebuiltModel.ppH, jsonObject.rebuiltModel.ppL], keepRows, keepRowColsUnfiltered)
 
         minScale, maxScale = minMaxField(jsonObject, canvasCfg["fieldType"], [filteredRows, filteredRowCols], canvasCfg["showFilter"])

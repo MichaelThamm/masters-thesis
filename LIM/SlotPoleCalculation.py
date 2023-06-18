@@ -103,7 +103,7 @@ class LimMotor(object):
         self.diamConductor = diamTable[indexClosest] / (10 ** 3)  # m
         self.currentConductor = currentTable[indexClosest]  # A
 
-        self.loops = 4  # TODO This needs to be updated for platypus
+        self.loops = 4
         # Convert the square coil into a circular one to simplify inductance calculation
         self.diamLoop = (self.coilWidth + self.coilLength)
         self.perimeterCoil = pi * self.diamLoop
@@ -115,7 +115,7 @@ class LimMotor(object):
         self.massTot = massCore + massCu + massInsul  # kg
 
         self.maxFreq = self.getFreqRangeFromAluminumPlate()  # Hz
-        # TODO This topspeed assumes that the voltage supplied can overcome the equivalent impedance to supply enough thrust
+        # This topspeed assumes that the voltage supplied can overcome the equivalent impedance to supply enough thrust
         self.topSpeed = 2 * self.maxFreq * self.Tp * 3600 / 1000  # km/h
 
         # Thrust of the motor
@@ -233,7 +233,6 @@ class LimMotor(object):
             for key, val in terminals["upper"].items():
                 terminals["lower"][key] = self.getLowerTerminals(val)
 
-        # TODO Consider the case where the number of terminals to split is odd and we need double layer to even the MMFs
         return self.removeCoils(terminals)
 
     def removeCoils(self, terminals):

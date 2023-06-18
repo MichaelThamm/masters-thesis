@@ -699,7 +699,7 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
     model.buildGrid()
     model.checkSpatialMapping()
     errorInX = model.finalizeCompute()
-    # TODO This invertY inverts the pyplot
+    # This invertY argument inverts the pyplot
     model.updateGrid(errorInX, canvasCfg=canvasCfg, invertY=True)
     # This is done for computation considerations within the optimization loop
     if optimize and model.errorDict.isEmpty():
@@ -712,7 +712,7 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
     if encodeModel.rebuiltModel.errorDict.isEmpty():
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
-        # TODO This invertY inverts the Tkinter Canvas plot
+        # This invertY argument inverts the Tkinter Canvas plot
         LIM.Show.showModel(encodeModel, model, canvasCfg, numColours=20, dims=[1080, 1920], invertY=False)
         print('   - there are no errors')
         return model
@@ -741,28 +741,6 @@ def addAlgoName(solverList, name):
 
 
 def main():
-    # TODO
-    #   Decide the layout for thesis chapters
-    #       *) AT THE END OF EVERY CHAPTER TIE THE MOST IMPORTANT THING BACK TO THE OVERALL OBJECTIVE
-    #       a) Chpt1: intro (EV and why is this important, include generics for opt and modeling)
-    #           i) At the end of chapt 1 allude to the motor variables to be optimized and what I will be optimizing them for
-    #           ii) This can include slot poles and why they produce different performance params. This will be discusses in more detail in Chapt 4 but set it up
-    #           iii) talk about limitations of optimal motors like saturation, frequency creating skin effect
-    #           *) Anything in here needs to be explained again in later chapters
-    #           *) I can include saturation and skin_efect in the constraint of the OMOPSO
-    #           *) Talk about localized meshing for efficiency and accuracy
-    #       b) Chpt2: Modelling (baseline motor, describe modelling functionality from 2019 paper, include validation at the end of chapter)
-    #       c) Chpt3: Optimization (Generic GA and PSO, Case study [talk about PSO only from now on], Selection case study, Variation case study)
-    #           i) Include the swarm and GA generational advancement visualization. (arrows for swarm with dot, ga dot)
-    #       d) Chpt4: Opt integration (Talk about ratios, constraints)
-    #           i) Re-iterate the inputs and outputs, constraints, ... what does an output motor look like?
-    #       e) Chpt5: Proposed Design from Opts
-    #           i) How did the algorithm perform
-    #           ii) Result of the algo
-    #           iii) Talk about results (pre-conclusion)
-    #       f) Chpt6: Results Discussion and Improvement/Considerations
-    #           i) Future work
-
     # Clear the log file
     logging.FileHandler(LOGGER_FILE, mode='w')
 
@@ -778,7 +756,6 @@ def main():
     parent_size = 200
     offspring_size = round(0.5 * parent_size)
     leader_size = round(1.0 * parent_size)
-    # tournament_size = round(0.25 * parent_size)
     tournament_size = 2
     constraint_params = {'lower': lower, 'upper': upper}
     termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
@@ -792,8 +769,8 @@ def main():
     solverList = solveOptimization(GeneticAlgorithm, SchwefelProblem, solverList, constraint_params, termination_params,
                                    ga_params, run=True)
 
-    # TODO NSGA doesnt have offspring parameter because it clips to population size instead
-    #  -> if pop = 200 then offspring + pop = 400 which is fitness sorted and clipped to 200 again
+    # NSGA doesnt have offspring parameter because it clips to population size instead
+    #  -> if population = 200 then offspring + pop = 400 which is fitness sorted and clipped to 200 again
     nsga_params = {'population_size': parent_size, 'generator': RandomGenerator(),
                    'selector': TournamentSelector(tournament_size), 'variator': GAOperator(SBX(0.3), PM(0.1)),
                    'archive': FitnessArchive(nondominated_sort)}

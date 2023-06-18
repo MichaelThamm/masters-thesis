@@ -370,7 +370,6 @@ class Grid(LimMotor):
         return cmath.exp(0)
 
     def angleB(self):
-        # TODO This could be an error since rotation is generally: A(0°), B(120°), C(240°)
         return cmath.exp(-j_plex * pi * 2 / 3)
 
     def angleC(self):

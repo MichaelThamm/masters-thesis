@@ -31,9 +31,7 @@ def plotTimeComparison(run=False):
         return
 
     timeSlices = [0.0086, 1.0114, 10.0168, 50.0217, 100.0208]  # ms
-    gaNfe = [4170.6, 5762.6, 4248.4, 5281, 4257.2]
     gaTime = [1.4545994, 7.499245, 43.785079, 265.742423, 427.649698]  # s
-    psoNfe = [10760, 13400, 13280, 11880, 12520]
     psoTime = [1.5245998, 15.0024522, 138.2456215, 595.657676, 1254.964626]  # s
     new = timeSlices + list(map(lambda _tuple: (_tuple[1] + timeSlices[_tuple[0] + 1])/2, enumerate(timeSlices[:-1])))
     new.sort()
@@ -51,13 +49,3 @@ def plotTimeComparison(run=False):
 
 avgTimeSchwefel(100, run=False)
 plotTimeComparison(run=True)
-
-# # x = np.linspace(0, 10, num=11, endpoint=True)
-# x = [0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10]
-# y = [1, 0.99383351, 0.90284967, 0.54030231, -0.20550672, -0.93454613, -0.65364362, 0.6683999, 0.67640492, -0.91113026, 0.11527995]
-# f = interp1d(x, y)
-# f2 = interp1d(x, y, kind='cubic')
-# xnew = np.linspace(0, 10, num=41, endpoint=True)
-# plt.plot(x, y, 'o', xnew, f(xnew), '-', xnew, f2(xnew), '--')
-# plt.legend(['data', 'linear', 'cubic'], loc='best')
-# plt.show()

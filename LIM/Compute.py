@@ -477,7 +477,7 @@ class Model(Grid):
 
         return lNode, rNode
 
-    # TODO We can cache functions like this for time improvement
+    # TODO Cache functions like this for time improvement
     def __boundaryInfo(self, iY1, iY2, boundaryType):
         if boundaryType == 'mec':
 
@@ -743,7 +743,7 @@ class Model(Grid):
                                     params['hmRegCountOffset2'] = self.hmRegionsIndex[hmCnt + 1]
                                     params['removed_an'] = True if nextReg.split('_')[0] == 'vac' else False
 
-                                # TODO We can try to cache these kind of functions for speed
+                                # TODO Cache these kind of functions for speed
                                 getattr(self, bc)(**params)
 
                                 node += 1
@@ -780,7 +780,7 @@ class Model(Grid):
 
                         for nHM in self.n:
                             params['nHM'] = nHM
-                            # TODO We can try to cache these kind of functions for speed
+                            # TODO Cache these kind of functions for speed
                             getattr(self, bc)(**params)
 
                         # This conditional sets all the indices for the loop
